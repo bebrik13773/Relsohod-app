@@ -1,0 +1,6 @@
+{
+  "name": "Трамвайная одиссея СПб",
+  "description": "Рандомайзер трамвайных маршрутов по Санкт-Петербургу с пересадками, учётом графика работы, достопримечательностями и избранным.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,226 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root,
+[data-theme="light"] {
+  --bg-canvas: #f5f7fa;
+  --bg-surface: #ffffff;
+  --bg-elevated: #eef2f6;
+  --bg-input: #f8fafc;
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
+  --border-hairline: rgba(15, 23, 42, 0.08);
+  --accent-primary: #0f5e8c;
+  --accent-primary-hover: #0a496e;
+  --accent-on-primary: #ffffff;
+  --accent-secondary: #0d7a5f;
+  --accent-soft: rgba(15, 94, 140, 0.12);
+  --md-primary-container: #d8ecf8;
+  --md-on-primary-container: #073552;
+  --md-surface-container: #ffffff;
+  --md-surface-container-high: #eef2f6;
+  --md-elevation-1: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+  --md-elevation-2: 0 4px 14px rgba(15, 23, 42, 0.1), 0 2px 6px rgba(15, 23, 42, 0.06);
+  --map-water: #cfe5f5;
+  --map-land: #f2f5f8;
+  --map-park: #d9edd9;
+  --map-road: #e2e8f0;
+  --map-label: #334155;
+}
+
+/* Material You Dynamic Accent Seeds (Light Mode) */
+[data-theme="light"][data-accent="sage"] {
+  --bg-canvas: #f4f7f5;
+  --bg-elevated: #e8f0eb;
+  --accent-primary: #1b6d4f;
+  --accent-primary-hover: #14553d;
+  --accent-soft: rgba(27, 109, 79, 0.12);
+  --md-primary-container: #d2eee1;
+  --md-on-primary-container: #0a3b28;
+}
+
+[data-theme="light"][data-accent="terracotta"] {
+  --bg-canvas: #faf6f4;
+  --bg-elevated: #f3eae6;
+  --accent-primary: #a84a2a;
+  --accent-primary-hover: #89391e;
+  --accent-soft: rgba(168, 74, 42, 0.12);
+  --md-primary-container: #f9ddd2;
+  --md-on-primary-container: #561d0a;
+}
+
+[data-theme="light"][data-accent="indigo"] {
+  --bg-canvas: #f5f6fb;
+  --bg-elevated: #eaecf6;
+  --accent-primary: #4b48a8;
+  --accent-primary-hover: #3b388c;
+  --accent-soft: rgba(75, 72, 168, 0.12);
+  --md-primary-container: #e0e0fa;
+  --md-on-primary-container: #1f1c63;
+}
+
+[data-theme="light"][data-accent="amber"] {
+  --bg-canvas: #f9f7f2;
+  --bg-elevated: #f1ece1;
+  --accent-primary: #9a5b13;
+  --accent-primary-hover: #7c470b;
+  --accent-soft: rgba(154, 91, 19, 0.12);
+  --md-primary-container: #f8e3c4;
+  --md-on-primary-container: #4c2900;
+}
+
+[data-theme="tram"] {
+  --bg-canvas: #f5efe4;
+  --bg-surface: #fbf7ef;
+  --bg-elevated: #efe6d5;
+  --bg-input: #f9f5ec;
+  --text-primary: #221917;
+  --text-secondary: #5c4d47;
+  --text-muted: #7d6d66;
+  --border-hairline: rgba(34, 25, 23, 0.11);
+  --accent-primary: #7c1d26;
+  --accent-primary-hover: #64161e;
+  --accent-on-primary: #fbf7ef;
+  --accent-secondary: #9c6b08;
+  --accent-soft: rgba(124, 29, 38, 0.12);
+  --md-primary-container: #f2d9db;
+  --md-on-primary-container: #4a0c12;
+  --md-surface-container: #fbf7ef;
+  --md-surface-container-high: #efe6d5;
+  --md-elevation-1: 0 1px 3px rgba(34, 25, 23, 0.08);
+  --md-elevation-2: 0 4px 14px rgba(34, 25, 23, 0.12);
+  --map-water: #cfdce3;
+  --map-land: #ebe3d3;
+  --map-park: #d8e2ce;
+  --map-road: #dfd5c3;
+  --map-label: #4f423c;
+}
+
+[data-theme="dark"],
+.dark {
+  --bg-canvas: #0e131b;
+  --bg-surface: #161d29;
+  --bg-elevated: #1e2736;
+  --bg-input: #121822;
+  --text-primary: #f1f5f9;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --border-hairline: rgba(241, 245, 249, 0.1);
+  --accent-primary: #38bdf8;
+  --accent-primary-hover: #0ea5e9;
+  --accent-on-primary: #0b1120;
+  --accent-secondary: #34d399;
+  --accent-soft: rgba(56, 189, 248, 0.16);
+  --md-primary-container: #123c58;
+  --md-on-primary-container: #bae6fd;
+  --md-surface-container: #161d29;
+  --md-surface-container-high: #1e2736;
+  --md-elevation-1: 0 1px 3px rgba(0, 0, 0, 0.35);
+  --md-elevation-2: 0 6px 16px rgba(0, 0, 0, 0.45);
+  --map-water: #132236;
+  --map-land: #1a2230;
+  --map-park: #182b24;
+  --map-road: #253042;
+  --map-label: #cbd5e1;
+}
+
+/* Material You Dynamic Accent Seeds (Dark Mode) */
+[data-theme="dark"][data-accent="sage"] {
+  --accent-primary: #5cd6a5;
+  --accent-primary-hover: #3bc38d;
+  --accent-soft: rgba(92, 214, 165, 0.16);
+  --md-primary-container: #144332;
+  --md-on-primary-container: #b5f2d8;
+}
+
+[data-theme="dark"][data-accent="terracotta"] {
+  --accent-primary: #f29b7d;
+  --accent-primary-hover: #e58362;
+  --accent-soft: rgba(242, 155, 125, 0.16);
+  --md-primary-container: #562315;
+  --md-on-primary-container: #ffd8cb;
+}
+
+[data-theme="dark"][data-accent="indigo"] {
+  --accent-primary: #a5a8ff;
+  --accent-primary-hover: #8d90f8;
+  --accent-soft: rgba(165, 168, 255, 0.16);
+  --md-primary-container: #272663;
+  --md-on-primary-container: #dfe0ff;
+}
+
+[data-theme="dark"][data-accent="amber"] {
+  --accent-primary: #f4b860;
+  --accent-primary-hover: #e5a343;
+  --accent-soft: rgba(244, 184, 96, 0.16);
+  --md-primary-container: #4c3208;
+  --md-on-primary-container: #ffe2b3;
+}
+
+@layer base {
+  html,
+  body {
+    background-color: var(--bg-canvas);
+    color: var(--text-primary);
+    font-family: "Manrope", -apple-system, BlinkMacSystemFont, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .font-display {
+    font-family: "Manrope", -apple-system, BlinkMacSystemFont, sans-serif;
+    letter-spacing: -0.02em;
+  }
+
+  .font-mono-num {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Material You Tactile Surface & Motion Primitives */
+.m3-tactile {
+  transition:
+    transform 160ms cubic-bezier(0.2, 0, 0, 1),
+    background-color 180ms ease,
+    box-shadow 180ms ease,
+    border-color 180ms ease;
+}
+
+.m3-tactile:active {
+  transform: scale(0.97);
+}
+
+.m3-card {
+  background-color: var(--md-surface-container);
+  border: 1px solid var(--border-hairline);
+  box-shadow: var(--md-elevation-1);
+}
+
+.m3-fab {
+  box-shadow: var(--md-elevation-2);
+  transition:
+    transform 180ms cubic-bezier(0.2, 0, 0, 1),
+    box-shadow 180ms ease,
+    background-color 180ms ease;
+}
+
+.m3-fab:active {
+  transform: scale(0.96);
+  box-shadow: var(--md-elevation-1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

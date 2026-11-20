@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f5e8c" />
+      <stop offset="100%" stop-color="#0a4468" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)" />
+  <!-- Pantograph bow -->
+  <path d="M188 124 L324 124 M214 124 L256 164 L298 124" fill="none" stroke="#ffffff" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" opacity="0.92" />
+  <!-- Tram body -->
+  <rect x="148" y="164" width="216" height="206" rx="46" fill="#ffffff" />
+  <!-- Windshield -->
+  <rect x="176" y="196" width="160" height="82" rx="22" fill="#0f5e8c" />
+  <!-- Route strip highlight -->
+  <rect x="218" y="176" width="76" height="10" rx="5" fill="#0d7a5f" />
+  <!-- Headlights -->
+  <circle cx="196" cy="322" r="18" fill="#0f5e8c" />
+  <circle cx="316" cy="322" r="18" fill="#0f5e8c" />
+  <!-- Center coupler line -->
+  <rect x="234" y="316" width="44" height="12" rx="6" fill="#94a3b8" />
+  <!-- Rails -->
+  <path d="M196 382 L152 444 M316 382 L360 444" fill="none" stroke="#ffffff" stroke-width="18" stroke-linecap="round" opacity="0.88" />
+  <path d="M180 416 L332 416" fill="none" stroke="#ffffff" stroke-width="12" stroke-linecap="round" opacity="0.55" />
+</svg>

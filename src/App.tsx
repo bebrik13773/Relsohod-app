@@ -1,0 +1,1097 @@
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { RefreshCw, ListOrdered } from 'lucide-react';
+import { MotionConfig } from 'motion/react';
+import { CITIES, CityDetectionResult, detectCityFromCoords } from './data/cities';
+import {
+  AccentSeed,
+  AppTheme,
+  CityId,
+  DurationPreset,
+  GeneratedTrip,
+  GenerationOutcome,
+  Landmark,
+  LandmarkCategory,
+  RouteThemeFilter,
+  SavedRoute,
+  TripHistoryEntry,
+  TripPhotoMemory,
+  WeatherMode,
+} from './types/tram';
+import {
+  extendTripLastSegment,
+  filterLandmarks,
+  findNearestStops,
+  generateTramAdventure,
+} from './utils/tramRouter';
+import {
+  loadOnboardingDone,
+  loadPhotoReminderMinutes,
+  loadPlannerState,
+  loadSavedRoutes,
+  loadStoredAccent,
+  loadStoredCity,
+  loadStoredTheme,
+  loadTripHistory,
+  persistAccent,
+  persistCity,
+  persistOnboardingDone,
+  persistPhotoReminderMinutes,
+  persistPlannerState,
+  persistSavedRoutes,
+  persistTheme,
+  persistTripHistory,
+} from './utils/storage';
+import { triggerHaptic } from './utils/haptics';
+import { ActiveTab, TopBar } from './components/TopBar';
+import { MobileBottomNav, MobileNavTab } from './components/MobileBottomNav';
+import { PlannerSubView, RoutePlannerPanel } from './components/RoutePlannerPanel';
+import { PlannerParamsView } from './components/PlannerParamsView';
+import { PlannerItineraryView } from './components/PlannerItineraryView';
+import { PlannerPlacesView } from './components/PlannerPlacesView';
+import { TramMap } from './components/TramMap';
+import { FavoritesView } from './components/FavoritesView';
+import { RoutesDirectoryView } from './components/RoutesDirectoryView';
+import { OfflineIndicator } from './components/OfflineIndicator';
+import { OnboardingModal } from './components/OnboardingModal';
+import { CityMismatchBanner } from './components/CityMismatchBanner';
+import { SettingsModal } from './components/SettingsModal';
+import { LiveTripCompanion } from './components/LiveTripCompanion';
+import { RoutePostcardModal } from './components/RoutePostcardModal';
+
+function getInitialScheduleSlot(): { dayOfWeek: number; timeMinutes: number } {
+  const now = new Date();
+  const mins = now.getHours() * 60 + now.getMinutes();
+  if (mins < 6 * 60 || mins > 23 * 60 + 30) {
+    return { dayOfWeek: now.getDay(), timeMinutes: 13 * 60 };
+  }
+  return { dayOfWeek: now.getDay(), timeMinutes: mins };
+}
+
+type MobileRouteSubView = 'map' | 'steps' | 'places';
+
+export default function App() {
+  const savedPlanner = useMemo(() => loadPlannerState(), []);
+  const initialSlot = useMemo(() => getInitialScheduleSlot(), []);
+
+  const initialCity: CityId =
+    savedPlanner?.city === 'omsk' || savedPlanner?.city === 'spb'
+      ? savedPlanner.city
+      : loadStoredCity();
+
+  const initialCityCfg = CITIES[initialCity];
+  const initialStartStop =
+    savedPlanner?.startStopId &&
+    initialCityCfg.stops.some((s) => s.id === savedPlanner.startStopId)
+      ? savedPlanner.startStopId
+      : initialCityCfg.defaultStartStopId;
+
+  const [city, setCity] = useState<CityId>(initialCity);
+  const [theme, setTheme] = useState<AppTheme>(() => loadStoredTheme());
+  const [accentSeed, setAccentSeed] = useState<AccentSeed>(() => loadStoredAccent());
+  const [activeTab, setActiveTab] = useState<ActiveTab>('planner');
+  const [plannerSubView, setPlannerSubView] = useState<PlannerSubView>('params');
+  const [mobileRouteSubView, setMobileRouteSubView] = useState<MobileRouteSubView>('map');
+  const [quotaExceeded, setQuotaExceeded] = useState(false);
+
+  const [onboardingOpen, setOnboardingOpen] = useState<boolean>(() => !loadOnboardingDone());
+  const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
+  const [liveTripOpen, setLiveTripOpen] = useState<boolean>(false);
+  const [postcardOpen, setPostcardOpen] = useState<boolean>(false);
+
+  const [startStopId, setStartStopId] = useState<string>(initialStartStop);
+  const [destinationStopId, setDestinationStopId] = useState<string | null>(
+    savedPlanner?.destinationStopId ?? null
+  );
+  const [destinationAddressLabel, setDestinationAddressLabel] = useState<string>(
+    savedPlanner?.destinationAddressLabel ?? ''
+  );
+  const [themeFilter, setThemeFilter] = useState<RouteThemeFilter>(
+    savedPlanner?.themeFilter ?? 'any'
+  );
+  const [durationPreset, setDurationPreset] = useState<DurationPreset>(
+    savedPlanner?.durationPreset ?? 'medium'
+  );
+  const [dayOfWeek, setDayOfWeek] = useState<number>(
+    typeof savedPlanner?.dayOfWeek === 'number' ? savedPlanner.dayOfWeek : initialSlot.dayOfWeek
+  );
+  const [timeMinutes, setTimeMinutes] = useState<number>(
+    typeof savedPlanner?.timeMinutes === 'number'
+      ? savedPlanner.timeMinutes
+      : initialSlot.timeMinutes
+  );
+  const [allowFallbackTransit, setAllowFallbackTransit] = useState<boolean>(
+    savedPlanner?.allowFallbackTransit ?? false
+  );
+  const [showAllNetwork, setShowAllNetwork] = useState<boolean>(
+    savedPlanner?.showAllNetwork ?? true
+  );
+  const [loopMode, setLoopMode] = useState<boolean>(savedPlanner?.loopMode ?? false);
+  const [weatherMode, setWeatherMode] = useState<WeatherMode>(
+    savedPlanner?.weatherMode ?? 'clear'
+  );
+  const [preferSpecialFleet, setPreferSpecialFleet] = useState<boolean>(
+    savedPlanner?.preferSpecialFleet ?? false
+  );
+  const [mapPickMode, setMapPickMode] = useState<'start' | 'destination' | null>(null);
+
+  const [onlyWithPhotos, setOnlyWithPhotos] = useState<boolean>(
+    savedPlanner?.onlyWithPhotos ?? true
+  );
+  const [landmarkCategories, setLandmarkCategories] = useState<LandmarkCategory[]>(
+    Array.isArray(savedPlanner?.landmarkCategories) ? savedPlanner.landmarkCategories : []
+  );
+  const [selectedLandmarkId, setSelectedLandmarkId] = useState<string | null>(null);
+
+  const [savedRoutes, setSavedRoutes] = useState<SavedRoute[]>(() => loadSavedRoutes());
+  const [tripHistory, setTripHistory] = useState<TripHistoryEntry[]>(() => loadTripHistory());
+  const [photoReminderMinutes, setPhotoReminderMinutes] = useState<number>(() =>
+    loadPhotoReminderMinutes()
+  );
+
+  const [geoStatus, setGeoStatus] = useState<{
+    state: 'idle' | 'loading' | 'error' | 'ok';
+    message?: string;
+  }>({ state: 'idle' });
+  const [cityDetection, setCityDetection] = useState<CityDetectionResult | null>(null);
+  const [mismatchDismissed, setMismatchDismissed] = useState<boolean>(false);
+
+  const cityCfg = CITIES[city];
+
+  const [outcome, setOutcome] = useState<GenerationOutcome | null>(() =>
+    generateTramAdventure({
+      city: initialCity,
+      stops: initialCityCfg.stops,
+      routes: initialCityCfg.routes,
+      landmarks: initialCityCfg.landmarks,
+      startStopId: initialStartStop,
+      destinationStopId: savedPlanner?.destinationStopId ?? null,
+      theme: savedPlanner?.themeFilter ?? 'any',
+      durationPreset: savedPlanner?.durationPreset ?? 'medium',
+      dayOfWeek:
+        typeof savedPlanner?.dayOfWeek === 'number'
+          ? savedPlanner.dayOfWeek
+          : initialSlot.dayOfWeek,
+      timeMinutes:
+        typeof savedPlanner?.timeMinutes === 'number'
+          ? savedPlanner.timeMinutes
+          : initialSlot.timeMinutes,
+      allowFallbackTransit: savedPlanner?.allowFallbackTransit ?? false,
+      loopMode: savedPlanner?.loopMode ?? false,
+      weatherMode: savedPlanner?.weatherMode ?? 'clear',
+      preferSpecialFleet: savedPlanner?.preferSpecialFleet ?? false,
+      seed: 2026,
+    })
+  );
+
+  // Preserve mobile 1st-tab scroll position across tab navigation
+  const mobileSearchScrollRef = useRef<HTMLDivElement | null>(null);
+  const mobileSearchSavedScrollTop = useRef<number>(0);
+
+  useLayoutEffect(() => {
+    if (activeTab === 'planner' && plannerSubView === 'params' && mobileSearchScrollRef.current) {
+      mobileSearchScrollRef.current.scrollTop = mobileSearchSavedScrollTop.current;
+    }
+  }, [activeTab, plannerSubView]);
+
+  // Persist 1st-tab planner selections to localStorage on every change
+  useEffect(() => {
+    persistCity(city);
+    persistPlannerState({
+      city,
+      startStopId,
+      destinationStopId,
+      destinationAddressLabel,
+      themeFilter,
+      durationPreset,
+      dayOfWeek,
+      timeMinutes,
+      allowFallbackTransit,
+      showAllNetwork,
+      loopMode,
+      weatherMode,
+      preferSpecialFleet,
+      onlyWithPhotos,
+      landmarkCategories,
+    });
+  }, [
+    city,
+    startStopId,
+    destinationStopId,
+    destinationAddressLabel,
+    themeFilter,
+    durationPreset,
+    dayOfWeek,
+    timeMinutes,
+    allowFallbackTransit,
+    showAllNetwork,
+    loopMode,
+    weatherMode,
+    preferSpecialFleet,
+    onlyWithPhotos,
+    landmarkCategories,
+  ]);
+
+  // Sync theme & Material You accent seed to documentElement
+  useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.theme = theme;
+    root.dataset.accent = accentSeed;
+    if (theme === 'dark') {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+    persistTheme(theme);
+    persistAccent(accentSeed);
+  }, [theme, accentSeed]);
+
+  // Listen to Google Maps Demo Key quota / auth events
+  useEffect(() => {
+    const handler = () => setQuotaExceeded(true);
+    window.addEventListener('gmp-quota-exceeded', handler);
+    return () => window.removeEventListener('gmp-quota-exceeded', handler);
+  }, []);
+
+  const handleChangeCity = useCallback(
+    (nextCity: CityId) => {
+      const nextCfg = CITIES[nextCity];
+      setCity(nextCity);
+      persistCity(nextCity);
+      setStartStopId(nextCfg.defaultStartStopId);
+      setDestinationStopId(null);
+      setDestinationAddressLabel('');
+      setSelectedLandmarkId(null);
+      setMapPickMode(null);
+      setMismatchDismissed(false);
+      setGeoStatus({ state: 'idle' });
+
+      const nextOutcome = generateTramAdventure({
+        city: nextCity,
+        stops: nextCfg.stops,
+        routes: nextCfg.routes,
+        landmarks: nextCfg.landmarks,
+        startStopId: nextCfg.defaultStartStopId,
+        destinationStopId: null,
+        theme: themeFilter,
+        durationPreset,
+        dayOfWeek,
+        timeMinutes,
+        allowFallbackTransit,
+        loopMode,
+        weatherMode,
+        preferSpecialFleet,
+      });
+      setOutcome(nextOutcome);
+    },
+    [
+      themeFilter,
+      durationPreset,
+      dayOfWeek,
+      timeMinutes,
+      allowFallbackTransit,
+      loopMode,
+      weatherMode,
+      preferSpecialFleet,
+    ]
+  );
+
+  const handleDetectLocation = useCallback(() => {
+    if (!('geolocation' in navigator)) {
+      setGeoStatus({
+        state: 'error',
+        message: 'Геолокация не поддерживается вашим браузером.',
+      });
+      return;
+    }
+
+    setGeoStatus({ state: 'loading' });
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const detection = detectCityFromCoords(pos.coords.latitude, pos.coords.longitude);
+        setCityDetection(detection);
+        setMismatchDismissed(false);
+
+        if (detection.detected === city) {
+          const nearest = findNearestStops(
+            pos.coords.latitude,
+            pos.coords.longitude,
+            CITIES[city].stops,
+            1,
+            false
+          )[0];
+          if (nearest) {
+            setStartStopId(nearest.stop.id);
+            setGeoStatus({
+              state: 'ok',
+              message: `Ближайшая остановка: ${nearest.stop.name} (${nearest.distanceKm.toFixed(1)} км)`,
+            });
+          }
+        } else if (detection.detected === 'other') {
+          setGeoStatus({
+            state: 'ok',
+            message: `Координаты вне СПб и Омска — выбрана сеть города ${CITIES[city].name}.`,
+          });
+        } else {
+          setGeoStatus({
+            state: 'ok',
+            message: `Обнаружен другой город: ${CITIES[detection.detected].name}. Вы можете переключить сеть выше.`,
+          });
+        }
+      },
+      () => {
+        setGeoStatus({
+          state: 'error',
+          message: 'Доступ к геопозиции отклонён — выберите остановку на карте или из списка.',
+        });
+      },
+      { timeout: 6000 }
+    );
+  }, [city]);
+
+  // Passive city-mismatch check on entry if onboarding is finished & permission already granted
+  useEffect(() => {
+    if (onboardingOpen) return;
+    if (typeof navigator === 'undefined' || !('permissions' in navigator)) return;
+    navigator.permissions
+      .query({ name: 'geolocation' as PermissionName })
+      .then((res) => {
+        if (res.state === 'granted') {
+          handleDetectLocation();
+        }
+      })
+      .catch(() => {
+        // Ignore browsers without permissions.query support
+      });
+  }, [onboardingOpen, handleDetectLocation]);
+
+  const handleGenerate = useCallback(
+    (overrideFallback?: boolean, overrideDay?: number, overrideTime?: number) => {
+      triggerHaptic('medium');
+      setSelectedLandmarkId(null);
+      const nextOutcome = generateTramAdventure({
+        city,
+        stops: cityCfg.stops,
+        routes: cityCfg.routes,
+        landmarks: cityCfg.landmarks,
+        startStopId,
+        destinationStopId,
+        theme: themeFilter,
+        durationPreset,
+        dayOfWeek: overrideDay ?? dayOfWeek,
+        timeMinutes: overrideTime ?? timeMinutes,
+        allowFallbackTransit: overrideFallback ?? allowFallbackTransit,
+        loopMode,
+        weatherMode,
+        preferSpecialFleet,
+      });
+      setOutcome(nextOutcome);
+      setPlannerSubView('route');
+      setMobileRouteSubView(nextOutcome.status === 'ok' ? 'map' : 'steps');
+    },
+    [
+      city,
+      cityCfg,
+      startStopId,
+      destinationStopId,
+      themeFilter,
+      durationPreset,
+      dayOfWeek,
+      timeMinutes,
+      allowFallbackTransit,
+      loopMode,
+      weatherMode,
+      preferSpecialFleet,
+    ]
+  );
+
+  const handleExtendLastSegment = useCallback(() => {
+    if (outcome?.status !== 'ok') return;
+    const extended = extendTripLastSegment({
+      trip: outcome.trip,
+      stops: cityCfg.stops,
+      routes: cityCfg.routes,
+      landmarks: cityCfg.landmarks,
+      allowFallbackTransit,
+      weatherMode,
+      preferSpecialFleet,
+    });
+    if (extended) {
+      triggerHaptic('success');
+      setOutcome({ status: 'ok', trip: extended });
+    }
+  }, [outcome, cityCfg, allowFallbackTransit, weatherMode, preferSpecialFleet]);
+
+  const handleToggleMapPickMode = useCallback((mode: 'start' | 'destination' | null) => {
+    setMapPickMode(mode);
+    if (mode !== null) {
+      setPlannerSubView('route');
+      setMobileRouteSubView('map');
+    }
+  }, []);
+
+  const handlePickStopFromMap = useCallback(
+    (stopId: string) => {
+      if (mapPickMode === 'destination') {
+        if (stopId !== startStopId) {
+          setDestinationStopId(stopId);
+          setDestinationAddressLabel('');
+          if (loopMode) setLoopMode(false);
+        }
+        setMapPickMode(null);
+      } else {
+        setStartStopId(stopId);
+        if (destinationStopId === stopId) {
+          setDestinationStopId(null);
+          setDestinationAddressLabel('');
+        }
+        setMapPickMode(null);
+      }
+      setPlannerSubView('params');
+    },
+    [mapPickMode, startStopId, destinationStopId, loopMode]
+  );
+
+  const handleSaveTrip = useCallback(
+    (trip: GeneratedTrip, customTitle: string, note: string) => {
+      triggerHaptic('success');
+      const next: SavedRoute = {
+        id: `saved-${trip.id}-${Date.now()}`,
+        customTitle,
+        note,
+        savedAt: new Date().toISOString(),
+        trip,
+      };
+      setSavedRoutes((prev) => {
+        const updated = [next, ...prev];
+        persistSavedRoutes(updated);
+        return updated;
+      });
+    },
+    []
+  );
+
+  const handleDeleteSavedRoute = useCallback((id: string) => {
+    setSavedRoutes((prev) => {
+      const updated = prev.filter((r) => r.id !== id);
+      persistSavedRoutes(updated);
+      return updated;
+    });
+  }, []);
+
+  const handleCompleteLiveTrip = useCallback(
+    (trip: GeneratedTrip, photos: TripPhotoMemory[]) => {
+      const entry: TripHistoryEntry = {
+        id: `hist-${trip.id}-${Date.now()}`,
+        city: trip.city ?? city,
+        completedAt: new Date().toISOString(),
+        trip,
+        photos,
+      };
+      setTripHistory((prev) => {
+        const updated = [entry, ...prev];
+        persistTripHistory(updated);
+        return updated;
+      });
+      setLiveTripOpen(false);
+      setActiveTab('favorites');
+    },
+    [city]
+  );
+
+  const handleAddPhotoToHistory = useCallback((entryId: string, photo: TripPhotoMemory) => {
+    setTripHistory((prev) => {
+      const updated = prev.map((e) =>
+        e.id === entryId ? { ...e, photos: [photo, ...e.photos] } : e
+      );
+      persistTripHistory(updated);
+      return updated;
+    });
+  }, []);
+
+  const handleDeleteHistoryEntry = useCallback((entryId: string) => {
+    setTripHistory((prev) => {
+      const updated = prev.filter((e) => e.id !== entryId);
+      persistTripHistory(updated);
+      return updated;
+    });
+  }, []);
+
+  const handleOpenSavedRoute = useCallback((saved: SavedRoute) => {
+    const tripCity = saved.trip.city ?? 'spb';
+    setCity(tripCity);
+    setStartStopId(saved.trip.startStop.id);
+    setDestinationStopId(saved.trip.endStop.id);
+    setDestinationAddressLabel('');
+    setOutcome({ status: 'ok', trip: saved.trip });
+    setSelectedLandmarkId(null);
+    setActiveTab('planner');
+    setPlannerSubView('route');
+    setMobileRouteSubView('map');
+  }, []);
+
+  const handleOpenHistoryTrip = useCallback((entry: TripHistoryEntry) => {
+    const tripCity = entry.city ?? entry.trip.city ?? 'spb';
+    setCity(tripCity);
+    setStartStopId(entry.trip.startStop.id);
+    setDestinationStopId(entry.trip.endStop.id);
+    setDestinationAddressLabel('');
+    setOutcome({ status: 'ok', trip: entry.trip });
+    setSelectedLandmarkId(null);
+    setActiveTab('planner');
+    setPlannerSubView('route');
+    setMobileRouteSubView('map');
+  }, []);
+
+  const handleToggleLandmarkCategory = useCallback((cat: LandmarkCategory) => {
+    setLandmarkCategories((prev) =>
+      prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
+    );
+  }, []);
+
+  const handleStartFromDirectory = useCallback(
+    (stopId: string) => {
+      setStartStopId(stopId);
+      setDestinationStopId(null);
+      setDestinationAddressLabel('');
+      setActiveTab('planner');
+      setPlannerSubView('route');
+      setMobileRouteSubView('map');
+      setOutcome(
+        generateTramAdventure({
+          city,
+          stops: cityCfg.stops,
+          routes: cityCfg.routes,
+          landmarks: cityCfg.landmarks,
+          startStopId: stopId,
+          destinationStopId: null,
+          theme: themeFilter,
+          durationPreset,
+          dayOfWeek,
+          timeMinutes,
+          allowFallbackTransit,
+          loopMode,
+          weatherMode,
+          preferSpecialFleet,
+        })
+      );
+    },
+    [
+      city,
+      cityCfg,
+      themeFilter,
+      durationPreset,
+      dayOfWeek,
+      timeMinutes,
+      allowFallbackTransit,
+      loopMode,
+      weatherMode,
+      preferSpecialFleet,
+    ]
+  );
+
+  const activeTrip = outcome?.status === 'ok' ? outcome.trip : null;
+
+  const mapLandmarks = useMemo(() => {
+    if (activeTrip) {
+      return filterLandmarks(activeTrip.landmarks, landmarkCategories, onlyWithPhotos);
+    }
+    return filterLandmarks(cityCfg.landmarks, landmarkCategories, onlyWithPhotos);
+  }, [activeTrip, cityCfg.landmarks, landmarkCategories, onlyWithPhotos]);
+
+  const isCurrentTripSaved = useMemo(() => {
+    if (!activeTrip) return false;
+    return savedRoutes.some((s) => s.trip.id === activeTrip.id);
+  }, [activeTrip, savedRoutes]);
+
+  // Derive active mobile bottom tab
+  const activeMobileTab: MobileNavTab = useMemo(() => {
+    if (activeTab === 'favorites') return 'favorites';
+    if (activeTab === 'directory') return 'directory';
+    return plannerSubView === 'params' ? 'search' : 'route';
+  }, [activeTab, plannerSubView]);
+
+  const handleSelectMobileTab = useCallback(
+    (tab: MobileNavTab) => {
+      if (tab === 'favorites') {
+        setActiveTab('favorites');
+        return;
+      }
+      if (tab === 'directory') {
+        setActiveTab('directory');
+        return;
+      }
+      setActiveTab('planner');
+      if (tab === 'search') {
+        setPlannerSubView('params');
+      } else {
+        setPlannerSubView('route');
+        if (outcome && outcome.status !== 'ok') {
+          setMobileRouteSubView('steps');
+        }
+      }
+    },
+    [outcome]
+  );
+
+  const isMobileMapVisible =
+    activeTab === 'planner' &&
+    plannerSubView !== 'params' &&
+    mobileRouteSubView === 'map';
+
+  return (
+    <MotionConfig reducedMotion="user">
+      <div
+        className={`flex min-h-screen flex-col transition-colors ${
+          activeTab === 'planner' ? 'md:h-screen md:overflow-hidden' : ''
+        }`}
+        style={{
+          backgroundColor: 'var(--bg-canvas)',
+          color: 'var(--text-primary)',
+        }}
+      >
+        {quotaExceeded && (
+          <div className="sticky top-0 z-50 border-b border-amber-200 bg-amber-50 px-4 py-2.5 text-center text-xs text-amber-900 shadow-sm md:text-sm">
+            <span>
+              Google Maps Platform quota reached. If you are the app owner, visit{' '}
+              <a
+                href="https://developers.google.com/maps/ai/ai-studio?utm_campaign=gmp_mcp_codeassist_v1_aistudio#quota_exceeded_errors"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold text-amber-950 underline hover:text-amber-800"
+              >
+                maps developer site
+              </a>{' '}
+              for instructions to update your account.
+            </span>
+          </div>
+        )}
+
+        <TopBar
+          city={city}
+          activeTab={activeTab}
+          onSelectTab={(tab) => setActiveTab(tab)}
+          favoritesCount={savedRoutes.length}
+          theme={theme}
+          onChangeTheme={setTheme}
+          onOpenSettings={() => setSettingsOpen(true)}
+        />
+
+        <CityMismatchBanner
+          selectedCity={city}
+          detection={cityDetection}
+          dismissed={mismatchDismissed}
+          onSwitchCity={handleChangeCity}
+          onDismiss={() => setMismatchDismissed(true)}
+        />
+
+        {activeTab === 'planner' && (
+          <main className="flex min-h-0 flex-1 flex-col md:flex-row md:overflow-hidden">
+            {/* Desktop Left Column: Separated 3-tab Sidebar */}
+            <div className="hidden min-h-0 md:flex md:h-full">
+              <RoutePlannerPanel
+                city={city}
+                subView={plannerSubView}
+                onChangeSubView={setPlannerSubView}
+                stops={cityCfg.stops}
+                landmarks={cityCfg.landmarks}
+                startStopId={startStopId}
+                onChangeStartStop={setStartStopId}
+                destinationStopId={destinationStopId}
+                destinationAddressLabel={destinationAddressLabel}
+                onChangeDestinationStop={(id, label) => {
+                  setDestinationStopId(id);
+                  if (label !== undefined) setDestinationAddressLabel(label);
+                }}
+                themeFilter={themeFilter}
+                onChangeThemeFilter={setThemeFilter}
+                durationPreset={durationPreset}
+                onChangeDurationPreset={setDurationPreset}
+                dayOfWeek={dayOfWeek}
+                onChangeDayOfWeek={setDayOfWeek}
+                timeMinutes={timeMinutes}
+                onChangeTimeMinutes={setTimeMinutes}
+                allowFallbackTransit={allowFallbackTransit}
+                onChangeAllowFallbackTransit={setAllowFallbackTransit}
+                showAllNetwork={showAllNetwork}
+                onChangeShowAllNetwork={setShowAllNetwork}
+                loopMode={loopMode}
+                onChangeLoopMode={setLoopMode}
+                weatherMode={weatherMode}
+                onChangeWeatherMode={setWeatherMode}
+                preferSpecialFleet={preferSpecialFleet}
+                onChangePreferSpecialFleet={setPreferSpecialFleet}
+                mapPickMode={mapPickMode}
+                onToggleMapPickMode={setMapPickMode}
+                onDetectLocation={handleDetectLocation}
+                geoStatus={geoStatus}
+                onGenerate={handleGenerate}
+                onExtendLastSegment={handleExtendLastSegment}
+                onStartLiveTrip={() => setLiveTripOpen(true)}
+                onOpenPostcard={() => setPostcardOpen(true)}
+                outcome={outcome}
+                onSaveTrip={handleSaveTrip}
+                isCurrentTripSaved={isCurrentTripSaved}
+                selectedLandmarkId={selectedLandmarkId}
+                onSelectLandmark={(lm) => setSelectedLandmarkId(lm.id)}
+                onlyWithPhotos={onlyWithPhotos}
+                onChangeOnlyWithPhotos={setOnlyWithPhotos}
+                landmarkCategories={landmarkCategories}
+                onToggleLandmarkCategory={handleToggleLandmarkCategory}
+                theme={theme}
+                accentSeed={accentSeed}
+                onChangeAccentSeed={setAccentSeed}
+              />
+            </div>
+
+            {/* Mobile Separated Search View (preserves 1st-tab scroll & selections across tab switches) */}
+            {plannerSubView === 'params' && (
+              <div
+                ref={mobileSearchScrollRef}
+                onScroll={(e) => {
+                  mobileSearchSavedScrollTop.current = e.currentTarget.scrollTop;
+                }}
+                className="flex-1 overflow-y-auto px-4 pt-4 pb-24 md:hidden"
+              >
+                <PlannerParamsView
+                  city={city}
+                  stops={cityCfg.stops}
+                  landmarks={cityCfg.landmarks}
+                  startStopId={startStopId}
+                  onChangeStartStop={setStartStopId}
+                  destinationStopId={destinationStopId}
+                  destinationAddressLabel={destinationAddressLabel}
+                  onChangeDestinationStop={(id, label) => {
+                    setDestinationStopId(id);
+                    if (label !== undefined) setDestinationAddressLabel(label);
+                  }}
+                  themeFilter={themeFilter}
+                  onChangeThemeFilter={setThemeFilter}
+                  durationPreset={durationPreset}
+                  onChangeDurationPreset={setDurationPreset}
+                  dayOfWeek={dayOfWeek}
+                  onChangeDayOfWeek={setDayOfWeek}
+                  timeMinutes={timeMinutes}
+                  onChangeTimeMinutes={setTimeMinutes}
+                  allowFallbackTransit={allowFallbackTransit}
+                  onChangeAllowFallbackTransit={setAllowFallbackTransit}
+                  showAllNetwork={showAllNetwork}
+                  onChangeShowAllNetwork={setShowAllNetwork}
+                  loopMode={loopMode}
+                  onChangeLoopMode={setLoopMode}
+                  weatherMode={weatherMode}
+                  onChangeWeatherMode={setWeatherMode}
+                  preferSpecialFleet={preferSpecialFleet}
+                  onChangePreferSpecialFleet={setPreferSpecialFleet}
+                  mapPickMode={mapPickMode}
+                  onToggleMapPickMode={handleToggleMapPickMode}
+                  onDetectLocation={handleDetectLocation}
+                  geoStatus={geoStatus}
+                  onGenerate={() => handleGenerate()}
+                  theme={theme}
+                  accentSeed={accentSeed}
+                  onChangeAccentSeed={setAccentSeed}
+                />
+              </div>
+            )}
+
+            {/* Mobile Route Sub-Bar (Map | Steps | Places) */}
+            {plannerSubView !== 'params' && (
+              <div
+                className="border-b px-3 py-2 md:hidden"
+                style={{
+                  backgroundColor: 'var(--bg-surface)',
+                  borderColor: 'var(--border-hairline)',
+                }}
+              >
+                <div
+                  role="tablist"
+                  aria-label="Вид маршрута"
+                  className="grid grid-cols-3 gap-1 rounded-full p-1"
+                  style={{
+                    backgroundColor: 'var(--md-surface-container)',
+                  }}
+                >
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={mobileRouteSubView === 'map'}
+                    onClick={() => {
+                      triggerHaptic('light');
+                      setMobileRouteSubView('map');
+                    }}
+                    className="m3-tactile min-h-[36px] cursor-pointer rounded-full px-2 py-1 text-xs font-semibold"
+                    style={{
+                      backgroundColor:
+                        mobileRouteSubView === 'map' ? 'var(--md-primary-container)' : 'transparent',
+                      color:
+                        mobileRouteSubView === 'map'
+                          ? 'var(--md-on-primary-container)'
+                          : 'var(--text-muted)',
+                    }}
+                  >
+                    Карта
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={mobileRouteSubView === 'steps'}
+                    onClick={() => {
+                      triggerHaptic('light');
+                      setMobileRouteSubView('steps');
+                    }}
+                    className="m3-tactile min-h-[36px] cursor-pointer rounded-full px-2 py-1 text-xs font-semibold"
+                    style={{
+                      backgroundColor:
+                        mobileRouteSubView === 'steps' ? 'var(--md-primary-container)' : 'transparent',
+                      color:
+                        mobileRouteSubView === 'steps'
+                          ? 'var(--md-on-primary-container)'
+                          : 'var(--text-muted)',
+                    }}
+                  >
+                    Шаги{activeTrip ? ` (${activeTrip.segments.length})` : ''}
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={mobileRouteSubView === 'places'}
+                    onClick={() => {
+                      triggerHaptic('light');
+                      setMobileRouteSubView('places');
+                    }}
+                    className="m3-tactile min-h-[36px] cursor-pointer rounded-full px-2 py-1 text-xs font-semibold"
+                    style={{
+                      backgroundColor:
+                        mobileRouteSubView === 'places' ? 'var(--md-primary-container)' : 'transparent',
+                      color:
+                        mobileRouteSubView === 'places'
+                          ? 'var(--md-on-primary-container)'
+                          : 'var(--text-muted)',
+                    }}
+                  >
+                    Места{activeTrip ? ` (${mapLandmarks.length})` : ''}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Mobile Steps Sub-View */}
+            {plannerSubView !== 'params' && mobileRouteSubView === 'steps' && (
+              <div className="flex-1 overflow-y-auto px-4 pt-4 pb-24 md:hidden">
+                <PlannerItineraryView
+                  city={city}
+                  outcome={outcome}
+                  onGenerate={handleGenerate}
+                  onExtendLastSegment={handleExtendLastSegment}
+                  onStartLiveTrip={() => setLiveTripOpen(true)}
+                  onOpenPostcard={() => setPostcardOpen(true)}
+                  onChangeAllowFallbackTransit={setAllowFallbackTransit}
+                  onChangeDayOfWeek={setDayOfWeek}
+                  onChangeTimeMinutes={setTimeMinutes}
+                  onSaveTrip={handleSaveTrip}
+                  isCurrentTripSaved={isCurrentTripSaved}
+                  onEditParams={() => setPlannerSubView('params')}
+                />
+              </div>
+            )}
+
+            {/* Mobile Places Sub-View */}
+            {plannerSubView !== 'params' && mobileRouteSubView === 'places' && (
+              <div className="flex-1 overflow-y-auto px-4 pt-4 pb-24 md:hidden">
+                <PlannerPlacesView
+                  landmarks={mapLandmarks}
+                  selectedLandmarkId={selectedLandmarkId}
+                  onSelectLandmark={(lm) => {
+                    setSelectedLandmarkId(lm.id);
+                    setMobileRouteSubView('map');
+                  }}
+                  onlyWithPhotos={onlyWithPhotos}
+                  onChangeOnlyWithPhotos={setOnlyWithPhotos}
+                  landmarkCategories={landmarkCategories}
+                  onToggleLandmarkCategory={handleToggleLandmarkCategory}
+                />
+              </div>
+            )}
+
+            {/* Single Shared Map Canvas */}
+            <div
+              className={`${
+                isMobileMapVisible ? 'flex flex-col flex-1 md:flex-row' : 'hidden md:flex md:flex-1'
+              } min-h-0 w-full`}
+            >
+              <section
+                aria-label="Карта маршрута"
+                className={`relative w-full shrink-0 md:block md:h-full md:flex-1 md:min-h-0 ${
+                  isMobileMapVisible
+                    ? activeTrip && !mapPickMode
+                      ? 'block h-[calc(100dvh-252px)] min-h-[320px]'
+                      : 'block h-[calc(100dvh-174px)] min-h-[360px]'
+                    : 'hidden'
+                }`}
+              >
+                <TramMap
+                  city={city}
+                  cityCenter={cityCfg.center}
+                  stops={cityCfg.stops}
+                  routes={cityCfg.routes}
+                  trip={activeTrip}
+                  landmarks={mapLandmarks}
+                  showAllNetwork={showAllNetwork}
+                  startStopId={startStopId}
+                  destinationStopId={destinationStopId}
+                  mapPickMode={mapPickMode}
+                  selectedLandmarkId={selectedLandmarkId}
+                  theme={theme}
+                  onSelectLandmark={(lm: Landmark | null) =>
+                    setSelectedLandmarkId(lm ? lm.id : null)
+                  }
+                  onPickStop={handlePickStopFromMap}
+                />
+              </section>
+
+              {/* Docked Route Summary Strip Below Map on Mobile */}
+              {isMobileMapVisible && activeTrip && !mapPickMode && (
+                <div
+                  className="flex items-center justify-between gap-2 border-t px-3 py-2.5 pb-20 md:hidden"
+                  style={{
+                    backgroundColor: 'var(--bg-surface)',
+                    borderColor: 'var(--border-hairline)',
+                  }}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-xs font-bold" style={{ color: 'var(--text-primary)' }}>
+                      {activeTrip.startStop.name.split('(')[0].trim()} →{' '}
+                      {activeTrip.endStop.name.split('(')[0].trim()}
+                    </div>
+                    <div className="font-mono-num mt-0.5 text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                      ~{activeTrip.totalDurationMinutes} мин · {activeTrip.tramLinesUsed.join(' → ')}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      aria-label="Другой маршрут"
+                      onClick={() => handleGenerate()}
+                      className="m3-tactile flex min-h-[38px] min-w-[38px] cursor-pointer items-center justify-center rounded-full"
+                      style={{
+                        backgroundColor: 'var(--md-surface-container-high)',
+                        color: 'var(--text-primary)',
+                      }}
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        triggerHaptic('light');
+                        setMobileRouteSubView('steps');
+                      }}
+                      className="m3-tactile inline-flex min-h-[38px] cursor-pointer items-center gap-1 rounded-full px-3.5 py-1.5 text-xs font-semibold"
+                      style={{
+                        backgroundColor: 'var(--md-primary-container)',
+                        color: 'var(--md-on-primary-container)',
+                      }}
+                    >
+                      <ListOrdered className="h-3.5 w-3.5" />
+                      Шаги
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </main>
+        )}
+
+        {activeTab === 'favorites' && (
+          <main className="flex-1">
+            <FavoritesView
+              city={city}
+              savedRoutes={savedRoutes}
+              history={tripHistory}
+              onOpenRoute={handleOpenSavedRoute}
+              onDeleteRoute={handleDeleteSavedRoute}
+              onOpenHistoryTrip={handleOpenHistoryTrip}
+              onAddPhotoToHistory={handleAddPhotoToHistory}
+              onDeleteHistoryEntry={handleDeleteHistoryEntry}
+              onGoToPlanner={() => {
+                setActiveTab('planner');
+                setPlannerSubView('params');
+              }}
+            />
+          </main>
+        )}
+
+        {activeTab === 'directory' && (
+          <main className="flex-1">
+            <RoutesDirectoryView
+              city={city}
+              routes={cityCfg.routes}
+              stops={cityCfg.stops}
+              dayOfWeek={dayOfWeek}
+              timeMinutes={timeMinutes}
+              onStartFromRoute={handleStartFromDirectory}
+            />
+          </main>
+        )}
+
+        <OfflineIndicator />
+
+        <MobileBottomNav
+          city={city}
+          activeMobileTab={activeMobileTab}
+          onSelectMobileTab={handleSelectMobileTab}
+          favoritesCount={savedRoutes.length}
+        />
+
+        <OnboardingModal
+          isOpen={onboardingOpen}
+          selectedCity={city}
+          onSelectCity={handleChangeCity}
+          geoStatus={geoStatus}
+          cityDetection={cityDetection}
+          onRequestLocation={handleDetectLocation}
+          onComplete={() => {
+            persistOnboardingDone(true);
+            setOnboardingOpen(false);
+          }}
+        />
+
+        <SettingsModal
+          isOpen={settingsOpen}
+          onClose={() => setSettingsOpen(false)}
+          city={city}
+          onChangeCity={handleChangeCity}
+          theme={theme}
+          onChangeTheme={setTheme}
+          accentSeed={accentSeed}
+          onChangeAccentSeed={setAccentSeed}
+          photoReminderMinutes={photoReminderMinutes}
+          onChangePhotoReminderMinutes={(mins) => {
+            setPhotoReminderMinutes(mins);
+            persistPhotoReminderMinutes(mins);
+          }}
+          onRestartOnboarding={() => setOnboardingOpen(true)}
+        />
+
+        {liveTripOpen && activeTrip && (
+          <LiveTripCompanion
+            trip={activeTrip}
+            city={city}
+            photoReminderMinutes={photoReminderMinutes}
+            onClose={() => setLiveTripOpen(false)}
+            onCompleteTrip={handleCompleteLiveTrip}
+          />
+        )}
+
+        {postcardOpen && activeTrip && (
+          <RoutePostcardModal
+            trip={activeTrip}
+            city={city}
+            onClose={() => setPostcardOpen(false)}
+          />
+        )}
+      </div>
+    </MotionConfig>
+  );
+}
