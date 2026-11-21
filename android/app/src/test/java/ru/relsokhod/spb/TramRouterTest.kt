@@ -12,11 +12,13 @@ import ru.relsokhod.spb.model.GenerationOutcome
 import ru.relsokhod.spb.model.LandmarkCategory
 import ru.relsokhod.spb.model.ModeBalance
 import ru.relsokhod.spb.model.RouteThemeFilter
+import ru.relsokhod.spb.model.SavedRoute
 import ru.relsokhod.spb.model.SegmentKind
 import ru.relsokhod.spb.model.WeatherMode
 import ru.relsokhod.spb.router.TramRouter
 import ru.relsokhod.spb.ui.components.TriangleBalanceMath
 import java.io.File
+import kotlin.math.abs
 
 class TramRouterTest {
 
@@ -170,5 +172,72 @@ class TramRouterTest {
         assertTrue(transitOutcome is GenerationOutcome.Ok)
         val transitTrip = (transitOutcome as GenerationOutcome.Ok).trip
         assertTrue(transitTrip.segments.any { it.kind == SegmentKind.FALLBACK_TRANSIT })
+    }
+
+    @Test
+    fun savedRoutesStatsAggregatesDistanceAndSpbDistrictsOnly() {
+        val cities = loadCities()
+        val spb = cities.getValue(CityId.SPB)
+        val omsk = cities.getValue(CityId.OMSK)
+
+        val spbOutcome = TramRouter.generateTramAdventure(
+            city = CityId.SPB,
+            stops = spb.stops,
+            routes = spb.routes,
+            landmarks = spb.landmarks,
+            startStopId = spb.defaultStartStopId,
+            durationPreset = DurationPreset.MEDIUM,
+            dayOfWeek = 3,
+            timeMinutes = 14 * 60,
+            seed = 123L
+        )
+        val omskOutcome = TramRouter.generateTramAdventure(
+            city = CityId.OMSK,
+            stops = omsk.stops,
+            routes = omsk.routes,
+            landmarks = omsk.landmarks,
+            startStopId = omsk.defaultStartStopId,
+            durationPreset = DurationPreset.SHORT,
+            dayOfWeek = 3,
+            timeMinutes = 14 * 60,
+            seed = 456L
+        )
+        assertTrue(spbOutcome is GenerationOutcome.Ok)
+        assertTrue(omskOutcome is GenerationOutcome.Ok)
+
+        val spbTrip = (spbOutcome as GenerationOutcome.Ok).trip
+        val omskTrip = (omskOutcome as GenerationOutcome.Ok).trip
+        val stopsById = (spb.stops + omsk.stops).associateBy { it.id }
+        val spbTotalDistricts = spb.stops.map { it.district }.toSet().size
+
+        val spbDist = TramRouter.calculateTripDistanceKm(spbTrip, stopsById)
+        val omskDist = TramRouter.calculateTripDistanceKm(omskTrip, stopsById)
+        assertTrue(spbDist > 0.0)
+        assertTrue(omskDist > 0.0)
+
+        val saved = listOf(
+            SavedRoute(
+                id = "fav-1",
+                customTitle = "СПб маршрут",
+                note = "",
+                savedAtIso = "2026-11-21T00:00:00Z",
+                trip = spbTrip
+            ),
+            SavedRoute(
+                id = "fav-2",
+                customTitle = "Омск маршрут",
+                note = "",
+                savedAtIso = "2026-11-21T00:00:00Z",
+                trip = omskTrip
+            )
+        )
+
+        val stats = TramRouter.computeSavedRoutesStats(saved, stopsById, spbTotalDistricts)
+        assertEquals(2, stats.totalRoutesCount)
+        assertEquals(1, stats.spbRoutesCount)
+        assertTrue(abs(stats.totalDistanceKm - (spbDist + omskDist)) < 0.25)
+        assertEquals(spbTrip.districtsVisited.toSet().size, stats.spbDistrictsCount)
+        assertEquals(spbTotalDistricts, stats.spbDistrictsTotal)
+        assertTrue(stats.spbDistrictNames.all { it in spbTrip.districtsVisited })
     }
 }

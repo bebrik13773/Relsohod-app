@@ -518,6 +518,7 @@ private fun RelsokhodNativeApp(
 
                         BottomTab.FAVORITES -> {
                             FavoritesTab(
+                                allCities = cities,
                                 savedRoutes = savedRoutes,
                                 history = history,
                                 onOpenTrip = { trip ->

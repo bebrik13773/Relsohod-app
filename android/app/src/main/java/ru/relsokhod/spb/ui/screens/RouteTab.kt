@@ -109,7 +109,7 @@ fun RouteTab(
     onRegenerate: () -> Unit,
     onEnableFallbackAndRetry: () -> Unit,
     onSaveTrip: (GeneratedTrip) -> Unit,
-    onCompleteTrip: (GeneratedTrip, List<TripPhotoMemory>) => Unit,
+    onCompleteTrip: (GeneratedTrip, List<TripPhotoMemory>) -> Unit,
     onSpeakText: (String) -> Unit
 ) {
     val context = LocalContext.current

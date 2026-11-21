@@ -5,6 +5,8 @@ import { OMSK_LANDMARKS, OMSK_STOPS, OMSK_TRAM_ROUTES } from '../data/omskTramNe
 import { detectCityFromCoords } from '../data/cities';
 import { buildYandexMapsRouteUrl } from './yandexMaps';
 import {
+  calculateTripDistanceKm,
+  computeSavedRoutesStats,
   extendTripLastSegment,
   filterLandmarks,
   findNearestStops,
@@ -299,5 +301,72 @@ test('High transit balance unlocks city-wide multimodal bus/metro + tram combina
       transitTrip.trip.segments.some((s) => s.kind === 'fallback_transit'),
       'Expected city-wide transit connector when transit weight is 55%'
     );
+  }
+});
+
+test('computeSavedRoutesStats aggregates total distance and unique SPb districts only', () => {
+  const spbOutcome = generateTramAdventure({
+    city: 'spb',
+    stops: SPB_STOPS,
+    routes: SPB_TRAM_ROUTES,
+    landmarks: SPB_LANDMARKS,
+    startStopId: 'sennaya_pl',
+    theme: 'any',
+    durationPreset: 'medium',
+    dayOfWeek: 3,
+    timeMinutes: 14 * 60,
+    allowFallbackTransit: false,
+    seed: 123,
+  });
+  const omskOutcome = generateTramAdventure({
+    city: 'omsk',
+    stops: OMSK_STOPS,
+    routes: OMSK_TRAM_ROUTES,
+    landmarks: OMSK_LANDMARKS,
+    startStopId: OMSK_STOPS[0].id,
+    theme: 'any',
+    durationPreset: 'short',
+    dayOfWeek: 3,
+    timeMinutes: 14 * 60,
+    allowFallbackTransit: false,
+    seed: 456,
+  });
+  assert.equal(spbOutcome.status, 'ok');
+  assert.equal(omskOutcome.status, 'ok');
+  if (spbOutcome.status === 'ok' && omskOutcome.status === 'ok') {
+    const stopsById = Object.fromEntries(
+      [...SPB_STOPS, ...OMSK_STOPS].map((s) => [s.id, s])
+    );
+    const spbTotalDistricts = new Set(SPB_STOPS.map((s) => s.district)).size;
+    const saved = [
+      {
+        id: 'fav-1',
+        customTitle: 'СПб маршрут',
+        note: '',
+        savedAt: '2026-11-21T00:00:00.000Z',
+        trip: spbOutcome.trip,
+      },
+      {
+        id: 'fav-2',
+        customTitle: 'Омск маршрут',
+        note: '',
+        savedAt: '2026-11-21T00:00:00.000Z',
+        trip: omskOutcome.trip,
+      },
+    ];
+    const spbDist = calculateTripDistanceKm(spbOutcome.trip, stopsById);
+    const omskDist = calculateTripDistanceKm(omskOutcome.trip, stopsById);
+    assert.ok(spbDist > 0);
+    assert.ok(omskDist > 0);
+
+    const stats = computeSavedRoutesStats(saved, stopsById, spbTotalDistricts);
+    assert.equal(stats.totalRoutesCount, 2);
+    assert.equal(stats.spbRoutesCount, 1);
+    assert.ok(Math.abs(stats.totalDistanceKm - (spbDist + omskDist)) < 0.25);
+    assert.equal(stats.spbDistrictsCount, new Set(spbOutcome.trip.districtsVisited).size);
+    assert.equal(stats.spbDistrictsTotal, spbTotalDistricts);
+    for (const d of stats.spbDistrictNames) {
+      assert.ok(spbOutcome.trip.districtsVisited.includes(d));
+    }
   }
 });

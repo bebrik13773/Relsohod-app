@@ -231,6 +231,16 @@ data class PassportBadge(
     val progressText: String
 )
 
+data class SavedRoutesStats(
+    val totalRoutesCount: Int,
+    val totalDistanceKm: Double,
+    val totalDurationMinutes: Int,
+    val spbRoutesCount: Int,
+    val spbDistrictsCount: Int,
+    val spbDistrictsTotal: Int,
+    val spbDistrictNames: List<String>
+)
+
 data class SearchParamsState(
     val startStopId: String,
     val destinationStopId: String? = null,

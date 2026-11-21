@@ -1,7 +1,9 @@
-import { useState } from 'react';
-import { Award, Bookmark, MapPin, Trash2, TramFront } from 'lucide-react';
-import { CityId, SavedRoute, TripHistoryEntry, TripPhotoMemory } from '../types/tram';
+import { useMemo, useState } from 'react';
+import { Award, Bookmark, Compass, MapPin, Route as RouteIcon, Trash2, TramFront } from 'lucide-react';
+import { CITIES } from '../data/cities';
+import { CityId, SavedRoute, TramStop, TripHistoryEntry, TripPhotoMemory } from '../types/tram';
 import { triggerHaptic } from '../utils/haptics';
+import { calculateTripDistanceKm, computeSavedRoutesStats } from '../utils/tramRouter';
 import { PassportHistoryView } from './PassportHistoryView';
 
 interface FavoritesViewProps {
@@ -28,6 +30,30 @@ export function FavoritesView({
   onGoToPlanner,
 }: FavoritesViewProps) {
   const [subTab, setSubTab] = useState<'saved' | 'passport'>('saved');
+
+  const { allStopsById, spbTotalDistricts } = useMemo(() => {
+    const map: Record<string, TramStop> = {};
+    for (const cfg of Object.values(CITIES)) {
+      for (const stop of cfg.stops) {
+        map[stop.id] = stop;
+      }
+    }
+    const spbDistricts = new Set(CITIES.spb.stops.map((s) => s.district));
+    return {
+      allStopsById: map,
+      spbTotalDistricts: spbDistricts.size,
+    };
+  }, []);
+
+  const stats = useMemo(
+    () => computeSavedRoutesStats(savedRoutes, allStopsById, spbTotalDistricts),
+    [savedRoutes, allStopsById, spbTotalDistricts]
+  );
+
+  const spbCoveragePct =
+    stats.spbDistrictsTotal > 0
+      ? Math.min(100, Math.round((stats.spbDistrictsCount / stats.spbDistrictsTotal) * 100))
+      : 0;
 
   return (
     <div className="mx-auto w-full max-w-5xl pb-24 md:pb-10">
@@ -119,23 +145,143 @@ export function FavoritesView({
         </div>
       ) : (
         <div className="px-4 py-6 lg:px-6">
-          <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+          <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
             <div>
               <h1 className="font-display text-2xl font-bold sm:text-3xl" style={{ color: 'var(--text-primary)' }}>
                 Избранные маршруты
               </h1>
               <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
-                Сохранённые цепочки трамваев хранятся локально в вашем браузере.
+                Сохранённые цепочки маршрутов и сводная статистика по городу.
               </p>
             </div>
             <span className="font-mono-num text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
-              Всего маршрутов: {savedRoutes.length}
+              Всего маршрутов: {stats.totalRoutesCount}
             </span>
           </div>
+
+          {/* Summary Statistics Card */}
+          <section
+            aria-label="Сводная статистика по сохранённым маршрутам"
+            data-testid="saved-routes-summary"
+            className="m3-card mb-6 rounded-3xl p-4 sm:p-5"
+            style={{ backgroundColor: 'var(--md-surface-container)' }}
+          >
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div
+                className="flex items-start gap-3 rounded-2xl p-3.5"
+                style={{
+                  backgroundColor: 'var(--md-primary-container)',
+                  color: 'var(--md-on-primary-container)',
+                }}
+              >
+                <div
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                  style={{ backgroundColor: 'rgba(255,255,255,0.45)' }}
+                >
+                  <RouteIcon className="h-5 w-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-semibold opacity-85">Общая пройденная дистанция</div>
+                  <div
+                    className="font-mono-num mt-0.5 text-2xl font-extrabold tracking-tight"
+                    data-testid="summary-total-distance"
+                  >
+                    {stats.totalDistanceKm.toFixed(1)} км
+                  </div>
+                  <div className="mt-0.5 text-[11px] opacity-80">
+                    По {stats.totalRoutesCount} маршрутам · ~{stats.totalDurationMinutes} мин в пути
+                  </div>
+                </div>
+              </div>
+
+              <div
+                className="flex flex-col justify-between rounded-2xl border p-3.5"
+                style={{
+                  backgroundColor: 'var(--bg-surface)',
+                  borderColor: 'var(--border-hairline)',
+                }}
+              >
+                <div className="flex items-start gap-3">
+                  <div
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                    style={{
+                      backgroundColor: 'var(--bg-elevated)',
+                      color: 'var(--accent-primary)',
+                    }}
+                  >
+                    <Compass className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>
+                      Посещено районов СПб
+                    </div>
+                    <div
+                      className="font-mono-num mt-0.5 text-2xl font-extrabold tracking-tight"
+                      style={{ color: 'var(--text-primary)' }}
+                      data-testid="summary-spb-districts"
+                    >
+                      {stats.spbDistrictsCount}
+                      <span className="ml-1 text-sm font-semibold" style={{ color: 'var(--text-muted)' }}>
+                        из {stats.spbDistrictsTotal}
+                      </span>
+                    </div>
+                  </div>
+                  <span
+                    className="font-mono-num rounded-lg px-2 py-0.5 text-[11px] font-bold"
+                    style={{
+                      backgroundColor: 'var(--bg-elevated)',
+                      color: 'var(--accent-primary)',
+                    }}
+                  >
+                    {spbCoveragePct}%
+                  </span>
+                </div>
+
+                <div
+                  className="mt-2.5 h-1.5 w-full overflow-hidden rounded-full"
+                  style={{ backgroundColor: 'var(--bg-elevated)' }}
+                >
+                  <div
+                    className="h-full rounded-full transition-all duration-300"
+                    style={{
+                      width: `${spbCoveragePct}%`,
+                      backgroundColor: 'var(--accent-primary)',
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {stats.spbDistrictNames.length > 0 ? (
+              <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                <span className="mr-1 text-[11px] font-semibold" style={{ color: 'var(--text-muted)' }}>
+                  Районы СПб в коллекции:
+                </span>
+                {stats.spbDistrictNames.map((district) => (
+                  <span
+                    key={district}
+                    className="rounded-lg px-2 py-0.5 text-[11px] font-medium"
+                    style={{
+                      backgroundColor: 'var(--bg-surface)',
+                      color: 'var(--text-secondary)',
+                      border: '1px solid var(--border-hairline)',
+                    }}
+                  >
+                    {district}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-3 text-xs" style={{ color: 'var(--text-muted)' }}>
+                Сохраните хотя бы один маршрут по Санкт-Петербургу, чтобы начать сбор районов СПб.
+              </p>
+            )}
+          </section>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             {savedRoutes.map((item) => {
               const { trip } = item;
+              const distKm = calculateTripDistanceKm(trip, allStopsById);
               return (
                 <article
                   key={item.id}
@@ -168,8 +314,12 @@ export function FavoritesView({
                         ~{trip.totalDurationMinutes} мин
                       </span>
                       <span aria-hidden="true">·</span>
+                      <span className="font-mono-num font-semibold" style={{ color: 'var(--accent-primary)' }}>
+                        {distKm.toFixed(1)} км
+                      </span>
+                      <span aria-hidden="true">·</span>
                       <span>
-                        Трамваи: {trip.tramLinesUsed.join(' → ')}
+                        Трамваи: {trip.tramLinesUsed.length > 0 ? trip.tramLinesUsed.join(' → ') : 'пешком'}
                       </span>
                       <span aria-hidden="true">·</span>
                       <span>

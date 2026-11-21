@@ -11,6 +11,7 @@ import ru.relsokhod.spb.model.PassportBadge
 import ru.relsokhod.spb.model.RouteSegment
 import ru.relsokhod.spb.model.RouteThemeFilter
 import ru.relsokhod.spb.model.SavedRoute
+import ru.relsokhod.spb.model.SavedRoutesStats
 import ru.relsokhod.spb.model.SegmentKind
 import ru.relsokhod.spb.model.TramRoute
 import ru.relsokhod.spb.model.TramStop
@@ -958,6 +959,66 @@ object TramRouter {
                 unlocked = savedRoutes.size >= 3,
                 progressText = "${minOf(3, savedRoutes.size)}/3"
             )
+        )
+    }
+
+    fun calculateTripDistanceKm(
+        trip: GeneratedTrip,
+        stopsById: Map<String, TramStop>
+    ): Double {
+        var km = 0.0
+        for (seg in trip.segments) {
+            if (seg.stopIds.size >= 2) {
+                var segKm = 0.0
+                var resolvedAll = true
+                for (i in 0 until seg.stopIds.size - 1) {
+                    val a = stopsById[seg.stopIds[i]]
+                    val b = stopsById[seg.stopIds[i + 1]]
+                    if (a != null && b != null) {
+                        segKm += haversineKm(a.lat, a.lng, b.lat, b.lng)
+                    } else {
+                        resolvedAll = false
+                        break
+                    }
+                }
+                km += if (resolvedAll) segKm else haversineKm(
+                    seg.fromStop.lat, seg.fromStop.lng, seg.toStop.lat, seg.toStop.lng
+                )
+            } else {
+                km += haversineKm(seg.fromStop.lat, seg.fromStop.lng, seg.toStop.lat, seg.toStop.lng)
+            }
+        }
+        return (km * 10.0).roundToInt() / 10.0
+    }
+
+    fun computeSavedRoutesStats(
+        savedRoutes: List<SavedRoute>,
+        stopsById: Map<String, TramStop>,
+        spbTotalDistrictsCount: Int
+    ): SavedRoutesStats {
+        var totalDist = 0.0
+        var totalDuration = 0
+        var spbRoutesCount = 0
+        val spbDistricts = LinkedHashSet<String>()
+
+        for (item in savedRoutes) {
+            val trip = item.trip
+            totalDist += calculateTripDistanceKm(trip, stopsById)
+            totalDuration += trip.totalDurationMinutes
+            if (trip.city == CityId.SPB) {
+                spbRoutesCount += 1
+                trip.districtsVisited.filter { it.isNotBlank() }.forEach { spbDistricts.add(it) }
+            }
+        }
+
+        return SavedRoutesStats(
+            totalRoutesCount = savedRoutes.size,
+            totalDistanceKm = (totalDist * 10.0).roundToInt() / 10.0,
+            totalDurationMinutes = totalDuration,
+            spbRoutesCount = spbRoutesCount,
+            spbDistrictsCount = spbDistricts.size,
+            spbDistrictsTotal = spbTotalDistrictsCount,
+            spbDistrictNames = spbDistricts.sorted()
         )
     }
 }

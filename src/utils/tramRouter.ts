@@ -8,6 +8,7 @@ import {
   ModeBalance,
   RouteSegment,
   RouteThemeFilter,
+  SavedRoute,
   TramRoute,
   TramStop,
   WeatherMode,
@@ -1113,4 +1114,76 @@ export function filterLandmarks(
     }
     return true;
   });
+}
+
+export interface SavedRoutesSummaryStats {
+  totalRoutesCount: number;
+  totalDistanceKm: number;
+  totalDurationMinutes: number;
+  spbRoutesCount: number;
+  spbDistrictsCount: number;
+  spbDistrictsTotal: number;
+  spbDistrictNames: string[];
+}
+
+export function calculateTripDistanceKm(
+  trip: GeneratedTrip,
+  stopsById: Record<string, TramStop>
+): number {
+  let km = 0;
+  for (const seg of trip.segments) {
+    if (seg.stopIds.length >= 2) {
+      let segKm = 0;
+      let resolvedAll = true;
+      for (let i = 0; i < seg.stopIds.length - 1; i++) {
+        const a = stopsById[seg.stopIds[i]];
+        const b = stopsById[seg.stopIds[i + 1]];
+        if (a && b) {
+          segKm += haversineKm(a, b);
+        } else {
+          resolvedAll = false;
+          break;
+        }
+      }
+      km += resolvedAll ? segKm : haversineKm(seg.fromStop, seg.toStop);
+    } else {
+      km += haversineKm(seg.fromStop, seg.toStop);
+    }
+  }
+  return Math.round(km * 10) / 10;
+}
+
+export function computeSavedRoutesStats(
+  savedRoutes: SavedRoute[],
+  stopsById: Record<string, TramStop>,
+  spbTotalDistrictsCount: number
+): SavedRoutesSummaryStats {
+  let totalDist = 0;
+  let totalDurationMinutes = 0;
+  let spbRoutesCount = 0;
+  const spbDistrictSet = new Set<string>();
+
+  for (const item of savedRoutes) {
+    const { trip } = item;
+    totalDist += calculateTripDistanceKm(trip, stopsById);
+    totalDurationMinutes += trip.totalDurationMinutes;
+
+    const tripCity = trip.city ?? 'spb';
+    if (tripCity === 'spb') {
+      spbRoutesCount += 1;
+      for (const district of trip.districtsVisited) {
+        if (district) spbDistrictSet.add(district);
+      }
+    }
+  }
+
+  return {
+    totalRoutesCount: savedRoutes.length,
+    totalDistanceKm: Math.round(totalDist * 10) / 10,
+    totalDurationMinutes,
+    spbRoutesCount,
+    spbDistrictsCount: spbDistrictSet.size,
+    spbDistrictsTotal: spbTotalDistrictsCount,
+    spbDistrictNames: Array.from(spbDistrictSet).sort((a, b) => a.localeCompare(b, 'ru')),
+  };
 }

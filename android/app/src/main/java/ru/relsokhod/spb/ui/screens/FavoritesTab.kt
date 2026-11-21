@@ -26,6 +26,7 @@ import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.SegmentedButton
@@ -47,6 +48,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import ru.relsokhod.spb.model.CityConfig
+import ru.relsokhod.spb.model.CityId
 import ru.relsokhod.spb.model.GeneratedTrip
 import ru.relsokhod.spb.model.SavedRoute
 import ru.relsokhod.spb.model.TripHistoryEntry
@@ -65,6 +68,7 @@ private enum class FavoritesSubTab(val label: String) {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun FavoritesTab(
+    allCities: Map<CityId, CityConfig>,
     savedRoutes: List<SavedRoute>,
     history: List<TripHistoryEntry>,
     onOpenTrip: (GeneratedTrip) -> Unit,
@@ -72,6 +76,15 @@ fun FavoritesTab(
     onAddPhotoToHistory: (String, TripPhotoMemory) -> Unit,
     onDeleteHistory: (String) -> Unit
 ) {
+    val stopsById = remember(allCities) {
+        allCities.values.flatMap { it.stops }.associateBy { it.id }
+    }
+    val spbDistrictsTotal = remember(allCities) {
+        allCities[CityId.SPB]?.stops?.map { it.district }?.toSet()?.size ?: 15
+    }
+    val summaryStats = remember(savedRoutes, stopsById, spbDistrictsTotal) {
+        TramRouter.computeSavedRoutesStats(savedRoutes, stopsById, spbDistrictsTotal)
+    }
     val context = LocalContext.current
     var subTab by remember { mutableStateOf(FavoritesSubTab.SAVED) }
     var pendingEntryId by remember { mutableStateOf<String?>(null) }
@@ -139,7 +152,90 @@ fun FavoritesTab(
                         )
                     }
                 } else {
+                    val coverage = if (summaryStats.spbDistrictsTotal > 0) {
+                        (summaryStats.spbDistrictsCount.toFloat() / summaryStats.spbDistrictsTotal).coerceIn(0f, 1f)
+                    } else 0f
+
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Column(modifier = Modifier.padding(12.dp)) {
+                                        Text(
+                                            text = "Пройденная дистанция",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
+                                        Text(
+                                            text = String.format(Locale.US, "%.1f км", summaryStats.totalDistanceKm),
+                                            fontSize = 20.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
+                                        Text(
+                                            text = "Маршрутов: ${summaryStats.totalRoutesCount} · ~${summaryStats.totalDurationMinutes} мин",
+                                            fontSize = 10.sp,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                        )
+                                    }
+                                }
+
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = MaterialTheme.colorScheme.surface,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Column(modifier = Modifier.padding(12.dp)) {
+                                        Text(
+                                            text = "Районы СПб",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Text(
+                                            text = "${summaryStats.spbDistrictsCount} из ${summaryStats.spbDistrictsTotal}",
+                                            fontSize = 20.sp,
+                                            fontWeight = FontWeight.ExtraBold
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        LinearProgressIndicator(
+                                            progress = { coverage },
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(6.dp)
+                                                .clip(RoundedCornerShape(3.dp))
+                                        )
+                                    }
+                                }
+                            }
+
+                            if (summaryStats.spbDistrictNames.isNotEmpty()) {
+                                Text(
+                                    text = "Районы СПб: ${summaryStats.spbDistrictNames.joinToString(", ")}",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+
                     savedRoutes.forEach { saved ->
+                        val tripDistKm = TramRouter.calculateTripDistanceKm(saved.trip, stopsById)
                         Surface(
                             shape = RoundedCornerShape(18.dp),
                             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f),
@@ -157,7 +253,7 @@ fun FavoritesTab(
                                     }
                                 }
                                 Text(
-                                    text = "~${saved.trip.totalDurationMinutes} мин · Трамваи: ${saved.trip.tramLinesUsed.joinToString(" → ")}",
+                                    text = "~${saved.trip.totalDurationMinutes} мин · ${String.format(Locale.US, "%.1f", tripDistKm)} км · Трамваи: ${saved.trip.tramLinesUsed.joinToString(" → ")}",
                                     fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
