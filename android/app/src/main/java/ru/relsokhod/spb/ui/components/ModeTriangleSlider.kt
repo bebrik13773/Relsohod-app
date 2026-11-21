@@ -50,14 +50,16 @@ import ru.relsokhod.spb.model.ModeBalance
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-object TriangleBalanceMath {
-    val VERTEX_TRAM = Offset(0.50f, 0.14f)
-    val VERTEX_TRANSIT = Offset(0.14f, 0.84f)
-    val VERTEX_WALK = Offset(0.86f, 0.84f)
+data class TrianglePoint(val x: Float, val y: Float)
 
-    fun balanceToTrianglePoint(balance: ModeBalance): Offset {
+object TriangleBalanceMath {
+    val VERTEX_TRAM = TrianglePoint(0.50f, 0.14f)
+    val VERTEX_TRANSIT = TrianglePoint(0.14f, 0.84f)
+    val VERTEX_WALK = TrianglePoint(0.86f, 0.84f)
+
+    fun balanceToTrianglePoint(balance: ModeBalance): TrianglePoint {
         val n = balance.normalized()
-        return Offset(
+        return TrianglePoint(
             x = n.tram * VERTEX_TRAM.x + n.transit * VERTEX_TRANSIT.x + n.walk * VERTEX_WALK.x,
             y = n.tram * VERTEX_TRAM.y + n.transit * VERTEX_TRANSIT.y + n.walk * VERTEX_WALK.y
         )

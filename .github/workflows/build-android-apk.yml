@@ -23,13 +23,16 @@ jobs:
       - name: Set up Node.js & sync tram network data
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: '22'
 
       - name: Sync tram_network.json for Android assets
         run: |
-          npm ci
-          npm run android:sync
+          if [ -f package-lock.json ]; then
+            npm ci
+            npm run android:sync
+          else
+            npx --yes tsx scripts/export-android-data.ts
+          fi
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
