@@ -737,9 +737,6 @@ export default function App() {
                 onChangeOnlyWithPhotos={setOnlyWithPhotos}
                 landmarkCategories={landmarkCategories}
                 onToggleLandmarkCategory={handleToggleLandmarkCategory}
-                theme={theme}
-                accentSeed={accentSeed}
-                onChangeAccentSeed={setAccentSeed}
               />
             </div>
 
@@ -787,9 +784,6 @@ export default function App() {
                   onDetectLocation={handleDetectLocation}
                   geoStatus={geoStatus}
                   onGenerate={() => handleGenerate()}
-                  theme={theme}
-                  accentSeed={accentSeed}
-                  onChangeAccentSeed={setAccentSeed}
                 />
               </div>
             )}

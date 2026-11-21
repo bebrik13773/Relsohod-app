@@ -1,0 +1,2542 @@
+{
+  "cities": [
+    {
+      "id": "spb",
+      "name": "Санкт-Петербург",
+      "shortName": "СПб",
+      "genitiveName": "Санкт-Петербурга",
+      "tagline": "Нева, разводные мосты, Чижики и ретро-вагоны",
+      "center": {
+        "lat": 59.9386,
+        "lng": 30.3141
+      },
+      "defaultStartStopId": "sennaya_pl",
+      "radiusKm": 42,
+      "stops": [
+        {
+          "id": "ul_korablestroiteley",
+          "name": "Улица Кораблестроителей",
+          "district": "Васильевский остров",
+          "lat": 59.9465,
+          "lng": 30.2215
+        },
+        {
+          "id": "m_primorskaya",
+          "name": "Ст. м. «Приморская»",
+          "district": "Васильевский остров",
+          "lat": 59.9483,
+          "lng": 30.2345
+        },
+        {
+          "id": "detskaya_ul",
+          "name": "Детская улица (Музей ГЭТ)",
+          "district": "Васильевский остров",
+          "lat": 59.9362,
+          "lng": 30.2584
+        },
+        {
+          "id": "m_vasileostrovskaya",
+          "name": "Средний пр. / м. «Василеостровская»",
+          "district": "Васильевский остров",
+          "lat": 59.9426,
+          "lng": 30.2784
+        },
+        {
+          "id": "strelka_vo",
+          "name": "Стрелка В.О. (Биржевой пер.)",
+          "district": "Васильевский остров",
+          "lat": 59.9442,
+          "lng": 30.3046
+        },
+        {
+          "id": "tuchkov_most",
+          "name": "Тучков мост / м. «Спортивная»",
+          "district": "Петроградская сторона",
+          "lat": 59.9501,
+          "lng": 30.2905
+        },
+        {
+          "id": "aleksandrovsky_park",
+          "name": "Александровский парк (м. «Горьковская»)",
+          "district": "Петроградская сторона",
+          "lat": 59.9562,
+          "lng": 30.3188,
+          "hubId": "hub_gorkovskaya"
+        },
+        {
+          "id": "troitsky_most",
+          "name": "Троицкая площадь",
+          "district": "Петроградская сторона",
+          "lat": 59.9532,
+          "lng": 30.3264,
+          "hubId": "hub_gorkovskaya"
+        },
+        {
+          "id": "m_petrogradskaya",
+          "name": "Кронверкский пр. / м. «Петроградская»",
+          "district": "Петроградская сторона",
+          "lat": 59.9661,
+          "lng": 30.3115
+        },
+        {
+          "id": "botanicheskaya",
+          "name": "Ботанический сад (Аптекарский остров)",
+          "district": "Петроградская сторона",
+          "lat": 59.9698,
+          "lng": 30.3228
+        },
+        {
+          "id": "marsovo_pole",
+          "name": "Марсово поле / Троицкий мост",
+          "district": "Центральный",
+          "lat": 59.9435,
+          "lng": 30.3318
+        },
+        {
+          "id": "inzhenernaya_ul",
+          "name": "Инженерная улица (Михайловский замок)",
+          "district": "Центральный",
+          "lat": 59.9395,
+          "lng": 30.3385,
+          "hubId": "hub_nevsky_sadovaya"
+        },
+        {
+          "id": "sadovaya_nevsky",
+          "name": "Невский пр. / м. «Гостиный двор»",
+          "district": "Центральный",
+          "lat": 59.9336,
+          "lng": 30.3338,
+          "hubId": "hub_nevsky_sadovaya"
+        },
+        {
+          "id": "sennaya_pl",
+          "name": "Сенная площадь",
+          "district": "Адмиралтейский",
+          "lat": 59.9271,
+          "lng": 30.3204
+        },
+        {
+          "id": "pl_turgeneva",
+          "name": "Площадь Тургенева (Коломна)",
+          "district": "Адмиралтейский",
+          "lat": 59.9182,
+          "lng": 30.2948
+        },
+        {
+          "id": "pl_repina",
+          "name": "Площадь Репина",
+          "district": "Адмиралтейский",
+          "lat": 59.9135,
+          "lng": 30.2832
+        },
+        {
+          "id": "ul_marata",
+          "name": "Улица Марата (Свечной пер.)",
+          "district": "Центральный",
+          "lat": 59.9235,
+          "lng": 30.3515,
+          "hubId": "hub_ligovsky"
+        },
+        {
+          "id": "ligovsky_pr",
+          "name": "Ст. м. «Лиговский проспект»",
+          "district": "Центральный",
+          "lat": 59.9208,
+          "lng": 30.3551,
+          "hubId": "hub_ligovsky"
+        },
+        {
+          "id": "perekupnoy_per",
+          "name": "Перекупной пер. (пл. Александра Невского)",
+          "district": "Центральный",
+          "lat": 59.9268,
+          "lng": 30.3832
+        },
+        {
+          "id": "smolny",
+          "name": "Смольный собор (Новгородская ул.)",
+          "district": "Центральный",
+          "lat": 59.9482,
+          "lng": 30.3915
+        },
+        {
+          "id": "finlyandsky_vokzal",
+          "name": "Финляндский вокзал (пл. Ленина)",
+          "district": "Калининский",
+          "lat": 59.9557,
+          "lng": 30.3563
+        },
+        {
+          "id": "m_vyborgskaya",
+          "name": "Ст. м. «Выборгская»",
+          "district": "Выборгский",
+          "lat": 59.9711,
+          "lng": 30.3474
+        },
+        {
+          "id": "st_kushelevka",
+          "name": "Станция Кушелевка",
+          "district": "Калининский",
+          "lat": 59.9878,
+          "lng": 30.3652
+        },
+        {
+          "id": "st_piskarevka",
+          "name": "Станция Пискарёвка",
+          "district": "Красногвардейский",
+          "lat": 59.9985,
+          "lng": 30.4225
+        },
+        {
+          "id": "tikhoretsky_pr",
+          "name": "Тихорецкий пр. (Политехническая)",
+          "district": "Калининский",
+          "lat": 60.0082,
+          "lng": 30.3712
+        },
+        {
+          "id": "m_udelnaya",
+          "name": "Ст. м. «Удельная» (Удельный парк)",
+          "district": "Выборгский",
+          "lat": 60.0165,
+          "lng": 30.3152
+        },
+        {
+          "id": "pr_kultury",
+          "name": "Проспект Культуры",
+          "district": "Калининский",
+          "lat": 60.0472,
+          "lng": 30.3695
+        },
+        {
+          "id": "m_staraya_derevnya",
+          "name": "Ст. м. «Старая Деревня»",
+          "district": "Приморский",
+          "lat": 59.9895,
+          "lng": 30.2554
+        },
+        {
+          "id": "primorsky_pr",
+          "name": "Приморский пр. (ЦПКиО / Елагин)",
+          "district": "Приморский",
+          "lat": 59.9835,
+          "lng": 30.2682
+        },
+        {
+          "id": "lakhtinsky_razliv",
+          "name": "Лахтинский разлив",
+          "district": "Приморский",
+          "lat": 59.9882,
+          "lng": 30.1945
+        },
+        {
+          "id": "ul_shavrova",
+          "name": "Улица Шаврова",
+          "district": "Приморский",
+          "lat": 60.0178,
+          "lng": 30.2335
+        },
+        {
+          "id": "malaya_okhta",
+          "name": "Малая Охта (пр. Шаумяна)",
+          "district": "Красногвардейский",
+          "lat": 59.9315,
+          "lng": 30.4095
+        },
+        {
+          "id": "ladozhsky_vokzal",
+          "name": "Ладожский вокзал (м. «Ладожская»)",
+          "district": "Красногвардейский",
+          "lat": 59.9324,
+          "lng": 30.4392
+        },
+        {
+          "id": "ul_kommuny",
+          "name": "Улица Коммуны (Ржевка)",
+          "district": "Красногвардейский",
+          "lat": 59.9592,
+          "lng": 30.4925
+        },
+        {
+          "id": "hasanskaya_ul",
+          "name": "Хасанская улица",
+          "district": "Красногвардейский",
+          "lat": 59.9278,
+          "lng": 30.4945
+        },
+        {
+          "id": "reka_okkervil",
+          "name": "Кольцо «Река Оккервиль»",
+          "district": "Невский",
+          "lat": 59.9038,
+          "lng": 30.5025
+        },
+        {
+          "id": "m_dybenko",
+          "name": "Ст. м. «Улица Дыбенко»",
+          "district": "Невский",
+          "lat": 59.9073,
+          "lng": 30.4834
+        },
+        {
+          "id": "dalnevostochny_pr",
+          "name": "Дальневосточный проспект",
+          "district": "Невский",
+          "lat": 59.9045,
+          "lng": 30.4535
+        },
+        {
+          "id": "ul_kollontai",
+          "name": "Улица Коллонтай",
+          "district": "Невский",
+          "lat": 59.9145,
+          "lng": 30.4562
+        },
+        {
+          "id": "m_bolshevikov",
+          "name": "Ст. м. «Проспект Большевиков»",
+          "district": "Невский",
+          "lat": 59.9198,
+          "lng": 30.4665
+        },
+        {
+          "id": "pr_solidarnosti",
+          "name": "Проспект Солидарности",
+          "district": "Невский",
+          "lat": 59.9125,
+          "lng": 30.4955
+        },
+        {
+          "id": "obukhovsky_zavod",
+          "name": "Обуховский завод (Парк № 7)",
+          "district": "Невский",
+          "lat": 59.8655,
+          "lng": 30.4688
+        },
+        {
+          "id": "m_rybatskoe",
+          "name": "Ст. м. «Рыбацкое»",
+          "district": "Невский",
+          "lat": 59.8308,
+          "lng": 30.5008
+        },
+        {
+          "id": "malaya_balkanskaya",
+          "name": "Малая Балканская улица",
+          "district": "Фрунзенский",
+          "lat": 59.8342,
+          "lng": 30.4045
+        },
+        {
+          "id": "m_kupchino",
+          "name": "Ст. м. «Купчино»",
+          "district": "Фрунзенский",
+          "lat": 59.8296,
+          "lng": 30.3756
+        },
+        {
+          "id": "m_moskovskie_vorota",
+          "name": "Ст. м. «Московские ворота»",
+          "district": "Московский",
+          "lat": 59.8915,
+          "lng": 30.3182
+        },
+        {
+          "id": "m_narvskaya",
+          "name": "Площадь Стачек (м. «Нарвская»)",
+          "district": "Кировский",
+          "lat": 59.9012,
+          "lng": 30.2748
+        },
+        {
+          "id": "severnaya_verf",
+          "name": "Завод «Северная Верфь»",
+          "district": "Кировский",
+          "lat": 59.8742,
+          "lng": 30.2512
+        },
+        {
+          "id": "m_yugo_zapadnaya",
+          "name": "Ул. Маршала Казакова (Юго-Запад)",
+          "district": "Красносельский",
+          "lat": 59.8588,
+          "lng": 30.2224
+        },
+        {
+          "id": "sosnovaya_polyana",
+          "name": "Станция Сосновая Поляна",
+          "district": "Красносельский",
+          "lat": 59.8305,
+          "lng": 30.1495
+        },
+        {
+          "id": "strelna",
+          "name": "Стрельна (Константиновский дворец)",
+          "district": "Петродворцовый",
+          "lat": 59.8538,
+          "lng": 30.0565
+        },
+        {
+          "id": "pl_kalinina",
+          "name": "Площадь Калинина",
+          "district": "Калининский",
+          "lat": 59.9693,
+          "lng": 30.3916
+        },
+        {
+          "id": "kondratyevsky_pr",
+          "name": "Кондратьевский проспект",
+          "district": "Калининский",
+          "lat": 59.9615,
+          "lng": 30.3822
+        },
+        {
+          "id": "m_lesnaya",
+          "name": "Ст. м. «Лесная» (Кантемировская ул.)",
+          "district": "Выборгский",
+          "lat": 59.9849,
+          "lng": 30.3442
+        },
+        {
+          "id": "m_politekhnicheskaya",
+          "name": "Ст. м. «Политехническая»",
+          "district": "Калининский",
+          "lat": 60.0089,
+          "lng": 30.3709
+        },
+        {
+          "id": "svetlanovsky_pr",
+          "name": "Светлановский проспект",
+          "district": "Выборгский",
+          "lat": 60.0176,
+          "lng": 30.3545
+        },
+        {
+          "id": "m_ozerki",
+          "name": "Ст. м. «Озерки» (Выборгское шоссе)",
+          "district": "Выборгский",
+          "lat": 60.0372,
+          "lng": 30.3215
+        },
+        {
+          "id": "pr_prosveshcheniya",
+          "name": "Ст. м. «Проспект Просвещения»",
+          "district": "Выборгский",
+          "lat": 60.0515,
+          "lng": 30.3326
+        },
+        {
+          "id": "pridorozhnaya_alleya",
+          "name": "Придорожная аллея (Кольцо)",
+          "district": "Выборгский",
+          "lat": 60.0604,
+          "lng": 30.3468
+        },
+        {
+          "id": "suzdalsky_pr",
+          "name": "Суздальский проспект (ул. Руставели)",
+          "district": "Калининский",
+          "lat": 60.0412,
+          "lng": 30.4228
+        },
+        {
+          "id": "st_ruchyi",
+          "name": "Станция Ручьи (Пискарёвка север)",
+          "district": "Калининский",
+          "lat": 60.0079,
+          "lng": 30.4408
+        },
+        {
+          "id": "karbyuratorny_zavod",
+          "name": "Карбюраторный завод (ул. Самойловой)",
+          "district": "Фрунзенский",
+          "lat": 59.9038,
+          "lng": 30.3585
+        },
+        {
+          "id": "m_mezhdunarodnaya",
+          "name": "Ст. м. «Международная» (Бухарестская ул.)",
+          "district": "Фрунзенский",
+          "lat": 59.8702,
+          "lng": 30.3792
+        },
+        {
+          "id": "pr_slavy",
+          "name": "Проспект Славы (Парк Интернационалистов)",
+          "district": "Фрунзенский",
+          "lat": 59.8568,
+          "lng": 30.3955
+        },
+        {
+          "id": "park_pobedy",
+          "name": "Московский парк Победы (ул. Бассейная)",
+          "district": "Московский",
+          "lat": 59.8662,
+          "lng": 30.3264
+        },
+        {
+          "id": "m_avtovo",
+          "name": "Ст. м. «Автово» (пр. Стачек)",
+          "district": "Кировский",
+          "lat": 59.8672,
+          "lng": 30.2614
+        },
+        {
+          "id": "ul_desantnikov",
+          "name": "Улица Десантников (Петергофское ш.)",
+          "district": "Красносельский",
+          "lat": 59.8562,
+          "lng": 30.2041
+        },
+        {
+          "id": "lemz",
+          "name": "ЛЭМЗ (Петергофское шоссе)",
+          "district": "Красносельский",
+          "lat": 59.8404,
+          "lng": 30.1292
+        },
+        {
+          "id": "ul_peredovikov",
+          "name": "Улица Передовиков (пр. Наставников)",
+          "district": "Красногвардейский",
+          "lat": 59.9462,
+          "lng": 30.4648
+        },
+        {
+          "id": "petergof_park",
+          "name": "Петергоф (Нижний парк)",
+          "district": "Петродворцовый",
+          "lat": 59.8842,
+          "lng": 29.9088,
+          "isolatedFromMainTram": true
+        },
+        {
+          "id": "krestovsky_arena",
+          "name": "Крестовский остров (Газпром Арена)",
+          "district": "Петроградский",
+          "lat": 59.9728,
+          "lng": 30.2215,
+          "isolatedFromMainTram": true
+        }
+      ],
+      "routes": [
+        {
+          "id": "tram_A",
+          "number": "А",
+          "title": "Кольцо «Река Оккервиль» — ул. Коллонтай (кольцевой)",
+          "operator": "Горэлектротранс",
+          "type": "circular",
+          "color": "#B91C1C",
+          "themes": [
+            "suburbs"
+          ],
+          "schedule": {
+            "daysOfWeek": [
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            "startMinutes": 371,
+            "endMinutes": 1287,
+            "intervalMinutes": 11,
+            "note": "Кольцевой маршрут (по часовой стрелке), работает только по будням 06:11–21:27"
+          },
+          "stopIds": [
+            "reka_okkervil",
+            "m_dybenko",
+            "dalnevostochny_pr",
+            "ul_kollontai",
+            "m_bolshevikov",
+            "pr_solidarnosti",
+            "reka_okkervil"
+          ],
+          "minutesPerHop": 4
+        },
+        {
+          "id": "tram_T1",
+          "number": "Т1",
+          "title": "Музей ГЭТ (Детская ул.) — Инженерная улица (Ретро)",
+          "operator": "Горэлектротранс",
+          "type": "retro",
+          "color": "#9A3412",
+          "themes": [
+            "center",
+            "maritime"
+          ],
+          "schedule": {
+            "daysOfWeek": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "startMinutes": 600,
+            "endMinutes": 1140,
+            "intervalMinutes": 60,
+            "note": "Туристический ретро-маршрут через мосты Невы (дневноe расписание 10:00–19:00)"
+          },
+          "stopIds": [
+            "detskaya_ul",
+            "m_vasileostrovskaya",
+            "strelka_vo",
+            "tuchkov_most",
+            "aleksandrovsky_park",
+            "troitsky_most",
+            "marsovo_pole",
+            "inzhenernaya_ul"
+          ],
+          "minutesPerHop": 6
+        },
+        {
+          "id": "tram_3",
+          "number": "3",
+          "title": "Площадь Репина — Финляндский вокзал",
+          "operator": "Горэлектротранс",
+          "type": "regular",
+          "color": "#7C1D26",
+          "themes": [
+            "center",
+            "parks"
+          ],
+          "schedule": {
+            "daysOfWeek": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "startMinutes": 340,
+            "endMinutes": 1460,
+            "intervalMinutes": 9,
+            "note": "Единственный регулярный трамвай, пересекающий Невский и Троицкий мост"
+          },
+          "stopIds": [
+            "pl_repina",
+            "pl_turgeneva",
+            "sennaya_pl",
+            "sadovaya_nevsky",
+            "inzhenernaya_ul",
+            "marsovo_pole",
+            "troitsky_most",
+            "finlyandsky_vokzal"
+          ],
+          "minutesPerHop": 5
+        },
+        {
+          "id": "tram_6",
+          "number": "6",
+          "title": "Улица Кораблестроителей — Финляндский вокзал",
+          "operator": "Горэлектротранс",
+          "type": "regular",
+          "color": "#0369A1",
+          "themes": [
+            "center",
+            "maritime",
+            "parks"
+          ],
+          "schedule": {
+            "daysOfWeek": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "startMinutes": 330,
+            "endMinutes": 1470,
+            "intervalMinutes": 10,
+            "note": "Связывает морской запад Васильевского острова с Петроградской стороной и Финляндским вокзалом"
+          },
+          "stopIds": [
+            "ul_korablestroiteley",
+            "m_primorskaya",
+            "m_vasileostrovskaya",
+            "tuchkov_most",
+            "aleksandrovsky_park",
+            "troitsky_most",
+            "finlyandsky_vokzal"
+          ],
+          "minutesPerHop": 6
+        },
+        {
+          "id": "tram_1",
+          "number": "1",
+          "title": "Улица Кораблестроителей — Детская улица",
+          "operator": "Горэлектротранс",
+          "type": "regular",
+          "color": "#0E7490",
+          "themes": [
+            "maritime"
+          ],
+          "schedule": {
+            "daysOfWeek": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "startMinutes": 345,
+            "endMinutes": 1450,
+            "intervalMinutes": 12,
+            "note": "Проходит по Васильевскому острову от Гавани до Музея ГЭТ"
+          },
+          "stopIds": [
+            "ul_korablestroiteley",
+            "m_primorskaya",
+            "m_vasileostrovskaya",
+            "detskaya_ul"
+          ],
+          "minutesPerHop": 5
+        },
+        {
+          "id": "tram_40",
+          "number": "40",
+          "title": "Тихорецкий проспект — Детская улица",
+          "operator": "Горэлектротранс",
+          "type": "regular",
+          "color": "#4338CA",
+          "themes": [
+            "parks",
+            "center"
+          ],
+          "schedule": {
+            "daysOfWeek": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "startMinutes": 335,
+            "endMinutes": 1455,
+            "intervalMinutes": 11,
+            "note": "Через Ботанический сад, Петроградку и Тучков мост"
+          },
+          "stopIds": [
+            "tikhoretsky_pr",
+            "st_kushelevka",
+            "m_vyborgskaya",
+            "botanicheskaya",
+            "m_petrogradskaya",
+            "tuchkov_most",
+            "m_vasileostrovskaya",
+            "detskaya_ul"
+          ],
+          "minutesPerHop": 6
+        },
+        {
+          "id": "tram_23",
+          "number": "23",
+          "title": "Проспект Солидарности — Финляндский вокзал",
+          "operator": "Горэлектротранс",
+          "type": "regular",
+          "color": "#D97706",
+          "themes": [
+            "center",
+            "suburbs"
+          ],
+          "schedule": {
+            "daysOfWeek": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "startMinutes": 330,
+            "endMinutes": 1465,
+            "intervalMinutes": 10,
+            "note": "Соединяет Невский правый берег со Смольным и Финляндским вокзалом"
+          },
+          "stopIds": [
+            "pr_solidarnosti",
+            "m_bolshevikov",
+            "ul_kollontai",
+            "dalnevostochny_pr",
+            "malaya_okhta",
+            "perekupnoy_per",
+            "smolny",
+            "finlyandsky_vokzal"
+          ],
+          "minutesPerHop": 6
+        },
+        {
+          "id": "tram_7",
+          "number": "7",
+          "title": "Проспект Солидарности — Малая Охта (ул. Передовиков / Ладожская)",
+          "operator": "Горэлектротранс",
+          "type": "regular",
+          "color": "#B45309",
+          "themes": [
+            "suburbs"
+          ],
+          "schedule": {
+            "daysOfWeek": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "startMinutes": 340,
+            "endMinutes": 1450,
+            "intervalMinutes": 12,
+            "note": "Магистральная линия правого берега Невы"
+          },
+          "stopIds": [
+            "pr_solidarnosti",
+            "m_dybenko",
+            "dalnevostochny_pr",
+            "ul_kollontai",
+            "malaya_okhta",
+            "ladozhsky_vokzal"
+          ],
+          "minutesPerHop": 5
+        },
+        {
+          "id": "tram_8_chizhik",
+          "number": "8",
+          "title": "Ладожский вокзал — Хасанская улица (Чижик)",
+          "operator": "Чижик (ТКК)",
+          "type": "chizhik",
+          "color": "#059669",
+          "themes": [
+            "suburbs"
+          ],
+          "schedule": {
+            "daysOfWeek": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "startMinutes": 330,
+            "endMinutes": 1470,
+            "intervalMinutes": 5,
+            "note": "Скоростная частная линия «Чижик» с выделенными путями"
+          },
+          "stopIds": [
+            "ladozhsky_vokzal",
+            "hasanskaya_ul"
+          ],
+          "minutesPerHop": 11
+        },
+        {
+          "id": "tram_63_chizhik",
+          "number": "63",
+          "title": "Ладожский вокзал — Улица Коммуны (Чижик)",
+          "operator": "Чижик (ТКК)",
+          "type": "chizhik",
+          "color": "#10B981",
+          "themes": [
+            "suburbs",
+            "parks"
+          ],
+          "schedule": {
+            "daysOfWeek": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "startMinutes": 335,
+            "endMinutes": 1465,
+            "intervalMinutes": 6,
+            "note": "Скоростной трамвай «Чижик» в сторону Ржевки и парка Малиновка"
+          },
+          "stopIds": [
+            "ladozhsky_vokzal",
+            "ul_kommuny"
+          ],
+          "minutesPerHop": 12
+        },
+        {
+          "id": "tram_24",
+          "number": "24",
+          "title": "Ст. м. «Рыбацкое» — Перекупной переулок",
+          "operator": "Горэлектротранс",
+          "type": "regular",
+          "color": "#2563EB",
+          "themes": [
+            "suburbs",
+            "center"
+          ],
+          "schedule": {
+            "daysOfWeek": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "startMinutes": 330,
+            "endMinutes": 1460,
+            "intervalMinutes": 11,
+            "note": "Длинный маршрут вдоль Невы от Рыбацкого до площади Александра Невского"
+          },
+          "stopIds": [
+            "m_rybatskoe",
+            "obukhovsky_zavod",
+            "malaya_okhta",
+            "perekupnoy_per"
+          ],
+          "minutesPerHop": 9
+        },
+        {
+          "id": "tram_27",
+          "number": "27",
+          "title": "Ст. м. «Рыбацкое» — Река Оккервиль",
+          "operator": "Горэлектротранс",
+          "type": "regular",
+          "color": "#0284C7",
+          "themes": [
+            "suburbs"
+          ],
+          "schedule": {
+            "daysOfWeek": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "startMinutes": 340,
+            "endMinutes": 1455,
+            "intervalMinutes": 12,
+            "note": "Соединяет южный и северный берега Невского района через Володарский мост"
+          },
+          "stopIds": [
+            "m_rybatskoe",
+            "obukhovsky_zavod",
+            "dalnevostochny_pr",
+            "m_dybenko",
+            "reka_okkervil"
+          ],
+          "minutesPerHop": 7
+        },
+        {
+          "id": "tram_25",
+          "number": "25",
+          "title": "Ст. м. «Купчино» — Улица Марата",
+          "operator": "Горэлектротранс",
+          "type": "regular",
+          "color": "#9333EA",
+          "themes": [
+            "center",
+            "suburbs"
+          ],
+          "schedule": {
+            "daysOfWeek": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "startMinutes": 330,
+            "endMinutes": 1470,
+            "intervalMinutes": 8,
+            "note": "Через Лиговский проспект и Бухарестскую улицу в Купчино"
+          },
+          "stopIds": [
+            "m_kupchino",
+            "malaya_balkanskaya",
+            "ligovsky_pr",
+            "ul_marata"
+          ],
+          "minutesPerHop": 9
+        },
+        {
+          "id": "tram_49",
+          "number": "49",
+          "title": "Малая Балканская улица — Улица Марата",
+          "operator": "Горэлектротранс",
+          "type": "regular",
+          "color": "#7E22CE",
+          "themes": [
+            "center",
+            "suburbs"
+          ],
+          "schedule": {
+            "daysOfWeek": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "startMinutes": 335,
+            "endMinutes": 1460,
+            "intervalMinutes": 10,
+            "note": "Параллельная связка юга Фрунзенского района с центром"
+          },
+          "stopIds": [
+            "malaya_balkanskaya",
+            "ligovsky_pr",
+            "ul_marata",
+            "perekupnoy_per"
+          ],
+          "minutesPerHop": 10
+        },
+        {
+          "id": "tram_16",
+          "number": "16",
+          "title": "Улица Марата — Ст. м. «Нарвская»",
+          "operator": "Горэлектротранс",
+          "type": "regular",
+          "color": "#DB2777",
+          "themes": [
+            "center",
+            "maritime"
+          ],
+          "schedule": {
+            "daysOfWeek": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "startMinutes": 345,
+            "endMinutes": 1450,
+            "intervalMinutes": 13,
+            "note": "Южный исторический пояс через Лиговский, Обводный канал и площадь Стачек"
+          },
+          "stopIds": [
+            "ul_marata",
+            "ligovsky_pr",
+            "sennaya_pl",
+            "pl_repina",
+            "m_narvskaya"
+          ],
+          "minutesPerHop": 6
+        },
+        {
+          "id": "tram_41",
+          "number": "41",
+          "title": "Сенная площадь — Завод «Северная Верфь»",
+          "operator": "Горэлектротранс",
+          "type": "regular",
+          "color": "#BE185D",
+          "themes": [
+            "center",
+            "maritime"
+          ],
+          "schedule": {
+            "daysOfWeek": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "startMinutes": 340,
+            "endMinutes": 1455,
+            "intervalMinutes": 12,
+            "note": "Через Коломну и Нарвскую заставу к судостроительным верфям"
+          },
+          "stopIds": [
+            "sennaya_pl",
+            "pl_turgeneva",
+            "pl_repina",
+            "m_narvskaya",
+            "severnaya_verf"
+          ],
+          "minutesPerHop": 6
+        },
+        {
+          "id": "tram_52",
+          "number": "52",
+          "title": "Завод «Северная Верфь» — Сосновая Поляна",
+          "operator": "Горэлектротранс",
+          "type": "regular",
+          "color": "#E11D48",
+          "themes": [
+            "parks",
+            "suburbs"
+          ],
+          "schedule": {
+            "daysOfWeek": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "startMinutes": 335,
+            "endMinutes": 1460,
+            "intervalMinutes": 10,
+            "note": "Через парки Кировского и Красносельского районов"
+          },
+          "stopIds": [
+            "severnaya_verf",
+            "m_yugo_zapadnaya",
+            "sosnovaya_polyana"
+          ],
+          "minutesPerHop": 10
+        },
+        {
+          "id": "tram_36",
+          "number": "36",
+          "title": "Оборонная (Северная Верфь) — Стрельна",
+          "operator": "Горэлектротранс",
+          "type": "regular",
+          "color": "#EA580C",
+          "themes": [
+            "parks",
+            "maritime",
+            "suburbs"
+          ],
+          "schedule": {
+            "daysOfWeek": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "startMinutes": 330,
+            "endMinutes": 1455,
+            "intervalMinutes": 11,
+            "note": "Знаменитая загородная трамвайная линия вдоль Финского залива до Стрельны"
+          },
+          "stopIds": [
+            "severnaya_verf",
+            "m_yugo_zapadnaya",
+            "sosnovaya_polyana",
+            "strelna"
+          ],
+          "minutesPerHop": 11
+        },
+        {
+          "id": "tram_43",
+          "number": "43",
+          "title": "Ст. м. «Купчино» — Ст. м. «Московские ворота»",
+          "operator": "Горэлектротранс",
+          "type": "regular",
+          "color": "#6366F1",
+          "themes": [
+            "suburbs"
+          ],
+          "schedule": {
+            "daysOfWeek": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "startMinutes": 340,
+            "endMinutes": 1450,
+            "intervalMinutes": 11,
+            "note": "Связывает Московский и Фрунзенский районы"
+          },
+          "stopIds": [
+            "m_kupchino",
+            "m_moskovskie_vorota",
+            "m_narvskaya"
+          ],
+          "minutesPerHop": 10
+        },
+        {
+          "id": "tram_100",
+          "number": "100",
+          "title": "Проспект Культуры — Финляндский вокзал (Ускоренный)",
+          "operator": "Горэлектротранс",
+          "type": "regular",
+          "color": "#0D9488",
+          "themes": [
+            "parks",
+            "suburbs"
+          ],
+          "schedule": {
+            "daysOfWeek": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "startMinutes": 330,
+            "endMinutes": 1470,
+            "intervalMinutes": 6,
+            "note": "Ускоренная магистральная линия северного направления"
+          },
+          "stopIds": [
+            "pr_kultury",
+            "tikhoretsky_pr",
+            "st_kushelevka",
+            "m_vyborgskaya",
+            "finlyandsky_vokzal"
+          ],
+          "minutesPerHop": 7
+        },
+        {
+          "id": "tram_48",
+          "number": "48",
+          "title": "Лахтинский разлив — Станция Кушелевка",
+          "operator": "Горэлектротранс",
+          "type": "regular",
+          "color": "#16A34A",
+          "themes": [
+            "parks",
+            "maritime"
+          ],
+          "schedule": {
+            "daysOfWeek": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "startMinutes": 340,
+            "endMinutes": 1450,
+            "intervalMinutes": 12,
+            "note": "От залива и Приморского парка через Чёрную речку к Лесному проспекту"
+          },
+          "stopIds": [
+            "lakhtinsky_razliv",
+            "m_staraya_derevnya",
+            "primorsky_pr",
+            "m_udelnaya",
+            "st_kushelevka"
+          ],
+          "minutesPerHop": 8
+        },
+        {
+          "id": "tram_18",
+          "number": "18",
+          "title": "Улица Шаврова — Ст. м. «Старая Деревня»",
+          "operator": "Горэлектротранс",
+          "type": "regular",
+          "color": "#65A30D",
+          "themes": [
+            "suburbs",
+            "parks"
+          ],
+          "schedule": {
+            "daysOfWeek": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "startMinutes": 335,
+            "endMinutes": 1460,
+            "intervalMinutes": 9,
+            "note": "Через Гаккелевскую и Комендантский район"
+          },
+          "stopIds": [
+            "ul_shavrova",
+            "m_staraya_derevnya",
+            "primorsky_pr"
+          ],
+          "minutesPerHop": 8
+        },
+        {
+          "id": "tram_9",
+          "number": "9",
+          "title": "Станция Пискарёвка — Ст. м. «Удельная»",
+          "operator": "Горэлектротранс",
+          "type": "regular",
+          "color": "#0891B2",
+          "themes": [
+            "parks",
+            "suburbs"
+          ],
+          "schedule": {
+            "daysOfWeek": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "startMinutes": 345,
+            "endMinutes": 1445,
+            "intervalMinutes": 13,
+            "note": "Соединяет Пискарёвку, Политех и Удельный парк"
+          },
+          "stopIds": [
+            "st_piskarevka",
+            "tikhoretsky_pr",
+            "m_udelnaya"
+          ],
+          "minutesPerHop": 9
+        },
+        {
+          "id": "tram_30",
+          "number": "30",
+          "title": "Ладожский вокзал — Перекупной переулок",
+          "operator": "Горэлектротранс",
+          "type": "regular",
+          "color": "#047857",
+          "themes": [
+            "center",
+            "suburbs"
+          ],
+          "schedule": {
+            "daysOfWeek": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "startMinutes": 340,
+            "endMinutes": 1455,
+            "intervalMinutes": 11,
+            "note": "Короткая перемычка через Малую Охту и мост Александра Невского"
+          },
+          "stopIds": [
+            "ladozhsky_vokzal",
+            "malaya_okhta",
+            "perekupnoy_per"
+          ],
+          "minutesPerHop": 6
+        },
+        {
+          "id": "tram_20",
+          "number": "20",
+          "title": "Проспект Культуры — Финляндский вокзал",
+          "operator": "Горэлектротранс",
+          "type": "regular",
+          "color": "#0F766E",
+          "themes": [
+            "parks",
+            "suburbs"
+          ],
+          "schedule": {
+            "daysOfWeek": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "startMinutes": 335,
+            "endMinutes": 1455,
+            "intervalMinutes": 12,
+            "note": "Через Политехническую, Лесную, Кондратьевский проспект и пл. Калинина"
+          },
+          "stopIds": [
+            "pr_kultury",
+            "m_politekhnicheskaya",
+            "m_lesnaya",
+            "kondratyevsky_pr",
+            "pl_kalinina",
+            "finlyandsky_vokzal"
+          ],
+          "minutesPerHop": 7
+        },
+        {
+          "id": "tram_55",
+          "number": "55",
+          "title": "Придорожная аллея — Улица Шаврова",
+          "operator": "Горэлектротранс",
+          "type": "regular",
+          "color": "#22C55E",
+          "themes": [
+            "suburbs",
+            "parks"
+          ],
+          "schedule": {
+            "daysOfWeek": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "startMinutes": 330,
+            "endMinutes": 1465,
+            "intervalMinutes": 8,
+            "note": "Длинная северная широтная связка через Озерки, Просвещения и Приморский район"
+          },
+          "stopIds": [
+            "pridorozhnaya_alleya",
+            "pr_prosveshcheniya",
+            "m_ozerki",
+            "m_udelnaya",
+            "ul_shavrova"
+          ],
+          "minutesPerHop": 8
+        },
+        {
+          "id": "tram_60",
+          "number": "60",
+          "title": "ЛЭМЗ — Ст. м. «Автово» (Северная Верфь)",
+          "operator": "Горэлектротранс",
+          "type": "regular",
+          "color": "#DC2626",
+          "themes": [
+            "maritime",
+            "suburbs"
+          ],
+          "schedule": {
+            "daysOfWeek": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "startMinutes": 330,
+            "endMinutes": 1470,
+            "intervalMinutes": 7,
+            "note": "Быстрая линия вдоль Петергофского шоссе и проспекта Стачек"
+          },
+          "stopIds": [
+            "lemz",
+            "sosnovaya_polyana",
+            "ul_desantnikov",
+            "m_yugo_zapadnaya",
+            "m_avtovo",
+            "severnaya_verf"
+          ],
+          "minutesPerHop": 6
+        },
+        {
+          "id": "tram_45",
+          "number": "45",
+          "title": "Ст. м. «Купчино» — Парк Победы (пр. Славы)",
+          "operator": "Горэлектротранс",
+          "type": "regular",
+          "color": "#7C3AED",
+          "themes": [
+            "parks",
+            "suburbs"
+          ],
+          "schedule": {
+            "daysOfWeek": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "startMinutes": 340,
+            "endMinutes": 1450,
+            "intervalMinutes": 10,
+            "note": "Через проспект Славы, Международную и Московский парк Победы"
+          },
+          "stopIds": [
+            "m_kupchino",
+            "pr_slavy",
+            "m_mezhdunarodnaya",
+            "park_pobedy",
+            "m_moskovskie_vorota"
+          ],
+          "minutesPerHop": 7
+        },
+        {
+          "id": "tram_64_chizhik",
+          "number": "64",
+          "title": "Ладожский вокзал — Улица Передовиков (Чижик)",
+          "operator": "Чижик (ТКК)",
+          "type": "chizhik",
+          "color": "#16A34A",
+          "themes": [
+            "suburbs"
+          ],
+          "schedule": {
+            "daysOfWeek": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "startMinutes": 330,
+            "endMinutes": 1470,
+            "intervalMinutes": 7,
+            "note": "Современный скоростной трамвай «Чижик» на Ржевке"
+          },
+          "stopIds": [
+            "ladozhsky_vokzal",
+            "ul_peredovikov",
+            "ul_kommuny"
+          ],
+          "minutesPerHop": 8
+        },
+        {
+          "id": "tram_51",
+          "number": "51",
+          "title": "Суздальский проспект — Станция Пискарёвка (Ручьи)",
+          "operator": "Горэлектротранс",
+          "type": "regular",
+          "color": "#0284C7",
+          "themes": [
+            "suburbs"
+          ],
+          "schedule": {
+            "daysOfWeek": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "startMinutes": 340,
+            "endMinutes": 1455,
+            "intervalMinutes": 11,
+            "note": "Соединяет север Гражданки со станцией Ручьи и Пискарёвкой"
+          },
+          "stopIds": [
+            "suzdalsky_pr",
+            "st_ruchyi",
+            "st_piskarevka",
+            "pl_kalinina"
+          ],
+          "minutesPerHop": 8
+        }
+      ],
+      "landmarks": [
+        {
+          "id": "lm_trinity_fortress",
+          "name": "Троицкий мост и вид на Петропавловку",
+          "category": "architecture",
+          "lat": 59.9488,
+          "lng": 30.3274,
+          "district": "Петроградская сторона",
+          "description": "Один из самых живописных трамвайных переездов через Неву: из окна маршрута № 3 и Т1 открывается панорама на шпиль Петропавловского собора.",
+          "nearbyStopIds": [
+            "troitsky_most",
+            "marsovo_pole",
+            "aleksandrovsky_park"
+          ],
+          "photoUrl": "/src/assets/images/spb_trinity_bridge_tram_1795153259516.jpg"
+        },
+        {
+          "id": "lm_strelka_vo",
+          "name": "Стрелка Васильевского острова и Ростральные колонны",
+          "category": "architecture",
+          "lat": 59.9439,
+          "lng": 30.3069,
+          "district": "Васильевский остров",
+          "description": "Ансамбль Биржи и две ростральные колонны на месте слияния Большой и Малой Невы.",
+          "nearbyStopIds": [
+            "strelka_vo",
+            "m_vasileostrovskaya",
+            "tuchkov_most"
+          ],
+          "photoUrl": "/src/assets/images/spb_vasilievsky_spit_1795153258899.jpg"
+        },
+        {
+          "id": "lm_kolomna_nikolsky",
+          "name": "Никольский морской собор и Крюков канал",
+          "category": "architecture",
+          "lat": 59.9224,
+          "lng": 30.3001,
+          "district": "Адмиралтейский",
+          "description": "Тихие каналы старой Коломны, кованые мостики и небесно-голубое барокко Морского собора в паре минут от трамваев № 3 и 41.",
+          "nearbyStopIds": [
+            "pl_turgeneva",
+            "pl_repina",
+            "sennaya_pl"
+          ],
+          "photoUrl": "/src/assets/images/spb_kolomna_canal_1795153259145.jpg"
+        },
+        {
+          "id": "lm_smolny",
+          "name": "Смольный собор и сад-партер",
+          "category": "architecture",
+          "lat": 59.9488,
+          "lng": 30.3955,
+          "district": "Центральный",
+          "description": "Величественный ансамбль Растрелли у излучины Невы, куда легко доехать на трамвае № 23.",
+          "nearbyStopIds": [
+            "smolny",
+            "perekupnoy_per"
+          ],
+          "photoUrl": "/src/assets/images/spb_smolny_cathedral_1795153259753.jpg"
+        },
+        {
+          "id": "lm_kronverksky",
+          "name": "Александровский парк и Кронверкский пролив",
+          "category": "park",
+          "lat": 59.9548,
+          "lng": 30.3145,
+          "district": "Петроградская сторона",
+          "description": "Старинный зелёный пояс вокруг Кронверкской протоки — спокойная прогулка у воды после трамвайного переезда.",
+          "nearbyStopIds": [
+            "aleksandrovsky_park",
+            "troitsky_most",
+            "tuchkov_most"
+          ],
+          "photoUrl": "/src/assets/images/spb_kronverksky_park_1795153259206.jpg"
+        },
+        {
+          "id": "lm_narvskaya_gate",
+          "name": "Нарвские триумфальные ворота",
+          "category": "architecture",
+          "lat": 59.9009,
+          "lng": 30.2747,
+          "district": "Кировский",
+          "description": "Монументальная арка 1834 года с колесницей Славы, мимо которой проходят трамваи № 16 и 41.",
+          "nearbyStopIds": [
+            "m_narvskaya",
+            "severnaya_verf"
+          ],
+          "photoUrl": "/src/assets/images/spb_narvskaya_arch_1795153259152.jpg"
+        },
+        {
+          "id": "lm_chizhik_line",
+          "name": "Кварталы Малой Охты и скоростной «Чижик»",
+          "category": "hidden",
+          "lat": 59.9321,
+          "lng": 30.4352,
+          "district": "Красногвардейский",
+          "description": "Контраст исторической застройки правого берега и бесшумных зелёных вагонов «Чижика» с выделенными эстакадами.",
+          "nearbyStopIds": [
+            "ladozhsky_vokzal",
+            "malaya_okhta",
+            "hasanskaya_ul",
+            "ul_kommuny"
+          ],
+          "photoUrl": "/src/assets/images/spb_chizhik_modern_tram_1795153259608.jpg"
+        },
+        {
+          "id": "lm_kolomna_cafe",
+          "name": "Камерные кофейни в кирпичных дворах Коломны",
+          "category": "cafe",
+          "lat": 59.9201,
+          "lng": 30.3105,
+          "district": "Адмиралтейский",
+          "description": "Тёплые спешелти-кофейни в старых флигелях между Сенной площадью и площадью Тургенева — идеальный финиш поездки.",
+          "nearbyStopIds": [
+            "sennaya_pl",
+            "pl_turgeneva",
+            "sadovaya_nevsky",
+            "ul_marata"
+          ],
+          "photoUrl": "/src/assets/images/spb_cozy_coffee_interior_1795153259586.jpg"
+        },
+        {
+          "id": "lm_get_museum",
+          "name": "Музей городского электрического транспорта",
+          "category": "hidden",
+          "lat": 59.9369,
+          "lng": 30.2588,
+          "district": "Васильевский остров",
+          "description": "Действующее депо 1907 года с коллекцией подлинных ленинградских вагонов разных эпох — от конки до ЛМ-57.",
+          "nearbyStopIds": [
+            "detskaya_ul",
+            "m_vasileostrovskaya"
+          ],
+          "photoUrl": "/src/assets/images/spb_trinity_bridge_tram_1795153259516.jpg"
+        },
+        {
+          "id": "lm_strelna_palace",
+          "name": "Константиновский дворец и берег залива",
+          "category": "park",
+          "lat": 59.8551,
+          "lng": 30.0581,
+          "district": "Петродворцовый",
+          "description": "Редкий случай, когда городской трамвай № 36 привозит прямо к парку дворцово-паркового ансамбля у Финского залива.",
+          "nearbyStopIds": [
+            "strelna",
+            "sosnovaya_polyana"
+          ],
+          "photoUrl": "/src/assets/images/spb_kronverksky_park_1795153259206.jpg"
+        },
+        {
+          "id": "lm_botanichesky",
+          "name": "Ботанический сад Петра Великого",
+          "category": "park",
+          "lat": 59.9704,
+          "lng": 30.3235,
+          "district": "Петроградская сторона",
+          "description": "Тропические оранжереи и старинный парк на Аптекарском острове напротив остановки трамвая № 40.",
+          "nearbyStopIds": [
+            "botanicheskaya",
+            "m_petrogradskaya"
+          ],
+          "photoUrl": "/src/assets/images/spb_kronverksky_park_1795153259206.jpg"
+        },
+        {
+          "id": "lm_okkervil_park",
+          "name": "Набережная реки Оккервиль и Парк Строителей",
+          "category": "park",
+          "lat": 59.9052,
+          "lng": 30.4978,
+          "district": "Невский",
+          "description": "Зелёный массив правого берега, вокруг которого в будние дни делает круг трамвай «А».",
+          "nearbyStopIds": [
+            "reka_okkervil",
+            "pr_solidarnosti",
+            "m_dybenko"
+          ],
+          "photoUrl": null
+        },
+        {
+          "id": "lm_udelnaya_flea",
+          "name": "Удельный парк и винтажные ряды",
+          "category": "hidden",
+          "lat": 60.0155,
+          "lng": 30.3121,
+          "district": "Выборгский",
+          "description": "Огромный лесопарк северной части города и знаменитый блошиный рынок у станции Удельная.",
+          "nearbyStopIds": [
+            "m_udelnaya",
+            "tikhoretsky_pr"
+          ],
+          "photoUrl": null
+        },
+        {
+          "id": "lm_shavrova_cafe",
+          "name": "Пекарня у Юнтоловского заказника",
+          "category": "cafe",
+          "lat": 60.0172,
+          "lng": 30.2312,
+          "district": "Приморский",
+          "description": "Уютное место с тёплой выпечкой на краю Приморского района рядом с лесной кромкой.",
+          "nearbyStopIds": [
+            "ul_shavrova",
+            "lakhtinsky_razliv"
+          ],
+          "photoUrl": "/src/assets/images/spb_cozy_coffee_interior_1795153259586.jpg"
+        },
+        {
+          "id": "lm_perekrestok_sennaya",
+          "name": "Перекрёсток (ТРК «ПИК», ул. Ефимова, 2)",
+          "category": "grocery",
+          "lat": 59.9265,
+          "lng": 30.3192,
+          "district": "Адмиралтейский",
+          "description": "Круглосуточный супермаркет на −1 этаже прямо у Сенной площади — удобно взять кофе, воду и перекус перед посадкой.",
+          "nearbyStopIds": [
+            "sennaya_pl",
+            "sadovaya_nevsky"
+          ],
+          "photoUrl": "/src/assets/images/spb_cozy_coffee_interior_1795153259586.jpg"
+        },
+        {
+          "id": "lm_pyaterochka_sennaya",
+          "name": "Пятёрочка (Московский пр., 4)",
+          "category": "grocery",
+          "lat": 59.9259,
+          "lng": 30.3176,
+          "district": "Адмиралтейский",
+          "description": "Магазин шаговой доступности в двух минутах от трамвайного узла на Сенной площади.",
+          "nearbyStopIds": [
+            "sennaya_pl",
+            "pl_turgeneva"
+          ],
+          "photoUrl": "/src/assets/images/spb_cozy_coffee_interior_1795153259586.jpg"
+        },
+        {
+          "id": "lm_pyaterochka_finlyandsky",
+          "name": "Пятёрочка (пл. Ленина, 8/8 у Финляндского)",
+          "category": "grocery",
+          "lat": 59.9562,
+          "lng": 30.3548,
+          "district": "Калининский",
+          "description": "Расположена прямо напротив трамвайного кольца у Финляндского вокзала — удобно для пересадки между № 3, 6, 20, 23 и 100.",
+          "nearbyStopIds": [
+            "finlyandsky_vokzal",
+            "pl_kalinina"
+          ],
+          "photoUrl": "/src/assets/images/spb_cozy_coffee_interior_1795153259586.jpg"
+        },
+        {
+          "id": "lm_perekrestok_ladozhskaya",
+          "name": "Перекрёсток (ТК «Заневский Каскад», Ладожская)",
+          "category": "grocery",
+          "lat": 59.9325,
+          "lng": 30.4396,
+          "district": "Красногвардейский",
+          "description": "Крупный супермаркет прямо у пересадки на трамваи «Чижик» (№ 8, 63, 64) и городские маршруты № 7, 30.",
+          "nearbyStopIds": [
+            "ladozhsky_vokzal",
+            "malaya_okhta"
+          ],
+          "photoUrl": "/src/assets/images/spb_cozy_coffee_interior_1795153259586.jpg"
+        },
+        {
+          "id": "lm_perekrestok_vo",
+          "name": "Перекрёсток и Пятёрочка (6–7 линия В.О., Средний пр.)",
+          "category": "grocery",
+          "lat": 59.9422,
+          "lng": 30.2798,
+          "district": "Васильевский остров",
+          "description": "Оба супермаркета в одном квартале от остановки трамваев № 1, 6, 40 и Т1 на Среднем проспекте В.О.",
+          "nearbyStopIds": [
+            "m_vasileostrovskaya",
+            "detskaya_ul"
+          ],
+          "photoUrl": "/src/assets/images/spb_cozy_coffee_interior_1795153259586.jpg"
+        },
+        {
+          "id": "lm_perekrestok_kupchino",
+          "name": "Перекрёсток (Балканская пл., 5, Купчино)",
+          "category": "grocery",
+          "lat": 59.8292,
+          "lng": 30.3765,
+          "district": "Фрунзенский",
+          "description": "Супермаркет в ТРК «Балкания NOVA» у конечного кольца трамваев № 25, 43, 45.",
+          "nearbyStopIds": [
+            "m_kupchino",
+            "malaya_balkanskaya",
+            "pr_slavy"
+          ],
+          "photoUrl": "/src/assets/images/spb_cozy_coffee_interior_1795153259586.jpg"
+        },
+        {
+          "id": "lm_pyaterochka_gorkovskaya",
+          "name": "Пятёрочка (Кронверкский пр., 55, Горьковская)",
+          "category": "grocery",
+          "lat": 59.9565,
+          "lng": 30.3125,
+          "district": "Петроградская сторона",
+          "description": "Удобная точка на Петроградской стороне рядом с линией трамваев № 6, 40 и Т1.",
+          "nearbyStopIds": [
+            "aleksandrovsky_park",
+            "m_petrogradskaya",
+            "tuchkov_most"
+          ],
+          "photoUrl": "/src/assets/images/spb_cozy_coffee_interior_1795153259586.jpg"
+        },
+        {
+          "id": "lm_pyaterochka_narvskaya_avtovo",
+          "name": "Пятёрочка (пр. Стачек, у м. Нарвская и Автово)",
+          "category": "grocery",
+          "lat": 59.8998,
+          "lng": 30.2738,
+          "district": "Кировский",
+          "description": "Быстрая остановка по пути в Стрельну и к Северной верфи на трамваях № 16, 36, 41, 60.",
+          "nearbyStopIds": [
+            "m_narvskaya",
+            "m_avtovo",
+            "severnaya_verf"
+          ],
+          "photoUrl": "/src/assets/images/spb_cozy_coffee_interior_1795153259586.jpg"
+        }
+      ],
+      "announcerIntro": "СПб ГУП «Горэлектротранс» приветствует вас в вагоне трамвая."
+    },
+    {
+      "id": "omsk",
+      "name": "Омск",
+      "shortName": "Омск",
+      "genitiveName": "Омска",
+      "tagline": "Иртыш, Любинский проспект, 6 трамвайных линий с историей",
+      "center": {
+        "lat": 54.968,
+        "lng": 73.385
+      },
+      "defaultStartStopId": "omsk_cirk",
+      "radiusKm": 32,
+      "stops": [
+        {
+          "id": "omsk_cirk",
+          "name": "Омский цирк (пр. Карла Маркса)",
+          "district": "Центральный",
+          "lat": 54.9561,
+          "lng": 73.3892
+        },
+        {
+          "id": "omsk_tram_depot",
+          "name": "Трамвайное депо (ул. Маршала Жукова)",
+          "district": "Центральный",
+          "lat": 54.9645,
+          "lng": 73.3941
+        },
+        {
+          "id": "omsk_gostinitsa",
+          "name": "Гостиница «Омск» (ТЦ «Каскад»)",
+          "district": "Центральный",
+          "lat": 54.9511,
+          "lng": 73.3856
+        },
+        {
+          "id": "omsk_pl_serova",
+          "name": "Площадь Серова",
+          "district": "Ленинский",
+          "lat": 54.9442,
+          "lng": 73.3826
+        },
+        {
+          "id": "omsk_leninsky_rynok",
+          "name": "Ленинский рынок (ул. Рождественского)",
+          "district": "Ленинский",
+          "lat": 54.9412,
+          "lng": 73.3794
+        },
+        {
+          "id": "omsk_rechnoy_port",
+          "name": "Речной порт (Иртышская наб.)",
+          "district": "Ленинский",
+          "lat": 54.9475,
+          "lng": 73.3688
+        },
+        {
+          "id": "omsk_kotelnikova",
+          "name": "Улица Котельникова (кольцо у Вокзала)",
+          "district": "Ленинский",
+          "lat": 54.9393,
+          "lng": 73.3786
+        },
+        {
+          "id": "omsk_mayakovskogo",
+          "name": "Улица Маяковского",
+          "district": "Центральный",
+          "lat": 54.9718,
+          "lng": 73.3915
+        },
+        {
+          "id": "omsk_kuybysheva",
+          "name": "Улица Куйбышева (ул. Лермонтова)",
+          "district": "Центральный",
+          "lat": 54.9788,
+          "lng": 73.3912
+        },
+        {
+          "id": "omsk_20_rkka",
+          "name": "Улица 20 лет РККА",
+          "district": "Октябрьский",
+          "lat": 54.9682,
+          "lng": 73.4098
+        },
+        {
+          "id": "omsk_park_vlksm",
+          "name": "ПКиО им. 30 лет ВЛКСМ",
+          "district": "Октябрьский",
+          "lat": 54.9648,
+          "lng": 73.4184
+        },
+        {
+          "id": "omsk_liza_chaykina",
+          "name": "Улица Лизы Чайкиной",
+          "district": "Октябрьский",
+          "lat": 54.9661,
+          "lng": 73.4295
+        },
+        {
+          "id": "omsk_poliklinika_3transp",
+          "name": "Поликлиника (ул. 3-я Транспортная)",
+          "district": "Октябрьский",
+          "lat": 54.9598,
+          "lng": 73.4175
+        },
+        {
+          "id": "omsk_bk_rubin",
+          "name": "ДК «Рубин» (ул. Богдана Хмельницкого)",
+          "district": "Октябрьский",
+          "lat": 54.9628,
+          "lng": 73.4125
+        },
+        {
+          "id": "omsk_po_baranova",
+          "name": "ПО им. Баранова",
+          "district": "Октябрьский",
+          "lat": 54.9612,
+          "lng": 73.4242
+        },
+        {
+          "id": "omsk_po_polet",
+          "name": "ПО «Полёт» (ул. Богдана Хмельницкого)",
+          "district": "Октябрьский",
+          "lat": 54.9556,
+          "lng": 73.4105
+        },
+        {
+          "id": "omsk_kazachy_rynok",
+          "name": "Казачий рынок (ул. Куйбышева)",
+          "district": "Центральный",
+          "lat": 54.9776,
+          "lng": 73.4055
+        },
+        {
+          "id": "omsk_20_liniya",
+          "name": "Улица 20-я Линия",
+          "district": "Центральный",
+          "lat": 54.9808,
+          "lng": 73.4215
+        },
+        {
+          "id": "omsk_3_razyezd",
+          "name": "Улица 3-й Разъезд (Биофабрика)",
+          "district": "Центральный",
+          "lat": 54.9881,
+          "lng": 73.4425
+        },
+        {
+          "id": "omsk_krasnyh_zor",
+          "name": "Улица Красных Зорь",
+          "district": "Центральный",
+          "lat": 54.9852,
+          "lng": 73.3975
+        },
+        {
+          "id": "omsk_11_remeslennaya",
+          "name": "Улица 11-я Ремесленная",
+          "district": "Центральный",
+          "lat": 54.9968,
+          "lng": 73.3992
+        },
+        {
+          "id": "omsk_lds_fetisova",
+          "name": "ЛДС им. Фетисова",
+          "district": "Центральный",
+          "lat": 55.0062,
+          "lng": 73.4038
+        },
+        {
+          "id": "omsk_chelyuskintsev",
+          "name": "Улица Челюскинцев",
+          "district": "Центральный",
+          "lat": 55.0115,
+          "lng": 73.4062
+        },
+        {
+          "id": "omsk_amursky_pos",
+          "name": "Посёлок Амурский (кольцо)",
+          "district": "Амурский посёлок",
+          "lat": 55.0225,
+          "lng": 73.4122
+        },
+        {
+          "id": "omsk_gertzena",
+          "name": "Улица Герцена",
+          "district": "Центральный",
+          "lat": 54.9964,
+          "lng": 73.3812
+        },
+        {
+          "id": "omsk_detskaya_bolnitsa",
+          "name": "Детская больница (ул. Долгирева)",
+          "district": "Советский",
+          "lat": 55.0085,
+          "lng": 73.3568
+        },
+        {
+          "id": "omsk_rabochy_pos",
+          "name": "Посёлок Рабочий / СибНИИСХоз",
+          "district": "Советский",
+          "lat": 55.0218,
+          "lng": 73.3372
+        },
+        {
+          "id": "omsk_pr_koroleva",
+          "name": "Проспект Королёва",
+          "district": "Советский",
+          "lat": 55.0342,
+          "lng": 73.3315
+        },
+        {
+          "id": "omsk_zaozernaya",
+          "name": "Улица Заозёрная (Заозёрный мкрн)",
+          "district": "Советский",
+          "lat": 55.0448,
+          "lng": 73.3264
+        },
+        {
+          "id": "omsk_strelnikova",
+          "name": "Улица Стрельникова",
+          "district": "Советский",
+          "lat": 55.0539,
+          "lng": 73.3218
+        },
+        {
+          "id": "omsk_zeleny_ostrov",
+          "name": "Парк «Зелёный остров» (нет трамвая)",
+          "district": "Центральный",
+          "lat": 54.9998,
+          "lng": 73.3358,
+          "isolatedFromMainTram": true
+        },
+        {
+          "id": "omsk_g_drive_arena",
+          "name": "G-Drive Арена (Левый берег, нет трамвая)",
+          "district": "Кировский",
+          "lat": 54.9962,
+          "lng": 73.2682,
+          "isolatedFromMainTram": true
+        }
+      ],
+      "routes": [
+        {
+          "id": "omsk_tram_1",
+          "number": "1",
+          "title": "ПО «Полёт» — Посёлок Амурский",
+          "operator": "МП «Электрический транспорт»",
+          "type": "regular",
+          "color": "#0F5E8C",
+          "themes": [
+            "parks",
+            "suburbs"
+          ],
+          "schedule": {
+            "daysOfWeek": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "startMinutes": 360,
+            "endMinutes": 1230,
+            "intervalMinutes": 18,
+            "note": "Дневной маршрут мимо ПКиО им. 30 лет ВЛКСМ и ЛДС им. Фетисова (до ~20:30)"
+          },
+          "stopIds": [
+            "omsk_po_polet",
+            "omsk_po_baranova",
+            "omsk_liza_chaykina",
+            "omsk_park_vlksm",
+            "omsk_20_rkka",
+            "omsk_krasnyh_zor",
+            "omsk_11_remeslennaya",
+            "omsk_lds_fetisova",
+            "omsk_chelyuskintsev",
+            "omsk_amursky_pos"
+          ],
+          "minutesPerHop": 5
+        },
+        {
+          "id": "omsk_tram_2",
+          "number": "2",
+          "title": "ПО «Полёт» — Улица Котельникова",
+          "operator": "МП «Электрический транспорт»",
+          "type": "regular",
+          "color": "#0369A1",
+          "themes": [
+            "center",
+            "maritime"
+          ],
+          "schedule": {
+            "daysOfWeek": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "startMinutes": 345,
+            "endMinutes": 1370,
+            "intervalMinutes": 14,
+            "note": "Через Трамвайное депо, Цирк, пр. Карла Маркса и Речной порт"
+          },
+          "stopIds": [
+            "omsk_po_polet",
+            "omsk_poliklinika_3transp",
+            "omsk_tram_depot",
+            "omsk_cirk",
+            "omsk_gostinitsa",
+            "omsk_pl_serova",
+            "omsk_leninsky_rynok",
+            "omsk_rechnoy_port",
+            "omsk_kotelnikova"
+          ],
+          "minutesPerHop": 5
+        },
+        {
+          "id": "omsk_tram_4",
+          "number": "4",
+          "title": "Посёлок Амурский — Улица Котельникова",
+          "operator": "МП «Электрический транспорт»",
+          "type": "regular",
+          "color": "#B91C1C",
+          "themes": [
+            "center",
+            "suburbs"
+          ],
+          "schedule": {
+            "daysOfWeek": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "startMinutes": 330,
+            "endMinutes": 1365,
+            "intervalMinutes": 10,
+            "note": "Главный магистральный диаметр Омска с севера на юг (частые рейсы)"
+          },
+          "stopIds": [
+            "omsk_amursky_pos",
+            "omsk_chelyuskintsev",
+            "omsk_lds_fetisova",
+            "omsk_11_remeslennaya",
+            "omsk_kuybysheva",
+            "omsk_mayakovskogo",
+            "omsk_tram_depot",
+            "omsk_cirk",
+            "omsk_pl_serova",
+            "omsk_leninsky_rynok",
+            "omsk_kotelnikova"
+          ],
+          "minutesPerHop": 5
+        },
+        {
+          "id": "omsk_tram_7",
+          "number": "7",
+          "title": "Посёлок Амурский — Улица Стрельникова",
+          "operator": "МП «Электрический транспорт»",
+          "type": "regular",
+          "color": "#059669",
+          "themes": [
+            "parks",
+            "suburbs",
+            "maritime"
+          ],
+          "schedule": {
+            "daysOfWeek": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "startMinutes": 385,
+            "endMinutes": 1340,
+            "intervalMinutes": 15,
+            "note": "Идёт в Советский округ и Заозёрный микрорайон вдоль Иртыша"
+          },
+          "stopIds": [
+            "omsk_amursky_pos",
+            "omsk_chelyuskintsev",
+            "omsk_gertzena",
+            "omsk_detskaya_bolnitsa",
+            "omsk_rabochy_pos",
+            "omsk_pr_koroleva",
+            "omsk_zaozernaya",
+            "omsk_strelnikova"
+          ],
+          "minutesPerHop": 6
+        },
+        {
+          "id": "omsk_tram_8",
+          "number": "8",
+          "title": "ПО «Полёт» — Улица Котельникова (через ул. Б. Хмельницкого)",
+          "operator": "МП «Электрический транспорт»",
+          "type": "regular",
+          "color": "#D97706",
+          "themes": [
+            "center",
+            "suburbs"
+          ],
+          "schedule": {
+            "daysOfWeek": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "startMinutes": 335,
+            "endMinutes": 1368,
+            "intervalMinutes": 14,
+            "note": "Проходит мимо ДК «Рубин» по ул. Богдана Хмельницкого и пр. Маркса"
+          },
+          "stopIds": [
+            "omsk_po_polet",
+            "omsk_bk_rubin",
+            "omsk_tram_depot",
+            "omsk_cirk",
+            "omsk_gostinitsa",
+            "omsk_pl_serova",
+            "omsk_kotelnikova"
+          ],
+          "minutesPerHop": 6
+        },
+        {
+          "id": "omsk_tram_9",
+          "number": "9",
+          "title": "Улица 3-й Разъезд — Улица Котельникова",
+          "operator": "МП «Электрический транспорт»",
+          "type": "regular",
+          "color": "#7C3AED",
+          "themes": [
+            "center"
+          ],
+          "schedule": {
+            "daysOfWeek": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5,
+              6
+            ],
+            "startMinutes": 385,
+            "endMinutes": 1290,
+            "intervalMinutes": 16,
+            "note": "Связывает 3-й Разъезд, Казачий рынок, Куйбышева и Ленинский рынок"
+          },
+          "stopIds": [
+            "omsk_3_razyezd",
+            "omsk_20_liniya",
+            "omsk_kazachy_rynok",
+            "omsk_kuybysheva",
+            "omsk_mayakovskogo",
+            "omsk_tram_depot",
+            "omsk_cirk",
+            "omsk_pl_serova",
+            "omsk_leninsky_rynok",
+            "omsk_kotelnikova"
+          ],
+          "minutesPerHop": 5
+        }
+      ],
+      "landmarks": [
+        {
+          "id": "omsk_lm_cirk",
+          "name": "Омский государственный цирк и проспект Карла Маркса",
+          "category": "architecture",
+          "lat": 54.9561,
+          "lng": 73.3892,
+          "district": "Центральный",
+          "description": "Знаковый купол у пересечения проспекта Маркса и улицы Масленникова — главный центр трамвайных пересадок № 2, 4, 8 и 9.",
+          "nearbyStopIds": [
+            "omsk_cirk",
+            "omsk_gostinitsa"
+          ],
+          "photoUrl": "/src/assets/images/spb_trinity_bridge_tram_1795153259516.jpg"
+        },
+        {
+          "id": "omsk_lm_park_vlksm",
+          "name": "Парк культуры и отдыха им. 30-летия ВЛКСМ",
+          "category": "park",
+          "lat": 54.9648,
+          "lng": 73.4184,
+          "district": "Октябрьский",
+          "description": "Крупнейший сосновый и берёзовый парк города прямо на трассе трамвая № 1 — тихие аллеи, озёра и колесо обозрения.",
+          "nearbyStopIds": [
+            "omsk_park_vlksm",
+            "omsk_liza_chaykina",
+            "omsk_bk_rubin"
+          ],
+          "photoUrl": "/src/assets/images/spb_kronverksky_park_1795153259206.jpg"
+        },
+        {
+          "id": "omsk_lm_irtysh_nab",
+          "name": "Иртышская набережная и Речной порт",
+          "category": "park",
+          "lat": 54.9482,
+          "lng": 73.3685,
+          "district": "Ленинский",
+          "description": "Длинная прогулочная набережная вдоль Иртыша рядом с остановкой трамваев № 2, 4, 8 и 9.",
+          "nearbyStopIds": [
+            "omsk_rechnoy_port",
+            "omsk_pl_serova",
+            "omsk_leninsky_rynok"
+          ],
+          "photoUrl": "/src/assets/images/spb_vasilievsky_spit_1795153258899.jpg"
+        },
+        {
+          "id": "omsk_lm_lyubinsky",
+          "name": "Любинский проспект и исторический центр",
+          "category": "architecture",
+          "lat": 54.9835,
+          "lng": 73.3748,
+          "district": "Центральный",
+          "description": "Купеческая архитектура улицы Ленина, драмтеатр и сквер Дзержинского в пешей прогулке от узла на улице Куйбышева / Герцена.",
+          "nearbyStopIds": [
+            "omsk_kuybysheva",
+            "omsk_gertzena",
+            "omsk_mayakovskogo"
+          ],
+          "photoUrl": "/src/assets/images/spb_kolomna_canal_1795153259145.jpg"
+        },
+        {
+          "id": "omsk_lm_depot",
+          "name": "Трамвайное депо на Жукова (веер рельсов)",
+          "category": "hidden",
+          "lat": 54.9645,
+          "lng": 73.3941,
+          "district": "Центральный",
+          "description": "Исторический трамвайный узел Омска, где сходятся маршруты № 2, 4, 8 и 9 и выходят на линию утренние составы.",
+          "nearbyStopIds": [
+            "omsk_tram_depot",
+            "omsk_mayakovskogo"
+          ],
+          "photoUrl": "/src/assets/images/spb_chizhik_modern_tram_1795153259608.jpg"
+        },
+        {
+          "id": "omsk_lm_sovetsky_park",
+          "name": "Сквер и набережная в Заозёрном (трамвай № 7)",
+          "category": "hidden",
+          "lat": 55.0495,
+          "lng": 73.3212,
+          "district": "Советский",
+          "description": "Уникальная однопутно-выделенная ветка на север к улице Стрельникова с видом на речные дали и дачные кварталы.",
+          "nearbyStopIds": [
+            "omsk_zaozernaya",
+            "omsk_strelnikova",
+            "omsk_pr_koroleva"
+          ],
+          "photoUrl": null
+        },
+        {
+          "id": "omsk_lm_cafe_kaskad",
+          "name": "Кофейни на проспекте Карла Маркса",
+          "category": "cafe",
+          "lat": 54.9522,
+          "lng": 73.3854,
+          "district": "Центральный",
+          "description": "Тёплые кофейни и пекарни между ТЦ «Каскад» и Цирком — удобно согреться в ожидании трамвая.",
+          "nearbyStopIds": [
+            "omsk_gostinitsa",
+            "omsk_cirk",
+            "omsk_mayakovskogo"
+          ],
+          "photoUrl": "/src/assets/images/spb_cozy_coffee_interior_1795153259586.jpg"
+        },
+        {
+          "id": "omsk_pyaterochka_kaskad",
+          "name": "Пятёрочка (пр. Карла Маркса, 24, ТЦ «Каскад», 24ч)",
+          "category": "grocery",
+          "lat": 54.9514,
+          "lng": 73.3852,
+          "district": "Центральный",
+          "description": "Круглосуточный супермаркет у остановки «Гостиница Омск» — удобно зайти за водой и перекусом на пересадке.",
+          "nearbyStopIds": [
+            "omsk_gostinitsa",
+            "omsk_cirk"
+          ],
+          "photoUrl": "/src/assets/images/spb_cozy_coffee_interior_1795153259586.jpg"
+        },
+        {
+          "id": "omsk_pyaterochka_marksa_45",
+          "name": "Пятёрочка (пр. Карла Маркса, 45/1 — у Цирка)",
+          "category": "grocery",
+          "lat": 54.9554,
+          "lng": 73.3885,
+          "district": "Центральный",
+          "description": "Круглосуточная точка рядом с Омским цирком и главным трамвайным узлом.",
+          "nearbyStopIds": [
+            "omsk_cirk",
+            "omsk_tram_depot"
+          ],
+          "photoUrl": "/src/assets/images/spb_cozy_coffee_interior_1795153259586.jpg"
+        },
+        {
+          "id": "omsk_pyaterochka_marksa_79",
+          "name": "Пятёрочка (пр. Карла Маркса, 79 — пл. Серова)",
+          "category": "grocery",
+          "lat": 54.9438,
+          "lng": 73.3821,
+          "district": "Ленинский",
+          "description": "Супермаркет на проспекте Маркса в шаговой доступности от площади Серова и Ленинского рынка.",
+          "nearbyStopIds": [
+            "omsk_pl_serova",
+            "omsk_leninsky_rynok",
+            "omsk_kotelnikova"
+          ],
+          "photoUrl": "/src/assets/images/spb_cozy_coffee_interior_1795153259586.jpg"
+        },
+        {
+          "id": "omsk_pyaterochka_lermontova",
+          "name": "Пятёрочка (ул. Лермонтова, 34 и 81)",
+          "category": "grocery",
+          "lat": 54.9781,
+          "lng": 73.3905,
+          "district": "Центральный",
+          "description": "Магазины на улице Лермонтова у пересечения с трамвайной линией на улице Куйбышева (№ 4 и № 9).",
+          "nearbyStopIds": [
+            "omsk_kuybysheva",
+            "omsk_kazachy_rynok"
+          ],
+          "photoUrl": "/src/assets/images/spb_cozy_coffee_interior_1795153259586.jpg"
+        },
+        {
+          "id": "omsk_pyaterochka_khmelnitskogo",
+          "name": "Пятёрочка (ул. Богдана Хмельницкого, 42 к1 и 236 к2)",
+          "category": "grocery",
+          "lat": 54.9625,
+          "lng": 73.4132,
+          "district": "Октябрьский",
+          "description": "Точки прямо вдоль линии трамваев № 1, 2 и 8 по пути в ПКиО 30 лет ВЛКСМ и ПО «Полёт».",
+          "nearbyStopIds": [
+            "omsk_bk_rubin",
+            "omsk_po_polet",
+            "omsk_park_vlksm"
+          ],
+          "photoUrl": "/src/assets/images/spb_cozy_coffee_interior_1795153259586.jpg"
+        }
+      ],
+      "announcerIntro": "МП города Омска «Электрический транспорт» желает вам приятной поездки."
+    }
+  ]
+}

@@ -10,8 +10,6 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import {
-  AccentSeed,
-  AppTheme,
   CityId,
   DurationPreset,
   Landmark,
@@ -25,7 +23,6 @@ import {
 } from '../utils/tramRouter';
 import { triggerHaptic } from '../utils/haptics';
 import { AddressDestinationPicker } from './AddressDestinationPicker';
-import { MaterialYouAccentPicker } from './MaterialYouAccentPicker';
 
 const TIME_SLOTS_MINUTES = [
   15,
@@ -81,9 +78,6 @@ interface PlannerParamsViewProps {
   onDetectLocation: () => void;
   geoStatus: { state: 'idle' | 'loading' | 'error' | 'ok'; message?: string };
   onGenerate: () => void;
-  theme: AppTheme;
-  accentSeed: AccentSeed;
-  onChangeAccentSeed: (accent: AccentSeed) => void;
 }
 
 const DURATION_OPTIONS: Array<{ id: DurationPreset; label: string }> = [
@@ -131,9 +125,6 @@ export function PlannerParamsView({
   onDetectLocation,
   geoStatus,
   onGenerate,
-  theme,
-  accentSeed,
-  onChangeAccentSeed,
 }: PlannerParamsViewProps) {
   const tramStops = stops.filter((s) => !s.isolatedFromMainTram);
 
@@ -549,21 +540,6 @@ export function PlannerParamsView({
           </span>
         </label>
 
-        <div
-          className="border-t pt-3.5"
-          style={{ borderColor: 'var(--border-hairline)' }}
-        >
-          <MaterialYouAccentPicker
-            accent={accentSeed}
-            onChangeAccent={onChangeAccentSeed}
-            disabled={theme === 'tram'}
-          />
-          {theme === 'tram' && (
-            <p className="mt-1.5 text-[11px]" style={{ color: 'var(--text-muted)' }}>
-              Динамические акценты активны в «Светлой» и «Тёмной» темах.
-            </p>
-          )}
-        </div>
       </div>
 
       {/* Primary Material You Extended FAB CTA */}

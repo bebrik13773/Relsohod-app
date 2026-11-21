@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react';
 import {
-  AccentSeed,
-  AppTheme,
   CityId,
   DurationPreset,
   GeneratedTrip,
@@ -66,9 +64,6 @@ interface RoutePlannerPanelProps {
   onChangeOnlyWithPhotos: (only: boolean) => void;
   landmarkCategories: LandmarkCategory[];
   onToggleLandmarkCategory: (category: LandmarkCategory) => void;
-  theme: AppTheme;
-  accentSeed: AccentSeed;
-  onChangeAccentSeed: (accent: AccentSeed) => void;
 }
 
 export function RoutePlannerPanel({
@@ -117,9 +112,6 @@ export function RoutePlannerPanel({
   onChangeOnlyWithPhotos,
   landmarkCategories,
   onToggleLandmarkCategory,
-  theme,
-  accentSeed,
-  onChangeAccentSeed,
 }: RoutePlannerPanelProps) {
   const scrollBodyRef = useRef<HTMLDivElement | null>(null);
   const paramsScrollRef = useRef(0);
@@ -271,9 +263,6 @@ export function RoutePlannerPanel({
               onGenerate();
               onChangeSubView('route');
             }}
-            theme={theme}
-            accentSeed={accentSeed}
-            onChangeAccentSeed={onChangeAccentSeed}
           />
         )}
 

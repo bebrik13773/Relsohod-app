@@ -1,0 +1,252 @@
+package ru.relsokhod.spb.ui.components
+
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.MyLocation
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import ru.relsokhod.spb.model.CityId
+import ru.relsokhod.spb.model.GeneratedTrip
+import ru.relsokhod.spb.model.SegmentKind
+import ru.relsokhod.spb.model.TramRoute
+import ru.relsokhod.spb.model.TramStop
+import kotlin.math.hypot
+
+@Composable
+fun TramMapCanvas(
+    city: CityId,
+    stops: List<TramStop>,
+    routes: List<TramRoute>,
+    trip: GeneratedTrip?,
+    showAllNetwork: Boolean,
+    mapPickMode: String?, // "start" | "destination" | null
+    onPickStop: (TramStop) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var scale by remember(city) { mutableFloatStateOf(1f) }
+    var pan by remember(city) { mutableStateOf(Offset.Zero) }
+
+    val stopMap = remember(stops) { stops.associateBy { it.id } }
+    val bounds = remember(stops) {
+        if (stops.isEmpty()) {
+            doubleArrayOf(59.8, 60.05, 30.1, 30.55)
+        } else {
+            val minLat = stops.minOf { it.lat } - 0.012
+            val maxLat = stops.maxOf { it.lat } + 0.012
+            val minLng = stops.minOf { it.lng } - 0.02
+            val maxLng = stops.maxOf { it.lng } + 0.02
+            doubleArrayOf(minLat, maxLat, minLng, maxLng)
+        }
+    }
+
+    val surfaceBg = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+    val waterColor = Color(0xFF7CB9E8).copy(alpha = 0.30f)
+    val mutedRailColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f)
+    val stopDotColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+    val primaryColor = MaterialTheme.colorScheme.primary
+
+    Box(
+        modifier = modifier
+            .background(surfaceBg)
+            .pointerInput(city) {
+                detectTransformGestures { _, panChange, zoom, _ ->
+                    scale = (scale * zoom).coerceIn(0.85f, 4.5f)
+                    pan += panChange
+                }
+            }
+            .pointerInput(stops, scale, pan, mapPickMode) {
+                detectTapGestures { tapOffset ->
+                    if (stops.isEmpty()) return@detectTapGestures
+                    val w = size.width.toFloat()
+                    val h = size.height.toFloat()
+                    val pad = 36f
+                    val minLat = bounds[0]
+                    val maxLat = bounds[1]
+                    val minLng = bounds[2]
+                    val maxLng = bounds[3]
+
+                    var nearest: TramStop? = null
+                    var bestDist = 42f
+                    for (s in stops) {
+                        val baseX = pad + ((s.lng - minLng) / (maxLng - minLng)).toFloat() * (w - pad * 2)
+                        val baseY = pad + (1f - ((s.lat - minLat) / (maxLat - minLat)).toFloat()) * (h - pad * 2)
+                        val sx = (baseX - w / 2f) * scale + w / 2f + pan.x
+                        val sy = (baseY - h / 2f) * scale + h / 2f + pan.y
+                        val d = hypot(tapOffset.x - sx, tapOffset.y - sy)
+                        if (d < bestDist) {
+                            bestDist = d
+                            nearest = s
+                        }
+                    }
+                    if (nearest != null && mapPickMode != null) {
+                        onPickStop(nearest)
+                    }
+                }
+            }
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val w = size.width
+            val h = size.height
+            val pad = 36f
+            val minLat = bounds[0]
+            val maxLat = bounds[1]
+            val minLng = bounds[2]
+            val maxLng = bounds[3]
+
+            fun toScreen(lat: Double, lng: Double): Offset {
+                val baseX = pad + ((lng - minLng) / (maxLng - minLng)).toFloat() * (w - pad * 2)
+                val baseY = pad + (1f - ((lat - minLat) / (maxLat - minLat)).toFloat()) * (h - pad * 2)
+                return Offset(
+                    x = (baseX - w / 2f) * scale + w / 2f + pan.x,
+                    y = (baseY - h / 2f) * scale + h / 2f + pan.y
+                )
+            }
+
+            // City river contour (Neva for SPb, Irtysh/Om for Omsk)
+            val riverPath = Path()
+            if (city == CityId.SPB) {
+                val pts = listOf(
+                    toScreen(59.946, 30.22),
+                    toScreen(59.942, 30.30),
+                    toScreen(59.949, 30.35),
+                    toScreen(59.935, 30.40),
+                    toScreen(59.895, 30.45),
+                    toScreen(59.845, 30.50)
+                )
+                riverPath.moveTo(pts.first().x, pts.first().y)
+                pts.drop(1).forEach { riverPath.lineTo(it.x, it.y) }
+            } else {
+                val pts = listOf(
+                    toScreen(55.035, 73.28),
+                    toScreen(54.995, 73.34),
+                    toScreen(54.970, 73.36),
+                    toScreen(54.930, 73.39)
+                )
+                riverPath.moveTo(pts.first().x, pts.first().y)
+                pts.drop(1).forEach { riverPath.lineTo(it.x, it.y) }
+            }
+            drawPath(
+                path = riverPath,
+                color = waterColor,
+                style = Stroke(width = 24f * scale.coerceAtMost(2f), cap = StrokeCap.Round)
+            )
+
+            // All tram network lines background
+            if (showAllNetwork) {
+                for (route in routes) {
+                    val pts = route.stopIds.mapNotNull { stopMap[it] }.map { toScreen(it.lat, it.lng) }
+                    if (pts.size >= 2) {
+                        val p = Path().apply {
+                            moveTo(pts.first().x, pts.first().y)
+                            pts.drop(1).forEach { lineTo(it.x, it.y) }
+                        }
+                        drawPath(
+                            path = p,
+                            color = mutedRailColor,
+                            style = Stroke(width = 3.5f, cap = StrokeCap.Round)
+                        )
+                    }
+                }
+                for (stop in stops) {
+                    val pt = toScreen(stop.lat, stop.lng)
+                    drawCircle(color = stopDotColor, radius = 4f, center = pt)
+                }
+            }
+
+            // Highlighted active trip segments
+            if (trip != null) {
+                for (seg in trip.segments) {
+                    val pts = seg.stopIds.mapNotNull { stopMap[it] }.map { toScreen(it.lat, it.lng) }
+                    if (pts.size < 2) continue
+                    val p = Path().apply {
+                        moveTo(pts.first().x, pts.first().y)
+                        pts.drop(1).forEach { lineTo(it.x, it.y) }
+                    }
+                    val segColor = when (seg.kind) {
+                        SegmentKind.TRAM -> runCatching {
+                            Color(android.graphics.Color.parseColor(seg.route?.colorHex ?: "#005A8D"))
+                        }.getOrDefault(primaryColor)
+                        SegmentKind.WALK -> Color(0xFF475569)
+                        SegmentKind.FALLBACK_TRANSIT -> Color(0xFFD97706)
+                    }
+                    val dash = if (seg.kind == SegmentKind.TRAM) null
+                    else PathEffect.dashPathEffect(floatArrayOf(12f, 10f), 0f)
+                    drawPath(
+                        path = p,
+                        color = segColor,
+                        style = Stroke(width = 9f, cap = StrokeCap.Round, pathEffect = dash)
+                    )
+                    // Transfer node circles
+                    drawCircle(color = Color.White, radius = 9f, center = pts.first())
+                    drawCircle(color = segColor, radius = 6f, center = pts.first())
+                }
+
+                val startPt = toScreen(trip.startStop.lat, trip.startStop.lng)
+                val endPt = toScreen(trip.endStop.lat, trip.endStop.lng)
+                drawCircle(color = Color.White, radius = 14f, center = startPt)
+                drawCircle(color = Color(0xFF16A34A), radius = 10f, center = startPt)
+                drawCircle(color = Color.White, radius = 14f, center = endPt)
+                drawCircle(color = Color(0xFFDC2626), radius = 10f, center = endPt)
+            }
+        }
+
+        if (mapPickMode != null) {
+            Surface(
+                color = MaterialTheme.colorScheme.primaryContainer,
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(12.dp)
+            ) {
+                Text(
+                    text = if (mapPickMode == "start") "Нажмите на остановку старта на схеме"
+                    else "Нажмите на остановку финиша на схеме",
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+                )
+            }
+        }
+
+        FilledTonalIconButton(
+            onClick = {
+                scale = 1f
+                pan = Offset.Zero
+            },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(12.dp)
+        ) {
+            Icon(Icons.Rounded.MyLocation, contentDescription = "Сбросить масштаб карты")
+        }
+    }
+}

@@ -1,0 +1,293 @@
+package ru.relsokhod.spb.ui.screens
+
+import android.graphics.BitmapFactory
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Bookmark
+import androidx.compose.material.icons.rounded.CameraAlt
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.LocationOn
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import ru.relsokhod.spb.model.GeneratedTrip
+import ru.relsokhod.spb.model.SavedRoute
+import ru.relsokhod.spb.model.TripHistoryEntry
+import ru.relsokhod.spb.model.TripPhotoMemory
+import ru.relsokhod.spb.router.TramRouter
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+private enum class FavoritesSubTab(val label: String) {
+    SAVED("Сохранённые"),
+    PASSPORT("Паспорт и фото")
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun FavoritesTab(
+    savedRoutes: List<SavedRoute>,
+    history: List<TripHistoryEntry>,
+    onOpenTrip: (GeneratedTrip) -> Unit,
+    onDeleteSaved: (String) -> Unit,
+    onAddPhotoToHistory: (String, TripPhotoMemory) -> Unit,
+    onDeleteHistory: (String) -> Unit
+) {
+    val context = LocalContext.current
+    var subTab by remember { mutableStateOf(FavoritesSubTab.SAVED) }
+    var pendingEntryId by remember { mutableStateOf<String?>(null) }
+
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        val entryId = pendingEntryId ?: return@rememberLauncherForActivityResult
+        pendingEntryId = null
+        if (uri != null) {
+            val path = copyPhotoToInternalStorage(context, uri)
+            if (path != null) {
+                val isoNow = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).format(Date())
+                onAddPhotoToHistory(
+                    entryId,
+                    TripPhotoMemory(
+                        id = "hist-${System.currentTimeMillis()}",
+                        filePath = path,
+                        caption = "Фото из поездки",
+                        takenAtIso = isoNow
+                    )
+                )
+            }
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        SingleChoiceSegmentedButtonRow(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 10.dp)
+        ) {
+            FavoritesSubTab.entries.forEachIndexed { idx, tab ->
+                val count = if (tab == FavoritesSubTab.SAVED) savedRoutes.size else history.size
+                SegmentedButton(
+                    selected = subTab == tab,
+                    onClick = { subTab = tab },
+                    shape = SegmentedButtonDefaults.itemShape(index = idx, count = FavoritesSubTab.entries.size)
+                ) {
+                    Text("${tab.label} ($count)", fontSize = 12.sp)
+                }
+            }
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            if (subTab == FavoritesSubTab.SAVED) {
+                if (savedRoutes.isEmpty()) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 48.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(Icons.Rounded.Bookmark, contentDescription = null, modifier = Modifier.size(40.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("В избранном пока пусто", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text(
+                            text = "Соберите маршрут и нажмите «Сохранить».",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else {
+                    savedRoutes.forEach { saved ->
+                        Surface(
+                            shape = RoundedCornerShape(18.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(saved.customTitle, fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                                    IconButton(onClick = { onDeleteSaved(saved.id) }) {
+                                        Icon(Icons.Rounded.Delete, contentDescription = "Удалить")
+                                    }
+                                }
+                                Text(
+                                    text = "~${saved.trip.totalDurationMinutes} мин · Трамваи: ${saved.trip.tramLinesUsed.joinToString(" → ")}",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                FilledTonalButton(onClick = { onOpenTrip(saved.trip) }) {
+                                    Icon(Icons.Rounded.LocationOn, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.size(4.dp))
+                                    Text("Открыть маршрут", fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                val badges = remember(history, savedRoutes) {
+                    TramRouter.evaluatePassportBadges(history, savedRoutes)
+                }
+                Text("Паспорт рельсохода", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
+
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    badges.forEach { badge ->
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = if (badge.unlocked) MaterialTheme.colorScheme.primaryContainer
+                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                            modifier = Modifier.fillMaxWidth(0.48f)
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(badge.icon, fontSize = 20.sp)
+                                    Text(badge.progressText, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(badge.title, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Text(badge.description, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+                Text("История поездок с фото (${history.size})", fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
+
+                if (history.isEmpty()) {
+                    Text(
+                        text = "Запустите режим «В пути» на маршруте и нажмите «Завершить» — поездки и фото появятся здесь.",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    history.forEach { entry ->
+                        Surface(
+                            shape = RoundedCornerShape(18.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "${entry.trip.startStop.name.substringBefore("(").trim()} → ${entry.trip.endStop.name.substringBefore("(").trim()}",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 14.sp
+                                        )
+                                        Text(
+                                            text = "${entry.trip.tramLinesUsed.joinToString(" → ")} · ~${entry.trip.totalDurationMinutes} мин",
+                                            fontSize = 12.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    IconButton(onClick = { onDeleteHistory(entry.id) }) {
+                                        Icon(Icons.Rounded.Delete, contentDescription = "Удалить")
+                                    }
+                                }
+
+                                if (entry.photos.isNotEmpty()) {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        entry.photos.take(3).forEach { p ->
+                                            val bmp = remember(p.filePath) {
+                                                val f = File(p.filePath)
+                                                if (f.exists()) BitmapFactory.decodeFile(f.absolutePath) else null
+                                            }
+                                            if (bmp != null) {
+                                                Image(
+                                                    bitmap = bmp.asImageBitmap(),
+                                                    contentDescription = p.caption,
+                                                    contentScale = ContentScale.Crop,
+                                                    modifier = Modifier
+                                                        .size(84.dp)
+                                                        .clip(RoundedCornerShape(12.dp))
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            pendingEntryId = entry.id
+                                            imagePicker.launch("image/*")
+                                        }
+                                    ) {
+                                        Icon(Icons.Rounded.CameraAlt, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.size(4.dp))
+                                        Text("Добавить фото", fontSize = 12.sp)
+                                    }
+                                    FilledTonalButton(onClick = { onOpenTrip(entry.trip) }) {
+                                        Text("На схему", fontSize = 12.sp)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+        }
+    }
+}
