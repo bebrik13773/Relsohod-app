@@ -17,8 +17,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.DirectionsWalk
 import androidx.compose.material.icons.rounded.DirectionsBus
-import androidx.compose.material.icons.rounded.DirectionsWalk
 import androidx.compose.material.icons.rounded.Tram
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -221,7 +221,7 @@ fun ModeTriangleSlider(
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Icon(
-                            Icons.Rounded.DirectionsWalk,
+                            Icons.AutoMirrored.Rounded.DirectionsWalk,
                             contentDescription = null,
                             tint = walkColor,
                             modifier = Modifier.size(14.dp)

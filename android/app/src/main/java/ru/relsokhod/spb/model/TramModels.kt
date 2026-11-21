@@ -55,9 +55,9 @@ enum class DurationPreset(val id: String, val label: String) {
 
 enum class RouteThemeFilter(val id: String, val label: String) {
     ANY("any", "Полный рандом"),
-    HISTORIC("historic", "Центр и история"),
+    HISTORIC("center", "Центр и история"),
     PARKS("parks", "Парки и набережные"),
-    CHIZHIK("chizhik", "Окраины и Чижики"),
+    CHIZHIK("suburbs", "Окраины и Чижики"),
     MARITIME("maritime", "Вокзалы и простор");
 
     companion object {
@@ -68,7 +68,7 @@ enum class RouteThemeFilter(val id: String, val label: String) {
 enum class LandmarkCategory(val id: String, val label: String) {
     ARCHITECTURE("architecture", "Архитектура"),
     PARK("park", "Парки"),
-    QUIRKY("quirky", "Необычное"),
+    QUIRKY("hidden", "Необычное"),
     CAFE("cafe", "Кофейни"),
     GROCERY("grocery", "Пятёрочка / Перекрёсток");
 

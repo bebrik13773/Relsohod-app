@@ -78,6 +78,10 @@ object NetworkRepository {
             val themes = List(themesArr.length()) { idx -> themesArr.getString(idx) }
             val stopsArr = o.getJSONArray("stopIds")
             val stopIds = List(stopsArr.length()) { idx -> stopsArr.getString(idx) }
+            val scheduleLabel = sched.optString("label", "").ifBlank { sched.optString("note", "") }
+            val routeDesc = o.optString("description", "").ifBlank {
+                scheduleLabel.ifBlank { o.optString("operator", "") }
+            }
             add(
                 TramRoute(
                     id = o.getString("id"),
@@ -91,11 +95,11 @@ object NetworkRepository {
                         startMinutes = sched.getInt("startMinutes"),
                         endMinutes = sched.getInt("endMinutes"),
                         intervalMinutes = sched.getInt("intervalMinutes"),
-                        label = sched.getString("label")
+                        label = scheduleLabel
                     ),
                     stopIds = stopIds,
                     minutesPerHop = o.getInt("minutesPerHop"),
-                    description = o.getString("description")
+                    description = routeDesc
                 )
             )
         }

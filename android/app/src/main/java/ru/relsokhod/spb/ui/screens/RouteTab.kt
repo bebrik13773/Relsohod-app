@@ -28,6 +28,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.BookmarkAdd
 import androidx.compose.material.icons.rounded.BookmarkAdded
 import androidx.compose.material.icons.rounded.CameraAlt
@@ -40,7 +41,6 @@ import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Share
-import androidx.compose.material.icons.rounded.VolumeUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
@@ -332,7 +332,7 @@ fun RouteTab(
                                                 onSpeakText(announcements.joinToString(". ") { it.second })
                                             }
                                         ) {
-                                            Icon(Icons.Rounded.VolumeUp, contentDescription = null, modifier = Modifier.size(16.dp))
+                                            Icon(Icons.AutoMirrored.Rounded.VolumeUp, contentDescription = null, modifier = Modifier.size(16.dp))
                                             Spacer(modifier = Modifier.size(4.dp))
                                             Text("Диктовка", fontSize = 12.sp)
                                         }
@@ -627,7 +627,7 @@ private fun LiveTripDialog(
                         },
                         modifier = Modifier.weight(1f)
                     ) {
-                        Icon(Icons.Rounded.VolumeUp, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Icon(Icons.AutoMirrored.Rounded.VolumeUp, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.size(4.dp))
                         Text("Автоинформатор", fontSize = 11.sp)
                     }

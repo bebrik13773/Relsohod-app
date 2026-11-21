@@ -275,7 +275,7 @@ fun OnboardingScreen(
                         }
                     }
 
-                    if (mismatch && cityDetection != null) {
+                    if (mismatch) {
                         Surface(
                             shape = RoundedCornerShape(16.dp),
                             color = Color(0xFFF59E0B).copy(alpha = 0.16f),

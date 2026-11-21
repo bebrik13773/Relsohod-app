@@ -31,11 +31,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.AltRoute
+import androidx.compose.material.icons.automirrored.rounded.AltRoute
+import androidx.compose.material.icons.automirrored.rounded.FormatListBulleted
 import androidx.compose.material.icons.rounded.Bookmark
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Explore
-import androidx.compose.material.icons.rounded.FormatListBulleted
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Tram
 import androidx.compose.material.icons.rounded.WarningAmber
@@ -379,7 +379,7 @@ private fun RelsokhodNativeApp(
                     NavigationBarItem(
                         selected = activeTab == BottomTab.ROUTE,
                         onClick = { activeTab = BottomTab.ROUTE },
-                        icon = { Icon(Icons.Rounded.AltRoute, contentDescription = null) },
+                        icon = { Icon(Icons.AutoMirrored.Rounded.AltRoute, contentDescription = null) },
                         label = { Text("Маршрут") }
                     )
                     NavigationBarItem(
@@ -391,7 +391,7 @@ private fun RelsokhodNativeApp(
                     NavigationBarItem(
                         selected = activeTab == BottomTab.LINES,
                         onClick = { activeTab = BottomTab.LINES },
-                        icon = { Icon(Icons.Rounded.FormatListBulleted, contentDescription = null) },
+                        icon = { Icon(Icons.AutoMirrored.Rounded.FormatListBulleted, contentDescription = null) },
                         label = { Text("Линии ${currentCityConfig.shortName}") }
                     )
                 }

@@ -44,7 +44,7 @@ class TramRouterTest {
     fun tramAScheduleOnlyWeekdays() {
         val cities = loadCities()
         val spb = cities.getValue(CityId.SPB)
-        val tramA = spb.routes.first { it.id == "spb_a" }
+        val tramA = spb.routes.first { it.id == "tram_A" }
         assertTrue(TramRouter.isRouteActiveAt(tramA, dayOfWeek = 3, timeMinutes = 14 * 60))
         assertTrue(!TramRouter.isRouteActiveAt(tramA, dayOfWeek = 0, timeMinutes = 14 * 60))
     }
