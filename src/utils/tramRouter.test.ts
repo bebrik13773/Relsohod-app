@@ -217,3 +217,87 @@ test('detectCityFromCoords identifies SPb, Omsk, and other cities accurately', (
   assert.equal(detectCityFromCoords(54.968, 73.385).detected, 'omsk');
   assert.equal(detectCityFromCoords(55.7558, 37.6173).detected, 'other');
 });
+
+import {
+  balanceToTrianglePoint,
+  buildSmoothSvgPath,
+  computeRouteLaneOffsets,
+  trianglePointToBalance,
+} from './mapGeometry';
+
+test('Triangular barycentric slider math stays normalized and round-trips points', () => {
+  const sample = { tram: 0.5, transit: 0.2, walk: 0.3 };
+  const pt = balanceToTrianglePoint(sample);
+  const back = trianglePointToBalance(pt.x, pt.y);
+  assert.ok(Math.abs(back.tram - sample.tram) < 0.01);
+  assert.ok(Math.abs(back.transit - sample.transit) < 0.01);
+  assert.ok(Math.abs(back.walk - sample.walk) < 0.01);
+
+  // Clamping outside triangle boundary always yields valid sum === 1 and non-negative components
+  const clamped = trianglePointToBalance(2.0, -1.0);
+  assert.ok(clamped.tram >= 0 && clamped.transit >= 0 && clamped.walk >= 0);
+  assert.ok(Math.abs(clamped.tram + clamped.transit + clamped.walk - 1) < 0.001);
+});
+
+test('Map geometry produces smooth cubic Bezier curves and symmetric corridor offsets', () => {
+  const path = buildSmoothSvgPath([
+    { x: 0, y: 0 },
+    { x: 50, y: 40 },
+    { x: 100, y: 10 },
+  ]);
+  assert.ok(path.startsWith('M 0.0 0.0 C '));
+
+  const offsets = computeRouteLaneOffsets([
+    { id: 'r1', stopIds: ['a', 'b', 'c'] },
+    { id: 'r2', stopIds: ['a', 'b', 'd'] },
+  ]);
+  assert.notEqual(offsets['r1'], offsets['r2']);
+});
+
+test('High walking balance generates scenic walking segments alongside trams', () => {
+  const walkTrip = generateTramAdventure({
+    city: 'spb',
+    stops: SPB_STOPS,
+    routes: SPB_TRAM_ROUTES,
+    landmarks: SPB_LANDMARKS,
+    startStopId: 'sennaya_pl',
+    theme: 'any',
+    durationPreset: 'medium',
+    dayOfWeek: 3,
+    timeMinutes: 14 * 60,
+    allowFallbackTransit: false,
+    modeBalance: { tram: 0.25, transit: 0.05, walk: 0.70 },
+    seed: 55,
+  });
+  assert.equal(walkTrip.status, 'ok');
+  if (walkTrip.status === 'ok') {
+    const walkMins = walkTrip.trip.segments
+      .filter((s) => s.kind === 'walk')
+      .reduce((acc, s) => acc + s.durationMinutes, 0);
+    assert.ok(walkMins >= 10, `Expected substantial walking minutes, got ${walkMins}`);
+  }
+});
+
+test('High transit balance unlocks city-wide multimodal bus/metro + tram combinations', () => {
+  const transitTrip = generateTramAdventure({
+    city: 'spb',
+    stops: SPB_STOPS,
+    routes: SPB_TRAM_ROUTES,
+    landmarks: SPB_LANDMARKS,
+    startStopId: 'sennaya_pl',
+    theme: 'any',
+    durationPreset: 'medium',
+    dayOfWeek: 3,
+    timeMinutes: 14 * 60,
+    allowFallbackTransit: false,
+    modeBalance: { tram: 0.35, transit: 0.55, walk: 0.10 },
+    seed: 88,
+  });
+  assert.equal(transitTrip.status, 'ok');
+  if (transitTrip.status === 'ok') {
+    assert.ok(
+      transitTrip.trip.segments.some((s) => s.kind === 'fallback_transit'),
+      'Expected city-wide transit connector when transit weight is 55%'
+    );
+  }
+});

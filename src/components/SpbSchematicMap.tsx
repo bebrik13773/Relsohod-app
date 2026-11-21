@@ -1,6 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Minus, Plus, RotateCcw, X } from 'lucide-react';
 import { CityId, GeneratedTrip, Landmark, TramRoute, TramStop } from '../types/tram';
+import {
+  buildSmoothSvgPath,
+  computeRouteLaneOffsets,
+  offsetPolylinePoints,
+} from '../utils/mapGeometry';
 
 interface SpbSchematicMapProps {
   city: CityId;
@@ -100,13 +105,10 @@ const OM_RIVER_COORDS: Array<[number, number]> = [
   [54.978, 73.49],
 ];
 
-function coordsToPath(coords: Array<[number, number]>, bounds: BoundsBox): string {
-  return coords
-    .map(([lat, lng], idx) => {
-      const { x, y } = projectWithBounds(lat, lng, bounds);
-      return `${idx === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`;
-    })
-    .join(' ');
+function coordsToPath(coords: Array<[number, number]>, bounds: BoundsBox, closed = false): string {
+  const pts = coords.map(([lat, lng]) => projectWithBounds(lat, lng, bounds));
+  const smooth = buildSmoothSvgPath(pts, 0.22);
+  return closed ? `${smooth} Z` : smooth;
 }
 
 export function SpbSchematicMap({
@@ -185,10 +187,15 @@ export function SpbSchematicMap({
 
   const handlePointerUp = () => setDragOrigin(null);
 
+  const routeLaneOffsets = useMemo(
+    () => computeRouteLaneOffsets(routes, 3.4),
+    [routes]
+  );
+
   const nevaPath = useMemo(() => coordsToPath(NEVA_MAIN_COORDS, bounds), [bounds]);
   const malayaNevaPath = useMemo(() => coordsToPath(MALAYA_NEVA_COORDS, bounds), [bounds]);
   const nevkaPath = useMemo(() => coordsToPath(BOLSHAYA_NEVKA_COORDS, bounds), [bounds]);
-  const gulfCoastPath = useMemo(() => `${coordsToPath(GULF_COAST_COORDS, bounds)} Z`, [bounds]);
+  const gulfCoastPath = useMemo(() => coordsToPath(GULF_COAST_COORDS, bounds, true), [bounds]);
   const irtyshPath = useMemo(() => coordsToPath(IRTYSH_COORDS, bounds), [bounds]);
   const omRiverPath = useMemo(() => coordsToPath(OM_RIVER_COORDS, bounds), [bounds]);
 
@@ -311,46 +318,50 @@ export function SpbSchematicMap({
             </>
           )}
 
-          {/* Optional Full Tram Network Overlay */}
+          {/* Smooth, Lane-Separated Full Tram Network Overlay */}
           {showAllNetwork &&
             routes.map((route) => {
-              const pts = route.stopIds
+              const rawPts = route.stopIds
                 .map((id) => stopDict[id])
                 .filter(Boolean)
                 .map((s) => project(s.lat, s.lng));
-              if (pts.length < 2) return null;
-              const d = pts
-                .map((p, idx) => `${idx === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
-                .join(' ');
+              if (rawPts.length < 2) return null;
+              const offsetPts = offsetPolylinePoints(rawPts, routeLaneOffsets[route.id] ?? 0);
+              const d = buildSmoothSvgPath(offsetPts, 0.24);
               return (
                 <path
                   key={`bg-${route.id}`}
                   d={d}
                   fill="none"
                   stroke={route.color}
-                  strokeWidth={2}
-                  strokeOpacity={trip ? 0.22 : 0.45}
+                  strokeWidth={2.2}
+                  strokeOpacity={trip ? 0.2 : 0.45}
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
               );
             })}
 
-          {/* Active Generated Trip Segments */}
+          {/* Smooth Active Generated Trip Segments with Casing */}
           {trip?.segments.map((seg, idx) => {
-            const pts = seg.stopIds
+            const rawPts = seg.stopIds
               .map((id) => stopDict[id])
               .filter(Boolean)
               .map((s) => project(s.lat, s.lng));
-            if (pts.length < 2) return null;
-            const d = pts
-              .map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
-              .join(' ');
+            if (rawPts.length < 2) return null;
+            const segOffset =
+              seg.kind === 'tram' && seg.route
+                ? (routeLaneOffsets[seg.route.id] ?? 0) * 0.65
+                : seg.kind === 'walk'
+                  ? 4.5
+                  : -4.5;
+            const pts = offsetPolylinePoints(rawPts, segOffset);
+            const d = buildSmoothSvgPath(pts, 0.25);
             const isTram = seg.kind === 'tram';
             const strokeColor = isTram
               ? seg.route?.color || 'var(--accent-primary)'
               : seg.kind === 'walk'
-                ? '#64748b'
+                ? '#059669'
                 : '#d97706';
 
             const midPt = pts[Math.floor(pts.length / 2)];
@@ -359,37 +370,21 @@ export function SpbSchematicMap({
                 <path
                   d={d}
                   fill="none"
-                  stroke={strokeColor}
-                  strokeWidth={isTram ? 5.5 : 3.5}
-                  strokeDasharray={isTram ? undefined : '7 6'}
+                  stroke="var(--bg-surface)"
+                  strokeOpacity={0.85}
+                  strokeWidth={isTram ? 8.5 : 6.2}
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
-                {isTram && seg.route && (
-                  <g transform={`translate(${midPt.x}, ${midPt.y})`}>
-                    <rect
-                      x={-14}
-                      y={-11}
-                      width={28}
-                      height={22}
-                      rx={6}
-                      fill={strokeColor}
-                      stroke="#ffffff"
-                      strokeWidth={1.5}
-                    />
-                    <text
-                      x={0}
-                      y={4}
-                      textAnchor="middle"
-                      fontSize={11}
-                      fontWeight={700}
-                      fill="#ffffff"
-                      className="font-mono-num"
-                    >
-                      {seg.route.number}
-                    </text>
-                  </g>
-                )}
+                <path
+                  d={d}
+                  fill="none"
+                  stroke={strokeColor}
+                  strokeWidth={isTram ? 5.2 : 3.6}
+                  strokeDasharray={isTram ? undefined : seg.kind === 'walk' ? '2 7' : '9 6'}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
                 {/* Transfer Marker */}
                 {idx > 0 && (
                   <g
@@ -467,6 +462,82 @@ export function SpbSchematicMap({
                     {stop.name}
                   </text>
                 )}
+              </g>
+            );
+          })}
+
+          {/* Segment route & walk duration pills rendered above stop dots so nothing occludes labels */}
+          {trip?.segments.map((seg) => {
+            const rawPts = seg.stopIds
+              .map((id) => stopDict[id])
+              .filter(Boolean)
+              .map((s) => project(s.lat, s.lng));
+            if (rawPts.length < 2) return null;
+            const segOffset =
+              seg.kind === 'tram' && seg.route
+                ? (routeLaneOffsets[seg.route.id] ?? 0) * 0.65
+                : seg.kind === 'walk'
+                  ? 4.5
+                  : -4.5;
+            const pts = offsetPolylinePoints(rawPts, segOffset);
+            const midPt = pts[Math.floor(pts.length / 2)];
+            const isTram = seg.kind === 'tram';
+            const strokeColor = isTram
+              ? seg.route?.color || 'var(--accent-primary)'
+              : seg.kind === 'walk'
+                ? '#059669'
+                : '#d97706';
+
+            if (isTram && seg.route) {
+              return (
+                <g key={`pill-${seg.id}`} transform={`translate(${midPt.x}, ${midPt.y})`}>
+                  <rect
+                    x={-14}
+                    y={-11}
+                    width={28}
+                    height={22}
+                    rx={6}
+                    fill={strokeColor}
+                    stroke="#ffffff"
+                    strokeWidth={1.5}
+                  />
+                  <text
+                    x={0}
+                    y={4}
+                    textAnchor="middle"
+                    fontSize={11}
+                    fontWeight={700}
+                    fill="#ffffff"
+                    className="font-mono-num"
+                  >
+                    {seg.route.number}
+                  </text>
+                </g>
+              );
+            }
+            return (
+              <g key={`pill-${seg.id}`} transform={`translate(${midPt.x}, ${midPt.y})`}>
+                <rect
+                  x={-22}
+                  y={-10}
+                  width={44}
+                  height={20}
+                  rx={10}
+                  fill={strokeColor}
+                  stroke="#ffffff"
+                  strokeWidth={1.5}
+                />
+                <text
+                  x={0}
+                  y={3.5}
+                  textAnchor="middle"
+                  fontSize={9.5}
+                  fontWeight={700}
+                  fill="#ffffff"
+                  className="font-mono-num"
+                >
+                  {seg.kind === 'walk' ? `${seg.durationMinutes}м` : 'Трансп.'}
+                </text>
               </g>
             );
           })}

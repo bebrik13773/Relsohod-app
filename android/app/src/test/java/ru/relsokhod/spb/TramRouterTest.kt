@@ -10,9 +10,12 @@ import ru.relsokhod.spb.model.CityId
 import ru.relsokhod.spb.model.DurationPreset
 import ru.relsokhod.spb.model.GenerationOutcome
 import ru.relsokhod.spb.model.LandmarkCategory
+import ru.relsokhod.spb.model.ModeBalance
 import ru.relsokhod.spb.model.RouteThemeFilter
+import ru.relsokhod.spb.model.SegmentKind
 import ru.relsokhod.spb.model.WeatherMode
 import ru.relsokhod.spb.router.TramRouter
+import ru.relsokhod.spb.ui.components.TriangleBalanceMath
 import java.io.File
 
 class TramRouterTest {
@@ -115,5 +118,57 @@ class TramRouterTest {
         val omskGroceries = cities.getValue(CityId.OMSK).landmarks.filter { it.category == LandmarkCategory.GROCERY }
         assertTrue(spbGroceries.isNotEmpty())
         assertTrue(omskGroceries.isNotEmpty())
+    }
+
+    @Test
+    fun triangleBalanceBarycentricRoundTripAndClamping() {
+        val target = ModeBalance(tram = 0.5f, transit = 0.2f, walk = 0.3f)
+        val pt = TriangleBalanceMath.balanceToTrianglePoint(target)
+        val restored = TriangleBalanceMath.trianglePointToBalance(pt.x, pt.y)
+        assertEquals(target.tram, restored.tram, 0.02f)
+        assertEquals(target.transit, restored.transit, 0.02f)
+        assertEquals(target.walk, restored.walk, 0.02f)
+
+        val clamped = TriangleBalanceMath.trianglePointToBalance(1.8f, 1.8f)
+        assertEquals(1.0f, clamped.tram + clamped.transit + clamped.walk, 0.001f)
+        assertTrue(clamped.walk > 0.7f)
+    }
+
+    @Test
+    fun highWalkAndTransitBalancesProduceMultimodalTrips() {
+        val cities = loadCities()
+        val spb = cities.getValue(CityId.SPB)
+
+        val walkOutcome = TramRouter.generateTramAdventure(
+            city = CityId.SPB,
+            stops = spb.stops,
+            routes = spb.routes,
+            landmarks = spb.landmarks,
+            startStopId = spb.defaultStartStopId,
+            durationPreset = DurationPreset.MEDIUM,
+            dayOfWeek = 3,
+            timeMinutes = 14 * 60,
+            modeBalance = ModeBalance(tram = 0.25f, transit = 0.05f, walk = 0.70f),
+            seed = 909L
+        )
+        assertTrue(walkOutcome is GenerationOutcome.Ok)
+        val walkTrip = (walkOutcome as GenerationOutcome.Ok).trip
+        assertTrue(walkTrip.segments.any { it.kind == SegmentKind.WALK })
+
+        val transitOutcome = TramRouter.generateTramAdventure(
+            city = CityId.SPB,
+            stops = spb.stops,
+            routes = spb.routes,
+            landmarks = spb.landmarks,
+            startStopId = spb.defaultStartStopId,
+            durationPreset = DurationPreset.MEDIUM,
+            dayOfWeek = 3,
+            timeMinutes = 14 * 60,
+            modeBalance = ModeBalance(tram = 0.34f, transit = 0.48f, walk = 0.18f),
+            seed = 808L
+        )
+        assertTrue(transitOutcome is GenerationOutcome.Ok)
+        val transitTrip = (transitOutcome as GenerationOutcome.Ok).trip
+        assertTrue(transitTrip.segments.any { it.kind == SegmentKind.FALLBACK_TRANSIT })
     }
 }

@@ -13,6 +13,7 @@ import {
   CityId,
   DurationPreset,
   Landmark,
+  ModeBalance,
   RouteThemeFilter,
   TramStop,
   WeatherMode,
@@ -23,6 +24,7 @@ import {
 } from '../utils/tramRouter';
 import { triggerHaptic } from '../utils/haptics';
 import { AddressDestinationPicker } from './AddressDestinationPicker';
+import { ModeTriangleSlider } from './ModeTriangleSlider';
 
 const TIME_SLOTS_MINUTES = [
   15,
@@ -65,6 +67,8 @@ interface PlannerParamsViewProps {
   onChangeTimeMinutes: (minutes: number) => void;
   allowFallbackTransit: boolean;
   onChangeAllowFallbackTransit: (allow: boolean) => void;
+  modeBalance: ModeBalance;
+  onChangeModeBalance: (balance: ModeBalance) => void;
   showAllNetwork: boolean;
   onChangeShowAllNetwork: (show: boolean) => void;
   loopMode: boolean;
@@ -112,6 +116,8 @@ export function PlannerParamsView({
   onChangeTimeMinutes,
   allowFallbackTransit,
   onChangeAllowFallbackTransit,
+  modeBalance,
+  onChangeModeBalance,
   showAllNetwork,
   onChangeShowAllNetwork,
   loopMode,
@@ -269,9 +275,14 @@ export function PlannerParamsView({
         />
       </div>
 
-      {/* Block 2: Mood, Weather & Duration + Schedule */}
+      {/* Block 2: Triangular Mode Balance + Mood, Weather & Duration + Schedule */}
       <div className="m3-card flex flex-col gap-5 rounded-3xl p-4 sm:p-5">
-        <div className="flex flex-col gap-2.5">
+        <ModeTriangleSlider value={modeBalance} onChange={onChangeModeBalance} />
+
+        <div
+          className="flex flex-col gap-2.5 border-t pt-4"
+          style={{ borderColor: 'var(--border-hairline)' }}
+        >
           <span className="text-xs font-bold" style={{ color: 'var(--text-secondary)' }}>
             Настроение маршрута
           </span>

@@ -352,7 +352,7 @@ fun RouteTab(
                                     SegmentKind.TRAM -> runCatching {
                                         Color(android.graphics.Color.parseColor(seg.route?.colorHex ?: "#005A8D"))
                                     }.getOrDefault(MaterialTheme.colorScheme.primary)
-                                    SegmentKind.WALK -> Color(0xFF475569)
+                                    SegmentKind.WALK -> Color(0xFF059669)
                                     SegmentKind.FALLBACK_TRANSIT -> Color(0xFFD97706)
                                 }
                                 Surface(
@@ -391,7 +391,9 @@ fun RouteTab(
                                                 Text(
                                                     text = when (seg.kind) {
                                                         SegmentKind.TRAM -> "Трамвай № ${seg.route?.number}"
-                                                        SegmentKind.WALK -> "Пеший переход"
+                                                        SegmentKind.WALK ->
+                                                            if (seg.durationMinutes >= 12) "Пешая прогулка"
+                                                            else "Пеший переход"
                                                         SegmentKind.FALLBACK_TRANSIT -> seg.fallbackModeName ?: "Транспорт"
                                                     },
                                                     fontWeight = FontWeight.Bold,

@@ -201,6 +201,7 @@ private fun RelsokhodNativeApp(
             dayOfWeek = p.dayOfWeek,
             timeMinutes = p.timeMinutes,
             allowFallbackTransit = p.allowFallbackTransit,
+            modeBalance = p.modeBalance,
             loopMode = p.loopMode,
             weatherMode = p.weatherMode,
             preferSpecialFleet = p.preferSpecialFleet,

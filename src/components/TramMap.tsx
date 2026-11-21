@@ -10,6 +10,7 @@ import {
   useMapsLibrary,
 } from '@vis.gl/react-google-maps';
 import { AppTheme, CityId, GeneratedTrip, Landmark, TramRoute, TramStop } from '../types/tram';
+import { smoothLatLngPolyline } from '../utils/mapGeometry';
 import { findNearestStops } from '../utils/tramRouter';
 import { SpbSchematicMap } from './SpbSchematicMap';
 
@@ -48,12 +49,13 @@ function GoogleRoutePolylines({ stopsById, routes, trip, showAllNetwork }: Polyl
 
     const lines: Array<{ setMap: (target: unknown) => void }> = [];
     for (const route of routes) {
-      const path = route.stopIds
+      const rawPath = route.stopIds
         .map((id) => stopsById[id])
         .filter(Boolean)
         .map((s) => ({ lat: s.lat, lng: s.lng }));
-      if (path.length < 2) continue;
+      if (rawPath.length < 2) continue;
 
+      const path = smoothLatLngPolyline(rawPath, 3, 0.22);
       const line = new mapsLib.Polyline({
         path,
         strokeColor: route.color,
@@ -78,11 +80,12 @@ function GoogleRoutePolylines({ stopsById, routes, trip, showAllNetwork }: Polyl
     const bounds = new coreLib.LatLngBounds();
 
     for (const seg of trip.segments) {
-      const path = seg.stopIds
+      const rawPath = seg.stopIds
         .map((id) => stopsById[id])
         .filter(Boolean)
         .map((s) => ({ lat: s.lat, lng: s.lng }));
 
+      const path = smoothLatLngPolyline(rawPath, 4, 0.24);
       for (const pt of path) {
         bounds.extend(pt);
       }
@@ -91,7 +94,7 @@ function GoogleRoutePolylines({ stopsById, routes, trip, showAllNetwork }: Polyl
       const strokeColor = isTram
         ? seg.route?.color ?? '#7C1D26'
         : seg.kind === 'walk'
-          ? '#64748b'
+          ? '#059669'
           : '#d97706';
 
       const line = new mapsLib.Polyline({
@@ -359,7 +362,7 @@ function GoogleMapInner(props: TramMapProps & { onFallbackNeeded: () => void }) 
                     seg.kind === 'tram'
                       ? seg.route?.color ?? '#7C1D26'
                       : seg.kind === 'walk'
-                        ? '#64748b'
+                        ? '#059669'
                         : '#d97706',
                 }}
               >
@@ -396,6 +399,7 @@ export function TramMap(props: TramMapProps) {
   const [useFallback, setUseFallback] = useState(
     !apiKey || apiKey === 'MY_GOOGLE_MAPS_API_KEY'
   );
+  const [viewMode, setViewMode] = useState<'map' | 'schematic'>('map');
 
   useEffect(() => {
     const onQuota = () => setUseFallback(true);
@@ -407,28 +411,63 @@ export function TramMap(props: TramMapProps) {
     setUseFallback(true);
   }, []);
 
-  if (useFallback || !apiKey) {
-    return (
-      <SpbSchematicMap
-        city={props.city}
-        stops={props.stops}
-        routes={props.routes}
-        trip={props.trip}
-        landmarks={props.landmarks}
-        showAllNetwork={props.showAllNetwork}
-        startStopId={props.startStopId}
-        destinationStopId={props.destinationStopId}
-        mapPickMode={props.mapPickMode}
-        selectedLandmarkId={props.selectedLandmarkId}
-        onSelectLandmark={props.onSelectLandmark}
-        onPickStop={props.onPickStop}
-      />
-    );
-  }
+  const showSchematic = useFallback || !apiKey || viewMode === 'schematic';
 
   return (
-    <APIProvider apiKey={apiKey} language="ru" region="RU">
-      <GoogleMapInner {...props} onFallbackNeeded={handleFallbackNeeded} />
-    </APIProvider>
+    <div className="relative h-full w-full">
+      {!useFallback && apiKey && (
+        <div
+          className="absolute bottom-3 left-3 z-20 inline-flex rounded-xl border p-0.5 shadow-sm"
+          style={{
+            backgroundColor: 'var(--bg-surface)',
+            borderColor: 'var(--border-hairline)',
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => setViewMode('map')}
+            className="cursor-pointer rounded-lg px-2.5 py-1 text-[11px] font-semibold transition-colors"
+            style={{
+              backgroundColor: viewMode === 'map' ? 'var(--md-primary-container)' : 'transparent',
+              color: viewMode === 'map' ? 'var(--md-on-primary-container)' : 'var(--text-secondary)',
+            }}
+          >
+            Карта
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('schematic')}
+            className="cursor-pointer rounded-lg px-2.5 py-1 text-[11px] font-semibold transition-colors"
+            style={{
+              backgroundColor: viewMode === 'schematic' ? 'var(--md-primary-container)' : 'transparent',
+              color: viewMode === 'schematic' ? 'var(--md-on-primary-container)' : 'var(--text-secondary)',
+            }}
+          >
+            Схема
+          </button>
+        </div>
+      )}
+
+      {showSchematic ? (
+        <SpbSchematicMap
+          city={props.city}
+          stops={props.stops}
+          routes={props.routes}
+          trip={props.trip}
+          landmarks={props.landmarks}
+          showAllNetwork={props.showAllNetwork}
+          startStopId={props.startStopId}
+          destinationStopId={props.destinationStopId}
+          mapPickMode={props.mapPickMode}
+          selectedLandmarkId={props.selectedLandmarkId}
+          onSelectLandmark={props.onSelectLandmark}
+          onPickStop={props.onPickStop}
+        />
+      ) : (
+        <APIProvider apiKey={apiKey!} language="ru" region="RU">
+          <GoogleMapInner {...props} onFallbackNeeded={handleFallbackNeeded} />
+        </APIProvider>
+      )}
+    </div>
   );
 }

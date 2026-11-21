@@ -9,6 +9,7 @@ import ru.relsokhod.spb.model.DurationPreset
 import ru.relsokhod.spb.model.GeneratedTrip
 import ru.relsokhod.spb.model.Landmark
 import ru.relsokhod.spb.model.LandmarkCategory
+import ru.relsokhod.spb.model.ModeBalance
 import ru.relsokhod.spb.model.RouteSchedule
 import ru.relsokhod.spb.model.RouteSegment
 import ru.relsokhod.spb.model.RouteThemeFilter
@@ -45,6 +46,16 @@ class AppPrefs(context: Context) {
             ?: return SearchParamsState(startStopId = defaultStartId)
         return try {
             val o = JSONObject(raw)
+            val mbObj = o.optJSONObject("modeBalance")
+            val modeBalance = if (mbObj != null) {
+                ModeBalance(
+                    tram = mbObj.optDouble("tram", 0.72).toFloat(),
+                    transit = mbObj.optDouble("transit", 0.08).toFloat(),
+                    walk = mbObj.optDouble("walk", 0.20).toFloat()
+                ).normalized()
+            } else {
+                ModeBalance()
+            }
             SearchParamsState(
                 startStopId = o.optString("startStopId", defaultStartId).ifBlank { defaultStartId },
                 destinationStopId = if (o.isNull("destinationStopId")) null else o.optString("destinationStopId").ifBlank { null },
@@ -55,6 +66,7 @@ class AppPrefs(context: Context) {
                 dayOfWeek = o.optInt("dayOfWeek", 3),
                 timeMinutes = o.optInt("timeMinutes", 14 * 60),
                 allowFallbackTransit = o.optBoolean("allowFallbackTransit", false),
+                modeBalance = modeBalance,
                 showAllNetwork = o.optBoolean("showAllNetwork", true),
                 loopMode = o.optBoolean("loopMode", false),
                 weatherMode = WeatherMode.fromId(o.optString("weatherMode", "clear")),
@@ -76,6 +88,14 @@ class AppPrefs(context: Context) {
             put("dayOfWeek", state.dayOfWeek)
             put("timeMinutes", state.timeMinutes)
             put("allowFallbackTransit", state.allowFallbackTransit)
+            put(
+                "modeBalance",
+                JSONObject().apply {
+                    put("tram", state.modeBalance.tram.toDouble())
+                    put("transit", state.modeBalance.transit.toDouble())
+                    put("walk", state.modeBalance.walk.toDouble())
+                }
+            )
             put("showAllNetwork", state.showAllNetwork)
             put("loopMode", state.loopMode)
             put("weatherMode", state.weatherMode.id)
@@ -252,6 +272,14 @@ class AppPrefs(context: Context) {
         put("usedFallbackTransit", t.usedFallbackTransit)
         put("isLoop", t.isLoop)
         put("weatherMode", t.weatherMode.id)
+        put(
+            "modeBalance",
+            JSONObject().apply {
+                put("tram", t.modeBalance.tram.toDouble())
+                put("transit", t.modeBalance.transit.toDouble())
+                put("walk", t.modeBalance.walk.toDouble())
+            }
+        )
         put("districtsVisited", JSONArray(t.districtsVisited))
         put("dayOfWeek", t.dayOfWeek)
         put("timeMinutes", t.timeMinutes)
@@ -332,6 +360,16 @@ class AppPrefs(context: Context) {
 
         val linesArr = o.getJSONArray("tramLinesUsed")
         val distArr = o.getJSONArray("districtsVisited")
+        val mbObj = o.optJSONObject("modeBalance")
+        val modeBalance = if (mbObj != null) {
+            ModeBalance(
+                tram = mbObj.optDouble("tram", 0.72).toFloat(),
+                transit = mbObj.optDouble("transit", 0.08).toFloat(),
+                walk = mbObj.optDouble("walk", 0.20).toFloat()
+            ).normalized()
+        } else {
+            ModeBalance()
+        }
         return GeneratedTrip(
             id = o.getString("id"),
             city = CityId.fromId(o.getString("city")),
@@ -345,6 +383,7 @@ class AppPrefs(context: Context) {
             usedFallbackTransit = o.optBoolean("usedFallbackTransit", false),
             isLoop = o.optBoolean("isLoop", false),
             weatherMode = WeatherMode.fromId(o.optString("weatherMode", "clear")),
+            modeBalance = modeBalance,
             districtsVisited = List(distArr.length()) { distArr.getString(it) },
             landmarks = lms,
             dayOfWeek = o.getInt("dayOfWeek"),

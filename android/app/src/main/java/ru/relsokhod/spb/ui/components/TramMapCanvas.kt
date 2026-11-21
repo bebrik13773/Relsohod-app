@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
@@ -38,7 +39,86 @@ import ru.relsokhod.spb.model.GeneratedTrip
 import ru.relsokhod.spb.model.SegmentKind
 import ru.relsokhod.spb.model.TramRoute
 import ru.relsokhod.spb.model.TramStop
+import kotlin.math.abs
 import kotlin.math.hypot
+
+/**
+ * Generates a smooth Catmull-Rom cubic Bezier Path instead of sharp jagged polygonal corners.
+ */
+private fun buildSmoothCatmullRomPath(points: List<Offset>, tension: Float = 0.28f): Path {
+    val path = Path()
+    if (points.isEmpty()) return path
+    path.moveTo(points.first().x, points.first().y)
+    if (points.size == 1) return path
+    if (points.size == 2) {
+        path.lineTo(points[1].x, points[1].y)
+        return path
+    }
+    for (i in 0 until points.size - 1) {
+        val p0 = points[maxOf(0, i - 1)]
+        val p1 = points[i]
+        val p2 = points[i + 1]
+        val p3 = points[minOf(points.size - 1, i + 2)]
+
+        val cp1x = p1.x + (p2.x - p0.x) * tension
+        val cp1y = p1.y + (p2.y - p0.y) * tension
+        val cp2x = p2.x - (p3.x - p1.x) * tension
+        val cp2y = p2.y - (p3.y - p1.y) * tension
+
+        path.cubicTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y)
+    }
+    return path
+}
+
+/**
+ * Offsets a polyline perpendicular to its direction so parallel tram routes on the same street
+ * display neatly side-by-side instead of tangling.
+ */
+private fun offsetPolylinePoints(points: List<Offset>, offsetPx: Float): List<Offset> {
+    if (abs(offsetPx) < 0.05f || points.size < 2) return points
+    return points.mapIndexed { idx, pt ->
+        val prev = points[maxOf(0, idx - 1)]
+        val next = points[minOf(points.size - 1, idx + 1)]
+        val dx = next.x - prev.x
+        val dy = next.y - prev.y
+        val len = hypot(dx, dy).takeIf { it > 0.001f } ?: 1f
+        Offset(pt.x + (-dy / len) * offsetPx, pt.y + (dx / len) * offsetPx)
+    }
+}
+
+private fun computeRouteLaneOffsets(
+    routes: List<TramRoute>,
+    laneSpacingPx: Float = 3.6f
+): Map<String, Float> {
+    val edgeUsers = HashMap<String, MutableList<String>>()
+    for (r in routes) {
+        for (i in 0 until r.stopIds.size - 1) {
+            val a = r.stopIds[i]
+            val b = r.stopIds[i + 1]
+            val key = if (a < b) "$a|$b" else "$b|$a"
+            val list = edgeUsers.getOrPut(key) { mutableListOf() }
+            if (r.id !in list) list.add(r.id)
+        }
+    }
+    val out = HashMap<String, Float>()
+    for (r in routes) {
+        var maxSlot = 0
+        var bestOffset = 0f
+        for (i in 0 until r.stopIds.size - 1) {
+            val a = r.stopIds[i]
+            val b = r.stopIds[i + 1]
+            val key = if (a < b) "$a|$b" else "$b|$a"
+            val users = edgeUsers[key].orEmpty()
+            if (users.size > maxSlot) {
+                maxSlot = users.size
+                val idx = users.indexOf(r.id)
+                bestOffset = (idx - (users.size - 1) / 2f) * laneSpacingPx
+            }
+        }
+        out[r.id] = bestOffset
+    }
+    return out
+}
 
 @Composable
 fun TramMapCanvas(
@@ -55,6 +135,7 @@ fun TramMapCanvas(
     var pan by remember(city) { mutableStateOf(Offset.Zero) }
 
     val stopMap = remember(stops) { stops.associateBy { it.id } }
+    val laneOffsets = remember(routes) { computeRouteLaneOffsets(routes, 3.6f) }
     val bounds = remember(stops) {
         if (stops.isEmpty()) {
             doubleArrayOf(59.8, 60.05, 30.1, 30.55)
@@ -69,8 +150,8 @@ fun TramMapCanvas(
 
     val surfaceBg = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
     val waterColor = Color(0xFF7CB9E8).copy(alpha = 0.30f)
-    val mutedRailColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f)
-    val stopDotColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+    val mutedRailColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.28f)
+    val stopDotColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
     val primaryColor = MaterialTheme.colorScheme.primary
 
     Box(
@@ -130,10 +211,9 @@ fun TramMapCanvas(
                 )
             }
 
-            // City river contour (Neva for SPb, Irtysh/Om for Omsk)
-            val riverPath = Path()
-            if (city == CityId.SPB) {
-                val pts = listOf(
+            // Smooth river contour (Neva for SPb, Irtysh/Om for Omsk)
+            val riverPts = if (city == CityId.SPB) {
+                listOf(
                     toScreen(59.946, 30.22),
                     toScreen(59.942, 30.30),
                     toScreen(59.949, 30.35),
@@ -141,37 +221,39 @@ fun TramMapCanvas(
                     toScreen(59.895, 30.45),
                     toScreen(59.845, 30.50)
                 )
-                riverPath.moveTo(pts.first().x, pts.first().y)
-                pts.drop(1).forEach { riverPath.lineTo(it.x, it.y) }
             } else {
-                val pts = listOf(
+                listOf(
                     toScreen(55.035, 73.28),
                     toScreen(54.995, 73.34),
                     toScreen(54.970, 73.36),
                     toScreen(54.930, 73.39)
                 )
-                riverPath.moveTo(pts.first().x, pts.first().y)
-                pts.drop(1).forEach { riverPath.lineTo(it.x, it.y) }
             }
             drawPath(
-                path = riverPath,
+                path = buildSmoothCatmullRomPath(riverPts, 0.34f),
                 color = waterColor,
-                style = Stroke(width = 24f * scale.coerceAtMost(2f), cap = StrokeCap.Round)
+                style = Stroke(
+                    width = 24f * scale.coerceAtMost(2f),
+                    cap = StrokeCap.Round,
+                    join = StrokeJoin.Round
+                )
             )
 
-            // All tram network lines background
+            // All tram network lines background with symmetric corridor lane separation
             if (showAllNetwork) {
                 for (route in routes) {
-                    val pts = route.stopIds.mapNotNull { stopMap[it] }.map { toScreen(it.lat, it.lng) }
-                    if (pts.size >= 2) {
-                        val p = Path().apply {
-                            moveTo(pts.first().x, pts.first().y)
-                            pts.drop(1).forEach { lineTo(it.x, it.y) }
-                        }
+                    val rawPts = route.stopIds.mapNotNull { stopMap[it] }.map { toScreen(it.lat, it.lng) }
+                    if (rawPts.size >= 2) {
+                        val laneOffset = laneOffsets[route.id] ?: 0f
+                        val pts = offsetPolylinePoints(rawPts, laneOffset)
                         drawPath(
-                            path = p,
+                            path = buildSmoothCatmullRomPath(pts, 0.25f),
                             color = mutedRailColor,
-                            style = Stroke(width = 3.5f, cap = StrokeCap.Round)
+                            style = Stroke(
+                                width = 3.6f,
+                                cap = StrokeCap.Round,
+                                join = StrokeJoin.Round
+                            )
                         )
                     }
                 }
@@ -181,30 +263,43 @@ fun TramMapCanvas(
                 }
             }
 
-            // Highlighted active trip segments
+            // Highlighted active trip segments with smooth cubic Bezier curves + casing
             if (trip != null) {
                 for (seg in trip.segments) {
-                    val pts = seg.stopIds.mapNotNull { stopMap[it] }.map { toScreen(it.lat, it.lng) }
-                    if (pts.size < 2) continue
-                    val p = Path().apply {
-                        moveTo(pts.first().x, pts.first().y)
-                        pts.drop(1).forEach { lineTo(it.x, it.y) }
-                    }
+                    val rawPts = seg.stopIds.mapNotNull { stopMap[it] }.map { toScreen(it.lat, it.lng) }
+                    if (rawPts.size < 2) continue
+                    val laneOffset = if (seg.kind == SegmentKind.TRAM && seg.route != null) {
+                        laneOffsets[seg.route.id] ?: 0f
+                    } else 0f
+                    val pts = offsetPolylinePoints(rawPts, laneOffset)
+                    val smoothPath = buildSmoothCatmullRomPath(pts, 0.28f)
+
                     val segColor = when (seg.kind) {
                         SegmentKind.TRAM -> runCatching {
                             Color(android.graphics.Color.parseColor(seg.route?.colorHex ?: "#005A8D"))
                         }.getOrDefault(primaryColor)
-                        SegmentKind.WALK -> Color(0xFF475569)
+                        SegmentKind.WALK -> Color(0xFF059669)
                         SegmentKind.FALLBACK_TRANSIT -> Color(0xFFD97706)
                     }
                     val dash = if (seg.kind == SegmentKind.TRAM) null
                     else PathEffect.dashPathEffect(floatArrayOf(12f, 10f), 0f)
+
+                    // Subtle surface casing underneath active segment
                     drawPath(
-                        path = p,
-                        color = segColor,
-                        style = Stroke(width = 9f, cap = StrokeCap.Round, pathEffect = dash)
+                        path = smoothPath,
+                        color = Color.White.copy(alpha = 0.88f),
+                        style = Stroke(width = 14f, cap = StrokeCap.Round, join = StrokeJoin.Round)
                     )
-                    // Transfer node circles
+                    drawPath(
+                        path = smoothPath,
+                        color = segColor,
+                        style = Stroke(
+                            width = if (seg.kind == SegmentKind.TRAM) 8.5f else 6.5f,
+                            cap = StrokeCap.Round,
+                            join = StrokeJoin.Round,
+                            pathEffect = dash
+                        )
+                    )
                     drawCircle(color = Color.White, radius = 9f, center = pts.first())
                     drawCircle(color = segColor, radius = 6f, center = pts.first())
                 }

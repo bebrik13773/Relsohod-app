@@ -60,6 +60,7 @@ import ru.relsokhod.spb.model.SearchParamsState
 import ru.relsokhod.spb.model.TramStop
 import ru.relsokhod.spb.model.WeatherMode
 import ru.relsokhod.spb.router.TramRouter
+import ru.relsokhod.spb.ui.components.ModeTriangleSlider
 
 private val TIME_SLOTS = listOf(
     15, 3 * 60, 6 * 60 + 30, 8 * 60, 9 * 60, 10 * 60, 11 * 60,
@@ -340,6 +341,13 @@ fun SearchTab(
                 modifier = Modifier.padding(14.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                ModeTriangleSlider(
+                    value = params.modeBalance,
+                    onChange = { onUpdateParams(params.copy(modeBalance = it)) }
+                )
+
+                HorizontalDivider()
+
                 Text("Настроение маршрута", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),

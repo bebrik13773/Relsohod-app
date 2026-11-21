@@ -573,7 +573,7 @@ export function PlannerItineraryView({
             const badgeBg = isTram
               ? seg.route?.color ?? '#0f5e8c'
               : seg.kind === 'walk'
-                ? '#475569'
+                ? '#059669'
                 : '#b45309';
 
             return (
@@ -613,7 +613,9 @@ export function PlannerItineraryView({
                         {isTram
                           ? `Трамвай № ${seg.route?.number}`
                           : seg.kind === 'walk'
-                            ? 'Пеший переход'
+                            ? seg.durationMinutes >= 12
+                              ? 'Пешая прогулка'
+                              : 'Пеший переход'
                             : seg.fallbackModeName}
                       </div>
                       <span

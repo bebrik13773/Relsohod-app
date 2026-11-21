@@ -77,6 +77,15 @@ export interface RouteSegment {
   directionNote: string;
 }
 
+export interface ModeBalance {
+  /** Fraction 0..1 for tram preference */
+  tram: number;
+  /** Fraction 0..1 for bus/metro/trolleybus preference */
+  transit: number;
+  /** Fraction 0..1 for walking preference */
+  walk: number;
+}
+
 export interface GeneratedTrip {
   id: string;
   city?: CityId;
@@ -90,6 +99,7 @@ export interface GeneratedTrip {
   usedFallbackTransit: boolean;
   isLoop?: boolean;
   weatherMode?: WeatherMode;
+  modeBalance?: ModeBalance;
   districtsVisited: string[];
   landmarks: Landmark[];
   dayOfWeek: number;
@@ -144,6 +154,7 @@ export interface PersistedPlannerState {
   dayOfWeek: number;
   timeMinutes: number;
   allowFallbackTransit: boolean;
+  modeBalance: ModeBalance;
   showAllNetwork: boolean;
   loopMode: boolean;
   weatherMode: WeatherMode;

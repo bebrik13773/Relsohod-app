@@ -11,12 +11,14 @@ import {
   GenerationOutcome,
   Landmark,
   LandmarkCategory,
+  ModeBalance,
   RouteThemeFilter,
   SavedRoute,
   TripHistoryEntry,
   TripPhotoMemory,
   WeatherMode,
 } from './types/tram';
+import { DEFAULT_MODE_BALANCE, normalizeModeBalance } from './utils/mapGeometry';
 import {
   extendTripLastSegment,
   filterLandmarks,
@@ -122,6 +124,11 @@ export default function App() {
   const [allowFallbackTransit, setAllowFallbackTransit] = useState<boolean>(
     savedPlanner?.allowFallbackTransit ?? false
   );
+  const [modeBalance, setModeBalance] = useState<ModeBalance>(() =>
+    savedPlanner?.modeBalance
+      ? normalizeModeBalance(savedPlanner.modeBalance)
+      : { ...DEFAULT_MODE_BALANCE }
+  );
   const [showAllNetwork, setShowAllNetwork] = useState<boolean>(
     savedPlanner?.showAllNetwork ?? true
   );
@@ -176,6 +183,9 @@ export default function App() {
           ? savedPlanner.timeMinutes
           : initialSlot.timeMinutes,
       allowFallbackTransit: savedPlanner?.allowFallbackTransit ?? false,
+      modeBalance: savedPlanner?.modeBalance
+        ? normalizeModeBalance(savedPlanner.modeBalance)
+        : DEFAULT_MODE_BALANCE,
       loopMode: savedPlanner?.loopMode ?? false,
       weatherMode: savedPlanner?.weatherMode ?? 'clear',
       preferSpecialFleet: savedPlanner?.preferSpecialFleet ?? false,
@@ -206,6 +216,7 @@ export default function App() {
       dayOfWeek,
       timeMinutes,
       allowFallbackTransit,
+      modeBalance,
       showAllNetwork,
       loopMode,
       weatherMode,
@@ -223,6 +234,7 @@ export default function App() {
     dayOfWeek,
     timeMinutes,
     allowFallbackTransit,
+    modeBalance,
     showAllNetwork,
     loopMode,
     weatherMode,
@@ -277,6 +289,7 @@ export default function App() {
         dayOfWeek,
         timeMinutes,
         allowFallbackTransit,
+        modeBalance,
         loopMode,
         weatherMode,
         preferSpecialFleet,
@@ -289,6 +302,7 @@ export default function App() {
       dayOfWeek,
       timeMinutes,
       allowFallbackTransit,
+      modeBalance,
       loopMode,
       weatherMode,
       preferSpecialFleet,
@@ -380,6 +394,7 @@ export default function App() {
         dayOfWeek: overrideDay ?? dayOfWeek,
         timeMinutes: overrideTime ?? timeMinutes,
         allowFallbackTransit: overrideFallback ?? allowFallbackTransit,
+        modeBalance,
         loopMode,
         weatherMode,
         preferSpecialFleet,
@@ -398,6 +413,7 @@ export default function App() {
       dayOfWeek,
       timeMinutes,
       allowFallbackTransit,
+      modeBalance,
       loopMode,
       weatherMode,
       preferSpecialFleet,
@@ -569,6 +585,7 @@ export default function App() {
           dayOfWeek,
           timeMinutes,
           allowFallbackTransit,
+          modeBalance,
           loopMode,
           weatherMode,
           preferSpecialFleet,
@@ -583,6 +600,7 @@ export default function App() {
       dayOfWeek,
       timeMinutes,
       allowFallbackTransit,
+      modeBalance,
       loopMode,
       weatherMode,
       preferSpecialFleet,
@@ -712,6 +730,8 @@ export default function App() {
                 onChangeTimeMinutes={setTimeMinutes}
                 allowFallbackTransit={allowFallbackTransit}
                 onChangeAllowFallbackTransit={setAllowFallbackTransit}
+                modeBalance={modeBalance}
+                onChangeModeBalance={setModeBalance}
                 showAllNetwork={showAllNetwork}
                 onChangeShowAllNetwork={setShowAllNetwork}
                 loopMode={loopMode}
@@ -771,6 +791,8 @@ export default function App() {
                   onChangeTimeMinutes={setTimeMinutes}
                   allowFallbackTransit={allowFallbackTransit}
                   onChangeAllowFallbackTransit={setAllowFallbackTransit}
+                  modeBalance={modeBalance}
+                  onChangeModeBalance={setModeBalance}
                   showAllNetwork={showAllNetwork}
                   onChangeShowAllNetwork={setShowAllNetwork}
                   loopMode={loopMode}

@@ -6,6 +6,7 @@ import {
   GenerationOutcome,
   Landmark,
   LandmarkCategory,
+  ModeBalance,
   RouteThemeFilter,
   TramStop,
   WeatherMode,
@@ -39,6 +40,8 @@ interface RoutePlannerPanelProps {
   onChangeTimeMinutes: (minutes: number) => void;
   allowFallbackTransit: boolean;
   onChangeAllowFallbackTransit: (allow: boolean) => void;
+  modeBalance: ModeBalance;
+  onChangeModeBalance: (balance: ModeBalance) => void;
   showAllNetwork: boolean;
   onChangeShowAllNetwork: (show: boolean) => void;
   loopMode: boolean;
@@ -87,6 +90,8 @@ export function RoutePlannerPanel({
   onChangeTimeMinutes,
   allowFallbackTransit,
   onChangeAllowFallbackTransit,
+  modeBalance,
+  onChangeModeBalance,
   showAllNetwork,
   onChangeShowAllNetwork,
   loopMode,
@@ -247,6 +252,8 @@ export function RoutePlannerPanel({
             onChangeTimeMinutes={onChangeTimeMinutes}
             allowFallbackTransit={allowFallbackTransit}
             onChangeAllowFallbackTransit={onChangeAllowFallbackTransit}
+            modeBalance={modeBalance}
+            onChangeModeBalance={onChangeModeBalance}
             showAllNetwork={showAllNetwork}
             onChangeShowAllNetwork={onChangeShowAllNetwork}
             loopMode={loopMode}

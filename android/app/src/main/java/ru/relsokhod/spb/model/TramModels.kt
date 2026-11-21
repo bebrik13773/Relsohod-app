@@ -159,6 +159,21 @@ data class RouteSegment(
     val directionNote: String
 )
 
+data class ModeBalance(
+    val tram: Float = 0.72f,
+    val transit: Float = 0.08f,
+    val walk: Float = 0.20f
+) {
+    fun normalized(): ModeBalance {
+        val t = maxOf(0f, tram)
+        val tr = maxOf(0f, transit)
+        val w = maxOf(0f, walk)
+        val sum = t + tr + w
+        if (sum <= 0.0001f) return ModeBalance()
+        return ModeBalance(tram = t / sum, transit = tr / sum, walk = w / sum)
+    }
+}
+
 data class GeneratedTrip(
     val id: String,
     val city: CityId,
@@ -172,6 +187,7 @@ data class GeneratedTrip(
     val usedFallbackTransit: Boolean,
     val isLoop: Boolean,
     val weatherMode: WeatherMode,
+    val modeBalance: ModeBalance = ModeBalance(),
     val districtsVisited: List<String>,
     val landmarks: List<Landmark>,
     val dayOfWeek: Int,
@@ -225,6 +241,7 @@ data class SearchParamsState(
     val dayOfWeek: Int = 3,
     val timeMinutes: Int = 14 * 60,
     val allowFallbackTransit: Boolean = false,
+    val modeBalance: ModeBalance = ModeBalance(),
     val showAllNetwork: Boolean = true,
     val loopMode: Boolean = false,
     val weatherMode: WeatherMode = WeatherMode.CLEAR,
