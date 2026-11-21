@@ -19,6 +19,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 10
 
       - name: Set up Node.js & sync tram network data
         uses: actions/setup-node@v4
@@ -100,20 +102,82 @@ jobs:
           path: dist-apk/*.apk
           retention-days: 30
 
-      - name: Prepare GitHub Release metadata
+      - name: Prepare GitHub Release metadata & notes
         if: github.event_name != 'pull_request'
         id: release_meta
         run: |
-          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            echo "tag_name=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
-            echo "release_name=Рельсоход ${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
-            echo "prerelease=false" >> "$GITHUB_OUTPUT"
-          else
-            SHORT_SHA="${GITHUB_SHA::7}"
-            echo "tag_name=v2.0.0-build.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
-            echo "release_name=Рельсоход — сборка #${GITHUB_RUN_NUMBER} (${SHORT_SHA})" >> "$GITHUB_OUTPUT"
-            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          VERSION_NAME="$(grep -E 'versionName[[:space:]]*=' android/app/build.gradle.kts | head -n1 | sed -E 's/.*"([^"]+)".*/\1/' || true)"
+          if [ -z "$VERSION_NAME" ]; then
+            VERSION_NAME="2.1.0-native"
           fi
+          BASE_VER="${VERSION_NAME%%-*}"
+          SHORT_SHA="${GITHUB_SHA::7}"
+
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            TAG_NAME="${GITHUB_REF_NAME}"
+            RELEASE_NAME="🚋 Рельсоход ${GITHUB_REF_NAME}"
+          else
+            TAG_NAME="v${BASE_VER}-build.${GITHUB_RUN_NUMBER}"
+            RELEASE_NAME="🚋 Рельсоход v${BASE_VER} (сборка #${GITHUB_RUN_NUMBER})"
+          fi
+
+          RELEASE_SIZE="$(du -h dist-apk/Relsokhod-release.apk | cut -f1)"
+          DEBUG_SIZE="$(du -h dist-apk/Relsokhod-debug.apk | cut -f1)"
+          RELEASE_SHA="$(sha256sum dist-apk/Relsokhod-release.apk | awk '{print $1}')"
+          DEBUG_SHA="$(sha256sum dist-apk/Relsokhod-debug.apk | awk '{print $1}')"
+          RECENT_CHANGES="$(git log -n 8 --pretty='- %s (`%h`)' 2>/dev/null || echo '- Сборка актуальной версии приложения')"
+
+          cat <<EOF > release-notes.md
+          # 🚋 Рельсоход — нативное Android-приложение
+
+          Умный маршрутизатор городских прогулок на трамваях, городском транспорте и пешком по **Санкт-Петербургу** и **Омску**. Полностью нативный клиент на **Kotlin + Jetpack Compose** (без WebView).
+
+          ---
+
+          ## 📦 Какой файл скачать
+
+          | Файл | Назначение | Размер | Рекомендация |
+          | --- | --- | --- | --- |
+          | **\`Relsokhod-release.apk\`** | Основная релизная версия с R8-оптимизацией и подписью | \`${RELEASE_SIZE}\` | ⭐ **Скачивайте этот файл** |
+          | **\`Relsokhod-debug.apk\`** | Отладочная сборка для тестирования и логов | \`${DEBUG_SIZE}\` | Для разработчиков |
+
+          ---
+
+          ## ✨ Что внутри этой версии (\`${VERSION_NAME}\`)
+
+          - **⚡ Быстрый и плавный интерфейс**: парсинг сети, построение маршрутов, работа с фото и сохранение настроек выполняются в фоне; сглаженная карта и треугольный баланс работают без лагов.
+          - **🛡️ Актуальная совместимость (Android 16 / API 36)**: поддержка системного фотопикера (*Privacy Photo Picker*) без лишних разрешений, правила резервного копирования и предиктивный жест «Назад».
+          - **🔺 Треугольный регулятор баланса**: наглядная настройка соотношения **Трамваи / Транспорт / Пешком** с быстрыми пресетами.
+          - **🗺️ Плавная схема и навигация**: сглаженные кривыми Безье линии с разведением по полосам, выбор точек на карте и экспорт готового маршрута в **Яндекс Карты**.
+          - **🎙️ Режим «В пути», Паспорт и статистика**: автоинформатор, таймер пересадок, фотоальбом, достижения и сводная статистика по пройденным километрам и районам СПб в **Избранном**.
+
+          ---
+
+          ## 📲 Как установить на смартфон
+
+          1. Раскройте блок **Assets** ниже и скачайте **\`Relsokhod-release.apk\`**.
+          2. Откройте скачанный файл на телефоне (**Android 7.0 — Android 16**).
+          3. При первой установке разрешите установку приложений из этого источника (браузера или проводника).
+
+          ---
+
+          <details>
+          <summary>🛠️ Технические детали сборки и последние изменения</summary>
+
+          - **Версия:** \`${VERSION_NAME}\`
+          - **Сборка CI:** \`#${GITHUB_RUN_NUMBER}\` · коммит \`${SHORT_SHA}\`
+          - **SHA-256 (\`Relsokhod-release.apk\`):** \`${RELEASE_SHA}\`
+          - **SHA-256 (\`Relsokhod-debug.apk\`):** \`${DEBUG_SHA}\`
+
+          ### Последние коммиты
+          ${RECENT_CHANGES}
+
+          </details>
+          EOF
+
+          echo "tag_name=${TAG_NAME}" >> "$GITHUB_OUTPUT"
+          echo "release_name=${RELEASE_NAME}" >> "$GITHUB_OUTPUT"
+          echo "prerelease=false" >> "$GITHUB_OUTPUT"
 
       - name: Publish APKs to GitHub Releases
         if: github.event_name != 'pull_request'
@@ -121,8 +185,9 @@ jobs:
         with:
           tag_name: ${{ steps.release_meta.outputs.tag_name }}
           name: ${{ steps.release_meta.outputs.release_name }}
+          body_path: release-notes.md
           target_commitish: ${{ github.sha }}
           files: dist-apk/*.apk
-          generate_release_notes: true
+          generate_release_notes: false
           make_latest: 'true'
           fail_on_unmatched_files: true
