@@ -1,6 +1,7 @@
 package ru.relsokhod.spb.ui.screens
 
 import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,13 +12,16 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.AcUnit
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.AcUnit
 import androidx.compose.material.icons.rounded.CloudQueue
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Map
@@ -26,8 +30,10 @@ import androidx.compose.material.icons.rounded.Repeat
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.WbSunny
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
@@ -75,6 +81,7 @@ fun SearchTab(
     params: SearchParamsState,
     scrollState: ScrollState,
     geoStatusMessage: String?,
+    isGenerating: Boolean = false,
     onUpdateParams: (SearchParamsState) -> Unit,
     onDetectLocation: () -> Unit,
     onPickOnMap: (String) -> Unit,
@@ -82,10 +89,13 @@ fun SearchTab(
 ) {
     val haptic = LocalHapticFeedback.current
     val tramStops = remember(cityConfig.stops) { cityConfig.stops.filter { !it.isolatedFromMainTram } }
+    val destStops = remember(cityConfig.stops, params.startStopId) {
+        cityConfig.stops.filter { it.id != params.startStopId }
+    }
     val stopMap = remember(cityConfig.stops) { cityConfig.stops.associateBy { it.id } }
 
-    var startMenuExpanded by remember { mutableStateOf(false) }
-    var destMenuExpanded by remember { mutableStateOf(false) }
+    var startPickerOpen by remember { mutableStateOf(false) }
+    var destPickerOpen by remember { mutableStateOf(false) }
     var dayMenuExpanded by remember { mutableStateOf(false) }
     var timeMenuExpanded by remember { mutableStateOf(false) }
     var addressNotFound by remember { mutableStateOf(false) }
@@ -136,34 +146,18 @@ fun SearchTab(
                     }
                 }
 
-                Box {
-                    OutlinedButton(
-                        onClick = { startMenuExpanded = true },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp)
-                    ) {
-                        Text(
-                            text = startStop?.let { "${it.name} — ${it.district}" } ?: "Выбрать остановку",
-                            modifier = Modifier.weight(1f),
-                            maxLines = 1,
-                            fontSize = 13.sp
-                        )
-                        Icon(Icons.Rounded.ExpandMore, contentDescription = null)
-                    }
-                    DropdownMenu(
-                        expanded = startMenuExpanded,
-                        onDismissRequest = { startMenuExpanded = false }
-                    ) {
-                        tramStops.forEach { stop ->
-                            DropdownMenuItem(
-                                text = { Text("${stop.name} — ${stop.district}", fontSize = 13.sp) },
-                                onClick = {
-                                    startMenuExpanded = false
-                                    onUpdateParams(params.copy(startStopId = stop.id))
-                                }
-                            )
-                        }
-                    }
+                OutlinedButton(
+                    onClick = { startPickerOpen = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text(
+                        text = startStop?.let { "${it.name} — ${it.district}" } ?: "Выбрать остановку",
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1,
+                        fontSize = 13.sp
+                    )
+                    Icon(Icons.Rounded.ExpandMore, contentDescription = null)
                 }
 
                 if (!geoStatusMessage.isNullOrBlank()) {
@@ -274,59 +268,18 @@ fun SearchTab(
                     )
                 }
 
-                Box {
-                    OutlinedButton(
-                        onClick = { destMenuExpanded = true },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp)
-                    ) {
-                        Text(
-                            text = destStop?.let { "${it.name} — ${it.district}" } ?: "Случайная точка в городе",
-                            modifier = Modifier.weight(1f),
-                            maxLines = 1,
-                            fontSize = 13.sp
-                        )
-                        Icon(Icons.Rounded.ExpandMore, contentDescription = null)
-                    }
-                    DropdownMenu(
-                        expanded = destMenuExpanded,
-                        onDismissRequest = { destMenuExpanded = false }
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("Случайная точка в городе", fontWeight = FontWeight.Bold) },
-                            onClick = {
-                                destMenuExpanded = false
-                                onUpdateParams(
-                                    params.copy(
-                                        destinationStopId = null,
-                                        destinationAddressLabel = "",
-                                        destinationAddressQuery = ""
-                                    )
-                                )
-                            }
-                        )
-                        cityConfig.stops.filter { it.id != params.startStopId }.forEach { stop ->
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        text = if (stop.isolatedFromMainTram) "${stop.name} (резерв. транспорт)"
-                                        else "${stop.name} — ${stop.district}",
-                                        fontSize = 13.sp
-                                    )
-                                },
-                                onClick = {
-                                    destMenuExpanded = false
-                                    onUpdateParams(
-                                        params.copy(
-                                            destinationStopId = stop.id,
-                                            destinationAddressLabel = stop.name,
-                                            loopMode = false
-                                        )
-                                    )
-                                }
-                            )
-                        }
-                    }
+                OutlinedButton(
+                    onClick = { destPickerOpen = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text(
+                        text = destStop?.let { "${it.name} — ${it.district}" } ?: "Случайная точка в городе",
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1,
+                        fontSize = 13.sp
+                    )
+                    Icon(Icons.Rounded.ExpandMore, contentDescription = null)
                 }
             }
         }
@@ -510,6 +463,7 @@ fun SearchTab(
         }
 
         Button(
+            enabled = !isGenerating,
             onClick = {
                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 onGenerate()
@@ -519,13 +473,22 @@ fun SearchTab(
                 .height(54.dp),
             shape = RoundedCornerShape(18.dp)
         ) {
-            Icon(
-                if (params.loopMode) Icons.Rounded.Repeat else Icons.Rounded.Shuffle,
-                contentDescription = null
-            )
+            if (isGenerating) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp),
+                    strokeWidth = 2.dp,
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
+            } else {
+                Icon(
+                    if (params.loopMode) Icons.Rounded.Repeat else Icons.Rounded.Shuffle,
+                    contentDescription = null
+                )
+            }
             Spacer(modifier = Modifier.size(8.dp))
             Text(
                 text = when {
+                    isGenerating -> "Подбираем маршрут..."
                     params.loopMode -> "Построить круговой маршрут"
                     params.destinationStopId != null -> "Построить трамвайный маршрут"
                     else -> "Подобрать случайный маршрут"
@@ -536,6 +499,131 @@ fun SearchTab(
 
         Spacer(modifier = Modifier.height(8.dp))
     }
+
+    if (startPickerOpen) {
+        StopPickerDialog(
+            title = "Остановка отправления",
+            stops = tramStops,
+            allowRandom = false,
+            onSelectRandom = {},
+            onSelectStop = { stop ->
+                startPickerOpen = false
+                onUpdateParams(params.copy(startStopId = stop.id))
+            },
+            onDismiss = { startPickerOpen = false }
+        )
+    }
+
+    if (destPickerOpen) {
+        StopPickerDialog(
+            title = "Конечная остановка",
+            stops = destStops,
+            allowRandom = true,
+            onSelectRandom = {
+                destPickerOpen = false
+                onUpdateParams(
+                    params.copy(
+                        destinationStopId = null,
+                        destinationAddressLabel = "",
+                        destinationAddressQuery = ""
+                    )
+                )
+            },
+            onSelectStop = { stop ->
+                destPickerOpen = false
+                onUpdateParams(
+                    params.copy(
+                        destinationStopId = stop.id,
+                        destinationAddressLabel = stop.name,
+                        loopMode = false
+                    )
+                )
+            },
+            onDismiss = { destPickerOpen = false }
+        )
+    }
+}
+
+@Composable
+private fun StopPickerDialog(
+    title: String,
+    stops: List<TramStop>,
+    allowRandom: Boolean,
+    onSelectRandom: () -> Unit,
+    onSelectStop: (TramStop) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var query by remember { mutableStateOf("") }
+    val filtered = remember(stops, query) {
+        val q = query.trim().lowercase()
+        if (q.isEmpty()) stops
+        else stops.filter { it.name.lowercase().contains(q) || it.district.lowercase().contains(q) }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title, fontWeight = FontWeight.Bold, fontSize = 17.sp) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    placeholder = { Text("Поиск по остановке или району...", fontSize = 12.sp) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                )
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 340.dp)
+                ) {
+                    if (allowRandom) {
+                        item(key = "__random__") {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onSelectRandom() }
+                                    .padding(vertical = 10.dp, horizontal = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    "Случайная точка в городе",
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontSize = 13.sp
+                                )
+                            }
+                            HorizontalDivider()
+                        }
+                    }
+                    items(filtered, key = { it.id }) { stop ->
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onSelectStop(stop) }
+                                .padding(vertical = 10.dp, horizontal = 6.dp)
+                        ) {
+                            Text(
+                                text = if (stop.isolatedFromMainTram) "${stop.name} (резерв. транспорт)" else stop.name,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 13.sp
+                            )
+                            Text(
+                                text = stop.district,
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        HorizontalDivider()
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Закрыть") }
+        }
+    )
 }
 
 @Composable

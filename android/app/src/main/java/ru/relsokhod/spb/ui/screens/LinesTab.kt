@@ -18,6 +18,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -29,6 +30,7 @@ import ru.relsokhod.spb.model.CityConfig
 
 @Composable
 fun LinesTab(cityConfig: CityConfig) {
+    val fallbackPrimary = MaterialTheme.colorScheme.primary
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -51,9 +53,11 @@ fun LinesTab(cityConfig: CityConfig) {
         }
 
         items(cityConfig.routes, key = { it.id }) { route ->
-            val lineColor = runCatching {
-                Color(android.graphics.Color.parseColor(route.colorHex))
-            }.getOrDefault(MaterialTheme.colorScheme.primary)
+            val lineColor = remember(route.id, route.colorHex, fallbackPrimary) {
+                runCatching {
+                    Color(android.graphics.Color.parseColor(route.colorHex))
+                }.getOrDefault(fallbackPrimary)
+            }
 
             Surface(
                 shape = RoundedCornerShape(18.dp),

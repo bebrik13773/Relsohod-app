@@ -29,6 +29,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,8 +43,10 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ru.relsokhod.spb.model.ModeBalance
@@ -114,9 +117,14 @@ fun ModeTriangleSlider(
 ) {
     val haptic = LocalHapticFeedback.current
     var isDragging by remember { mutableStateOf(false) }
+    var dragBalance by remember { mutableStateOf<ModeBalance?>(null) }
+    var boxSize by remember { mutableStateOf(IntSize.Zero) }
+    val currentOnChange by rememberUpdatedState(onChange)
 
-    val pctTram = (value.tram * 100f).roundToInt()
-    val pctTransit = (value.transit * 100f).roundToInt()
+    val displayBalance = dragBalance ?: value
+
+    val pctTram = (displayBalance.tram * 100f).roundToInt()
+    val pctTransit = (displayBalance.transit * 100f).roundToInt()
     val pctWalk = maxOf(0, 100 - pctTram - pctTransit)
 
     val primaryColor = MaterialTheme.colorScheme.primary
@@ -124,6 +132,34 @@ fun ModeTriangleSlider(
     val walkColor = Color(0xFF059669)
     val outlineColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.55f)
     val medianColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
+    val dashEffect = remember { PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f) }
+
+    val cachedGeometry = remember(boxSize, primaryColor) {
+        if (boxSize.width <= 0 || boxSize.height <= 0) null
+        else {
+            val w = boxSize.width.toFloat()
+            val h = boxSize.height.toFloat()
+            val vTram = Offset(TriangleBalanceMath.VERTEX_TRAM.x * w, TriangleBalanceMath.VERTEX_TRAM.y * h)
+            val vTransit = Offset(TriangleBalanceMath.VERTEX_TRANSIT.x * w, TriangleBalanceMath.VERTEX_TRANSIT.y * h)
+            val vWalk = Offset(TriangleBalanceMath.VERTEX_WALK.x * w, TriangleBalanceMath.VERTEX_WALK.y * h)
+            val path = Path().apply {
+                moveTo(vTram.x, vTram.y)
+                lineTo(vTransit.x, vTransit.y)
+                lineTo(vWalk.x, vWalk.y)
+                close()
+            }
+            val brush = Brush.linearGradient(
+                colors = listOf(
+                    primaryColor.copy(alpha = 0.16f),
+                    transitColor.copy(alpha = 0.11f),
+                    walkColor.copy(alpha = 0.15f)
+                ),
+                start = vTram,
+                end = vWalk
+            )
+            Triple(Triple(vTram, vTransit, vWalk), path, brush)
+        }
+    }
 
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -247,6 +283,7 @@ fun ModeTriangleSlider(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(216.dp)
+                        .onSizeChanged { boxSize = it }
                 ) {
                     Canvas(
                         modifier = Modifier
@@ -259,12 +296,11 @@ fun ModeTriangleSlider(
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                     val w = size.width.toFloat().coerceAtLeast(1f)
                                     val h = size.height.toFloat().coerceAtLeast(1f)
-                                    onChange(
-                                        TriangleBalanceMath.trianglePointToBalance(
-                                            down.position.x / w,
-                                            down.position.y / h
-                                        )
+                                    var latest = TriangleBalanceMath.trianglePointToBalance(
+                                        down.position.x / w,
+                                        down.position.y / h
                                     )
+                                    dragBalance = latest
                                     val activeId = down.id
                                     while (true) {
                                         val event = awaitPointerEvent()
@@ -272,82 +308,59 @@ fun ModeTriangleSlider(
                                             ?: event.changes.firstOrNull()
                                         if (change == null || !change.pressed) break
                                         change.consume()
-                                        onChange(
-                                            TriangleBalanceMath.trianglePointToBalance(
-                                                change.position.x / w,
-                                                change.position.y / h
-                                            )
+                                        latest = TriangleBalanceMath.trianglePointToBalance(
+                                            change.position.x / w,
+                                            change.position.y / h
                                         )
+                                        dragBalance = latest
                                     }
                                     isDragging = false
+                                    dragBalance = null
+                                    currentOnChange(latest)
                                 }
                             }
                     ) {
-                        val w = size.width
-                        val h = size.height
-                        val vTram = Offset(TriangleBalanceMath.VERTEX_TRAM.x * w, TriangleBalanceMath.VERTEX_TRAM.y * h)
-                        val vTransit = Offset(TriangleBalanceMath.VERTEX_TRANSIT.x * w, TriangleBalanceMath.VERTEX_TRANSIT.y * h)
-                        val vWalk = Offset(TriangleBalanceMath.VERTEX_WALK.x * w, TriangleBalanceMath.VERTEX_WALK.y * h)
+                        val geom = cachedGeometry ?: return@Canvas
+                        val (vertices, triPath, triBrush) = geom
+                        val (vTram, vTransit, vWalk) = vertices
 
-                        val thumbNorm = TriangleBalanceMath.balanceToTrianglePoint(value)
-                        val thumb = Offset(thumbNorm.x * w, thumbNorm.y * h)
+                        val thumbNorm = TriangleBalanceMath.balanceToTrianglePoint(displayBalance)
+                        val thumb = Offset(thumbNorm.x * size.width, thumbNorm.y * size.height)
 
-                        val triPath = Path().apply {
-                            moveTo(vTram.x, vTram.y)
-                            lineTo(vTransit.x, vTransit.y)
-                            lineTo(vWalk.x, vWalk.y)
-                            close()
-                        }
-
-                        drawPath(
-                            path = triPath,
-                            brush = Brush.linearGradient(
-                                colors = listOf(
-                                    primaryColor.copy(alpha = 0.16f),
-                                    transitColor.copy(alpha = 0.11f),
-                                    walkColor.copy(alpha = 0.15f)
-                                ),
-                                start = vTram,
-                                end = vWalk
-                            )
-                        )
+                        drawPath(path = triPath, brush = triBrush)
                         drawPath(
                             path = triPath,
                             color = outlineColor,
                             style = Stroke(width = 4f, join = StrokeJoin.Round, cap = StrokeCap.Round)
                         )
 
-                        // Medians
-                        val dash = PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f)
                         drawLine(
                             color = medianColor,
                             start = vTram,
                             end = Offset((vTransit.x + vWalk.x) / 2f, (vTransit.y + vWalk.y) / 2f),
                             strokeWidth = 2.5f,
-                            pathEffect = dash
+                            pathEffect = dashEffect
                         )
                         drawLine(
                             color = medianColor,
                             start = vTransit,
                             end = Offset((vTram.x + vWalk.x) / 2f, (vTram.y + vWalk.y) / 2f),
                             strokeWidth = 2.5f,
-                            pathEffect = dash
+                            pathEffect = dashEffect
                         )
                         drawLine(
                             color = medianColor,
                             start = vWalk,
                             end = Offset((vTram.x + vTransit.x) / 2f, (vTram.y + vTransit.y) / 2f),
                             strokeWidth = 2.5f,
-                            pathEffect = dash
+                            pathEffect = dashEffect
                         )
 
-                        // Tension lines to active thumb
                         val tensionColor = primaryColor.copy(alpha = 0.38f)
                         drawLine(tensionColor, start = thumb, end = vTram, strokeWidth = 3f)
                         drawLine(tensionColor, start = thumb, end = vTransit, strokeWidth = 3f)
                         drawLine(tensionColor, start = thumb, end = vWalk, strokeWidth = 3f)
 
-                        // Vertex nodes
                         drawCircle(Color.White, radius = 14f, center = vTram)
                         drawCircle(primaryColor, radius = 10f, center = vTram)
 
@@ -357,7 +370,6 @@ fun ModeTriangleSlider(
                         drawCircle(Color.White, radius = 14f, center = vWalk)
                         drawCircle(walkColor, radius = 10f, center = vWalk)
 
-                        // Active thumb
                         drawCircle(primaryColor.copy(alpha = 0.22f), radius = if (isDragging) 34f else 28f, center = thumb)
                         drawCircle(Color.White, radius = if (isDragging) 21f else 18f, center = thumb)
                         drawCircle(primaryColor, radius = if (isDragging) 16f else 13f, center = thumb)
@@ -396,13 +408,14 @@ fun ModeTriangleSlider(
                 ) {
                     BALANCE_PRESETS.forEach { preset ->
                         val isClose =
-                            abs(value.tram - preset.value.tram) < 0.06f &&
-                                abs(value.transit - preset.value.transit) < 0.06f &&
-                                abs(value.walk - preset.value.walk) < 0.06f
+                            abs(displayBalance.tram - preset.value.tram) < 0.06f &&
+                                abs(displayBalance.transit - preset.value.transit) < 0.06f &&
+                                abs(displayBalance.walk - preset.value.walk) < 0.06f
                         FilterChip(
                             selected = isClose,
                             onClick = {
                                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                dragBalance = null
                                 onChange(preset.value)
                             },
                             label = { Text(preset.label, fontSize = 11.sp) }

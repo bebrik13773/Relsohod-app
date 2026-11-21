@@ -60,7 +60,7 @@
 <summary>🛠️ Для разработчиков: сборка из исходников, тесты и структура проекта</summary>
 
 ### Стек
-- **Android (`android/`)**: Kotlin 2.0, Jetpack Compose, Material 3, JUnit 4, Gradle 8.14 (AGP 8.9.1, targetSdk 35, minSdk 24).
+- **Android (`android/`)**: Kotlin 2.0, Jetpack Compose, Material 3, JUnit 4, Gradle 8.14 (AGP 8.9.1, targetSdk 36, minSdk 24).
 - **Web (`src/`)**: React 19, TypeScript, Vite, Tailwind CSS, Node `node:test` (`tsx`).
 
 ### Локальные команды
@@ -73,7 +73,7 @@ npm test              # Юнит-тесты алгоритма маршрути�
 npm run android:sync  # Экспорт актуальной сети в android/app/src/main/assets/tram_network.json
 npm run build         # Production-сборка веба
 
-# Нативный Android (требуются JDK 17 и Android SDK 35)
+# Нативный Android (требуются JDK 17 и Android SDK 36)
 cd android
 ./gradlew testDebugUnitTest   # Kotlin JUnit-тесты (маршрутизатор и треугольный баланс)
 ./gradlew assembleDebug       # Сборка debug APK

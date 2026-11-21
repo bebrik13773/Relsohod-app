@@ -9,6 +9,7 @@ import android.media.ToneGenerator
 import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -62,6 +63,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -72,7 +74,10 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import ru.relsokhod.spb.model.CityConfig
 import ru.relsokhod.spb.model.GeneratedTrip
 import ru.relsokhod.spb.model.GenerationOutcome
@@ -103,6 +108,7 @@ fun RouteTab(
     outcome: GenerationOutcome?,
     mapPickMode: String?,
     isSaved: Boolean,
+    isGenerating: Boolean = false,
     photoReminderMinutes: Int,
     onPickStopOnMap: (TramStop) -> Unit,
     onExtendLastSegment: () -> Unit,
@@ -273,12 +279,12 @@ fun RouteTab(
                                             Spacer(modifier = Modifier.size(4.dp))
                                             Text("В пути", fontSize = 12.sp)
                                         }
-                                        FilledTonalButton(onClick = onExtendLastSegment) {
+                                        FilledTonalButton(enabled = !isGenerating, onClick = onExtendLastSegment) {
                                             Icon(Icons.Rounded.Casino, contentDescription = null, modifier = Modifier.size(16.dp))
                                             Spacer(modifier = Modifier.size(4.dp))
                                             Text("Докрутить +1", fontSize = 12.sp)
                                         }
-                                        FilledTonalButton(onClick = onRegenerate) {
+                                        FilledTonalButton(enabled = !isGenerating, onClick = onRegenerate) {
                                             Icon(Icons.Rounded.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
                                             Spacer(modifier = Modifier.size(4.dp))
                                             Text("Другой", fontSize = 12.sp)
@@ -348,12 +354,15 @@ fun RouteTab(
 
                             // Itinerary segments
                             trip.segments.forEach { seg ->
-                                val badgeColor = when (seg.kind) {
-                                    SegmentKind.TRAM -> runCatching {
-                                        Color(android.graphics.Color.parseColor(seg.route?.colorHex ?: "#005A8D"))
-                                    }.getOrDefault(MaterialTheme.colorScheme.primary)
-                                    SegmentKind.WALK -> Color(0xFF059669)
-                                    SegmentKind.FALLBACK_TRANSIT -> Color(0xFFD97706)
+                                val primary = MaterialTheme.colorScheme.primary
+                                val badgeColor = remember(seg.id, seg.kind, seg.route?.colorHex, primary) {
+                                    when (seg.kind) {
+                                        SegmentKind.TRAM -> runCatching {
+                                            Color(android.graphics.Color.parseColor(seg.route?.colorHex ?: "#005A8D"))
+                                        }.getOrDefault(primary)
+                                        SegmentKind.WALK -> Color(0xFF059669)
+                                        SegmentKind.FALLBACK_TRANSIT -> Color(0xFFD97706)
+                                    }
                                 }
                                 Surface(
                                     shape = RoundedCornerShape(18.dp),
@@ -516,6 +525,7 @@ private fun LiveTripDialog(
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var segIdx by remember { mutableIntStateOf(0) }
     val currSeg = trip.segments[segIdx]
     var secondsLeft by remember(segIdx) { mutableIntStateOf(currSeg.durationMinutes * 60) }
@@ -526,20 +536,22 @@ private fun LiveTripDialog(
 
     val announcements = remember(trip) { TramRouter.buildAnnouncements(trip, announcerIntro) }
 
-    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) {
-            val savedPath = copyPhotoToInternalStorage(context, uri)
-            if (savedPath != null) {
-                val isoNow = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).format(Date())
-                photos = listOf(
-                    TripPhotoMemory(
-                        id = "photo-${System.currentTimeMillis()}",
-                        filePath = savedPath,
-                        caption = "${currSeg.fromStop.name.substringBefore("(").trim()} — ${currSeg.route?.let { "№ ${it.number}" } ?: "Пересадка"}",
-                        takenAtIso = isoNow
-                    )
-                ) + photos
-                showPhotoPrompt = false
+            scope.launch {
+                val savedPath = withContext(Dispatchers.IO) { copyPhotoToInternalStorage(context, uri) }
+                if (savedPath != null) {
+                    val isoNow = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).format(Date())
+                    photos = listOf(
+                        TripPhotoMemory(
+                            id = "photo-${System.currentTimeMillis()}",
+                            filePath = savedPath,
+                            caption = "${currSeg.fromStop.name.substringBefore("(").trim()} — ${currSeg.route?.let { "№ ${it.number}" } ?: "Пересадка"}",
+                            takenAtIso = isoNow
+                        )
+                    ) + photos
+                    showPhotoPrompt = false
+                }
             }
         }
     }
@@ -612,7 +624,11 @@ private fun LiveTripDialog(
                         ) {
                             Icon(Icons.Rounded.NotificationsActive, contentDescription = null, tint = Color(0xFFD97706))
                             Text("Время фото-чекина на память!", fontSize = 12.sp, modifier = Modifier.weight(1f))
-                            TextButton(onClick = { imagePicker.launch("image/*") }) { Text("Снять") }
+                            TextButton(
+                                onClick = {
+                                    imagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                                }
+                            ) { Text("Снять") }
                         }
                     }
                 }
@@ -633,7 +649,9 @@ private fun LiveTripDialog(
                     }
 
                     OutlinedButton(
-                        onClick = { imagePicker.launch("image/*") },
+                        onClick = {
+                            imagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                        },
                         modifier = Modifier.weight(1f)
                     ) {
                         Icon(Icons.Rounded.CameraAlt, contentDescription = null, modifier = Modifier.size(16.dp))

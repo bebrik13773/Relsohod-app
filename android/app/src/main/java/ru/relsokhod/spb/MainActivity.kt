@@ -46,6 +46,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -55,6 +56,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -64,13 +66,20 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import ru.relsokhod.spb.data.NetworkRepository
+import ru.relsokhod.spb.model.AccentSeed
 import ru.relsokhod.spb.model.CityConfig
 import ru.relsokhod.spb.model.CityDetectionResult
 import ru.relsokhod.spb.model.CityId
 import ru.relsokhod.spb.model.GenerationOutcome
 import ru.relsokhod.spb.model.SavedRoute
 import ru.relsokhod.spb.model.SearchParamsState
+import ru.relsokhod.spb.model.ThemeMode
 import ru.relsokhod.spb.model.TripHistoryEntry
 import ru.relsokhod.spb.router.TramRouter
 import ru.relsokhod.spb.storage.AppPrefs
@@ -92,22 +101,33 @@ private enum class BottomTab(val label: String) {
     LINES("Линии")
 }
 
+private data class BootstrapData(
+    val cities: Map<CityId, CityConfig>,
+    val onboardingDone: Boolean,
+    val selectedCity: CityId,
+    val themeMode: ThemeMode,
+    val accentSeed: AccentSeed,
+    val photoReminderMinutes: Int,
+    val spbParams: SearchParamsState,
+    val omskParams: SearchParamsState,
+    val savedRoutes: List<SavedRoute>,
+    val history: List<TripHistoryEntry>
+)
+
 class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     private var tts: TextToSpeech? = null
     private var ttsReady = false
+    private var ttsInitializing = false
+    private var ttsFailed = false
+    private var pendingSpeakText: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        tts = TextToSpeech(this, this)
-
-        val cities = NetworkRepository.loadFromAssets(applicationContext)
-        val prefs = AppPrefs(applicationContext)
 
         setContent {
             RelsokhodNativeApp(
-                cities = cities,
-                prefs = prefs,
+                appContext = applicationContext,
                 activity = this,
                 onSpeakText = { text -> speakRussian(text) }
             )
@@ -115,18 +135,43 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     }
 
     override fun onInit(status: Int) {
+        ttsInitializing = false
         if (status == TextToSpeech.SUCCESS) {
-            val res = tts?.setLanguage(Locale("ru", "RU"))
+            val res = tts?.setLanguage(Locale.forLanguageTag("ru-RU"))
             ttsReady = res != TextToSpeech.LANG_MISSING_DATA && res != TextToSpeech.LANG_NOT_SUPPORTED
+        } else {
+            ttsReady = false
+        }
+        ttsFailed = !ttsReady
+
+        val pending = pendingSpeakText
+        pendingSpeakText = null
+        if (ttsReady && !pending.isNullOrBlank()) {
+            tts?.speak(pending, TextToSpeech.QUEUE_FLUSH, null, "relsokhod_announcer")
+        } else if (!ttsReady && pending != null) {
+            runOnUiThread {
+                Toast.makeText(this, "Голосовой синтез RU не настроен на устройстве", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
     private fun speakRussian(text: String) {
-        if (ttsReady && text.isNotBlank()) {
+        if (text.isBlank()) return
+        if (ttsReady && tts != null) {
             tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "relsokhod_announcer")
-        } else {
-            Toast.makeText(this, "Голосовой синтез RU не настроен на устройстве", Toast.LENGTH_SHORT).show()
+            return
         }
+        if (tts == null && !ttsInitializing && !ttsFailed) {
+            pendingSpeakText = text
+            ttsInitializing = true
+            tts = TextToSpeech(this, this)
+            return
+        }
+        if (ttsInitializing) {
+            pendingSpeakText = text
+            return
+        }
+        Toast.makeText(this, "Голосовой синтез RU не настроен на устройстве", Toast.LENGTH_SHORT).show()
     }
 
     override fun onDestroy() {
@@ -139,22 +184,27 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun RelsokhodNativeApp(
-    cities: Map<CityId, CityConfig>,
-    prefs: AppPrefs,
+    appContext: Context,
     activity: ComponentActivity,
     onSpeakText: (String) -> Unit
 ) {
-    var onboardingDone by remember { mutableStateOf(prefs.isOnboardingDone()) }
-    var selectedCity by remember { mutableStateOf(prefs.getCity()) }
-    var themeMode by remember { mutableStateOf(prefs.getThemeMode()) }
-    var accentSeed by remember { mutableStateOf(prefs.getAccentSeed()) }
-    var photoReminderMinutes by remember { mutableStateOf(prefs.getPhotoReminderMinutes()) }
+    val prefs = remember(appContext) { AppPrefs(appContext) }
+    val coroutineScope = rememberCoroutineScope()
 
-    val spbDefault = cities[CityId.SPB]?.defaultStartStopId ?: "spb_sen"
-    val omskDefault = cities[CityId.OMSK]?.defaultStartStopId ?: "omsk_cirk"
+    var cities by remember { mutableStateOf<Map<CityId, CityConfig>>(emptyMap()) }
+    var isBootstrapping by remember { mutableStateOf(true) }
+    var isGenerating by remember { mutableStateOf(false) }
 
-    var spbParams by remember { mutableStateOf(prefs.getSearchParams(CityId.SPB, spbDefault)) }
-    var omskParams by remember { mutableStateOf(prefs.getSearchParams(CityId.OMSK, omskDefault)) }
+    var onboardingDone by remember { mutableStateOf(false) }
+    var selectedCity by remember { mutableStateOf(CityId.SPB) }
+    var themeMode by remember { mutableStateOf(ThemeMode.LIGHT) }
+    var accentSeed by remember { mutableStateOf(AccentSeed.NEVA) }
+    var photoReminderMinutes by remember { mutableStateOf(30) }
+
+    var spbParams by remember { mutableStateOf(SearchParamsState(startStopId = "spb_sen")) }
+    var omskParams by remember { mutableStateOf(SearchParamsState(startStopId = "omsk_cirk")) }
+    var spbParamsDirty by remember { mutableStateOf(false) }
+    var omskParamsDirty by remember { mutableStateOf(false) }
 
     val spbScroll = rememberScrollState()
     val omskScroll = rememberScrollState()
@@ -163,26 +213,15 @@ private fun RelsokhodNativeApp(
     var mapPickMode by remember { mutableStateOf<String?>(null) }
     var settingsOpen by remember { mutableStateOf(false) }
 
-    var savedRoutes by remember { mutableStateOf(prefs.loadSavedRoutes()) }
-    var history by remember { mutableStateOf(prefs.loadHistory()) }
+    var savedRoutes by remember { mutableStateOf<List<SavedRoute>>(emptyList()) }
+    var history by remember { mutableStateOf<List<TripHistoryEntry>>(emptyList()) }
 
     var geoStatusMessage by remember { mutableStateOf<String?>(null) }
     var cityDetection by remember { mutableStateOf<CityDetectionResult?>(null) }
     var mismatchDismissed by remember { mutableStateOf(false) }
 
-    val currentCityConfig = cities[selectedCity] ?: cities.values.first()
-    val currentParams = if (selectedCity == CityId.SPB) spbParams else omskParams
-    val currentScroll = if (selectedCity == CityId.SPB) spbScroll else omskScroll
-
-    fun updateCurrentParams(next: SearchParamsState) {
-        if (selectedCity == CityId.SPB) {
-            spbParams = next
-            prefs.saveSearchParams(CityId.SPB, next)
-        } else {
-            omskParams = next
-            prefs.saveSearchParams(CityId.OMSK, next)
-        }
-    }
+    var outcome by remember { mutableStateOf<GenerationOutcome?>(null) }
+    var generationJob by remember { mutableStateOf<Job?>(null) }
 
     fun generateTripFor(
         cityCfg: CityConfig,
@@ -209,10 +248,58 @@ private fun RelsokhodNativeApp(
         )
     }
 
-    var outcome by remember {
-        mutableStateOf<GenerationOutcome?>(
-            generateTripFor(currentCityConfig, currentParams, seed = 42L)
-        )
+    fun launchGenerate(
+        cityCfg: CityConfig,
+        p: SearchParamsState,
+        seed: Long? = null,
+        switchToRouteAfter: Boolean = false
+    ) {
+        generationJob?.cancel()
+        generationJob = coroutineScope.launch {
+            isGenerating = true
+            val res = withContext(Dispatchers.Default) {
+                generateTripFor(cityCfg, p, seed)
+            }
+            outcome = res
+            isGenerating = false
+            if (switchToRouteAfter) {
+                activeTab = BottomTab.ROUTE
+            }
+        }
+    }
+
+    val currentCityConfig = cities[selectedCity] ?: cities.values.firstOrNull()
+    val currentParams = if (selectedCity == CityId.SPB) spbParams else omskParams
+    val currentScroll = if (selectedCity == CityId.SPB) spbScroll else omskScroll
+
+    fun updateCurrentParams(next: SearchParamsState) {
+        if (selectedCity == CityId.SPB) {
+            spbParams = next
+            spbParamsDirty = true
+        } else {
+            omskParams = next
+            omskParamsDirty = true
+        }
+    }
+
+    // Debounced off-main-thread persistence for search parameters
+    LaunchedEffect(spbParams, spbParamsDirty) {
+        if (!isBootstrapping && spbParamsDirty) {
+            delay(250)
+            withContext(Dispatchers.IO) {
+                prefs.saveSearchParams(CityId.SPB, spbParams)
+            }
+            spbParamsDirty = false
+        }
+    }
+    LaunchedEffect(omskParams, omskParamsDirty) {
+        if (!isBootstrapping && omskParamsDirty) {
+            delay(250)
+            withContext(Dispatchers.IO) {
+                prefs.saveSearchParams(CityId.OMSK, omskParams)
+            }
+            omskParamsDirty = false
+        }
     }
 
     var pendingApplyNearestStart by remember { mutableStateOf(false) }
@@ -222,7 +309,7 @@ private fun RelsokhodNativeApp(
         cityDetection = detection
         mismatchDismissed = false
 
-        val cfg = cities[selectedCity] ?: currentCityConfig
+        val cfg = cities[selectedCity] ?: currentCityConfig ?: return
         if (detection.detected != null && detection.detected != selectedCity) {
             val detectedName = cities[detection.detected]?.name.orEmpty()
             geoStatusMessage = "По координатам вы в городе $detectedName, а выбран ${cfg.name}."
@@ -280,8 +367,43 @@ private fun RelsokhodNativeApp(
         }
     }
 
-    // Silent mismatch check on entry when permission already granted
+    // Async bootstrap: load assets & prefs on IO, then generate initial route on Default
     LaunchedEffect(Unit) {
+        val data = withContext(Dispatchers.IO) {
+            val loadedCities = NetworkRepository.loadFromAssets(appContext)
+            val spbDefault = loadedCities[CityId.SPB]?.defaultStartStopId ?: "spb_sen"
+            val omskDefault = loadedCities[CityId.OMSK]?.defaultStartStopId ?: "omsk_cirk"
+            BootstrapData(
+                cities = loadedCities,
+                onboardingDone = prefs.isOnboardingDone(),
+                selectedCity = prefs.getCity(),
+                themeMode = prefs.getThemeMode(),
+                accentSeed = prefs.getAccentSeed(),
+                photoReminderMinutes = prefs.getPhotoReminderMinutes(),
+                spbParams = prefs.getSearchParams(CityId.SPB, spbDefault),
+                omskParams = prefs.getSearchParams(CityId.OMSK, omskDefault),
+                savedRoutes = prefs.loadSavedRoutes(),
+                history = prefs.loadHistory()
+            )
+        }
+        cities = data.cities
+        onboardingDone = data.onboardingDone
+        selectedCity = data.selectedCity
+        themeMode = data.themeMode
+        accentSeed = data.accentSeed
+        photoReminderMinutes = data.photoReminderMinutes
+        spbParams = data.spbParams
+        omskParams = data.omskParams
+        savedRoutes = data.savedRoutes
+        history = data.history
+        isBootstrapping = false
+
+        val initialCfg = data.cities[data.selectedCity] ?: data.cities.values.firstOrNull()
+        val initialParams = if (data.selectedCity == CityId.SPB) data.spbParams else data.omskParams
+        if (initialCfg != null) {
+            launchGenerate(initialCfg, initialParams, seed = 42L)
+        }
+
         if (hasLocationPermission(activity)) {
             fetchCurrentLocation(
                 context = activity,
@@ -293,14 +415,38 @@ private fun RelsokhodNativeApp(
 
     fun switchCity(newCity: CityId) {
         selectedCity = newCity
-        prefs.setCity(newCity)
         mismatchDismissed = true
+        coroutineScope.launch(Dispatchers.IO) {
+            prefs.setCity(newCity)
+        }
         val newCfg = cities[newCity] ?: return
         val newParams = if (newCity == CityId.SPB) spbParams else omskParams
-        outcome = generateTripFor(newCfg, newParams, seed = System.currentTimeMillis())
+        launchGenerate(newCfg, newParams, seed = System.currentTimeMillis())
     }
 
     RelsokhodTheme(themeMode = themeMode, accentSeed = accentSeed) {
+        if (isBootstrapping || currentCityConfig == null) {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = MaterialTheme.colorScheme.background
+            ) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        CircularProgressIndicator()
+                        Text(
+                            text = "Загружаем трамвайную сеть...",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+            return@RelsokhodTheme
+        }
+
         if (!onboardingDone) {
             OnboardingScreen(
                 selectedCity = selectedCity,
@@ -311,7 +457,9 @@ private fun RelsokhodNativeApp(
                 onRequestLocation = { triggerLocationFlow(applyNearestStart = true) },
                 onComplete = {
                     onboardingDone = true
-                    prefs.setOnboardingDone(true)
+                    coroutineScope.launch(Dispatchers.IO) {
+                        prefs.setOnboardingDone(true)
+                    }
                 }
             )
             return@RelsokhodTheme
@@ -420,6 +568,7 @@ private fun RelsokhodNativeApp(
                                 params = currentParams,
                                 scrollState = currentScroll,
                                 geoStatusMessage = geoStatusMessage,
+                                isGenerating = isGenerating,
                                 onUpdateParams = { updateCurrentParams(it) },
                                 onDetectLocation = { triggerLocationFlow(applyNearestStart = true) },
                                 onPickOnMap = { mode ->
@@ -427,8 +576,11 @@ private fun RelsokhodNativeApp(
                                     activeTab = BottomTab.ROUTE
                                 },
                                 onGenerate = {
-                                    outcome = generateTripFor(currentCityConfig, currentParams)
-                                    activeTab = BottomTab.ROUTE
+                                    launchGenerate(
+                                        cityCfg = currentCityConfig,
+                                        p = currentParams,
+                                        switchToRouteAfter = true
+                                    )
                                 }
                             )
                         }
@@ -440,6 +592,7 @@ private fun RelsokhodNativeApp(
                                 outcome = outcome,
                                 mapPickMode = mapPickMode,
                                 isSaved = isTripSaved,
+                                isGenerating = isGenerating,
                                 photoReminderMinutes = photoReminderMinutes,
                                 onPickStopOnMap = { stop ->
                                     if (mapPickMode == "start") {
@@ -458,28 +611,37 @@ private fun RelsokhodNativeApp(
                                 },
                                 onExtendLastSegment = {
                                     val trip = activeTrip ?: return@RouteTab
-                                    val extended = TramRouter.extendTripLastSegment(
-                                        trip = trip,
-                                        stops = currentCityConfig.stops,
-                                        routes = currentCityConfig.routes,
-                                        landmarks = currentCityConfig.landmarks,
-                                        allowFallbackTransit = currentParams.allowFallbackTransit,
-                                        weatherMode = currentParams.weatherMode,
-                                        preferSpecialFleet = currentParams.preferSpecialFleet
-                                    )
-                                    if (extended != null) {
-                                        outcome = GenerationOutcome.Ok(extended)
-                                    } else {
-                                        Toast.makeText(activity, "Дальше от этой конечной линии не продолжаются", Toast.LENGTH_SHORT).show()
+                                    val cfg = currentCityConfig
+                                    val p = currentParams
+                                    generationJob?.cancel()
+                                    generationJob = coroutineScope.launch {
+                                        isGenerating = true
+                                        val extended = withContext(Dispatchers.Default) {
+                                            TramRouter.extendTripLastSegment(
+                                                trip = trip,
+                                                stops = cfg.stops,
+                                                routes = cfg.routes,
+                                                landmarks = cfg.landmarks,
+                                                allowFallbackTransit = p.allowFallbackTransit,
+                                                weatherMode = p.weatherMode,
+                                                preferSpecialFleet = p.preferSpecialFleet
+                                            )
+                                        }
+                                        isGenerating = false
+                                        if (extended != null) {
+                                            outcome = GenerationOutcome.Ok(extended)
+                                        } else {
+                                            Toast.makeText(activity, "Дальше от этой конечной линии не продолжаются", Toast.LENGTH_SHORT).show()
+                                        }
                                     }
                                 },
                                 onRegenerate = {
-                                    outcome = generateTripFor(currentCityConfig, currentParams)
+                                    launchGenerate(currentCityConfig, currentParams)
                                 },
                                 onEnableFallbackAndRetry = {
                                     val next = currentParams.copy(allowFallbackTransit = true)
                                     updateCurrentParams(next)
-                                    outcome = generateTripFor(currentCityConfig, next)
+                                    launchGenerate(currentCityConfig, next)
                                 },
                                 onSaveTrip = { trip ->
                                     if (savedRoutes.none { it.trip.id == trip.id }) {
@@ -494,7 +656,9 @@ private fun RelsokhodNativeApp(
                                             )
                                         ) + savedRoutes
                                         savedRoutes = nextSaved
-                                        prefs.persistSavedRoutes(nextSaved)
+                                        coroutineScope.launch(Dispatchers.IO) {
+                                            prefs.persistSavedRoutes(nextSaved)
+                                        }
                                         Toast.makeText(activity, "Маршрут сохранён в Избранное", Toast.LENGTH_SHORT).show()
                                     }
                                 },
@@ -508,7 +672,9 @@ private fun RelsokhodNativeApp(
                                     )
                                     val nextHistory = listOf(entry) + history
                                     history = nextHistory
-                                    prefs.persistHistory(nextHistory)
+                                    coroutineScope.launch(Dispatchers.IO) {
+                                        prefs.persistHistory(nextHistory)
+                                    }
                                     activeTab = BottomTab.FAVORITES
                                     Toast.makeText(activity, "Поездка добавлена в Паспорт!", Toast.LENGTH_SHORT).show()
                                 },
@@ -524,7 +690,9 @@ private fun RelsokhodNativeApp(
                                 onOpenTrip = { trip ->
                                     if (trip.city != selectedCity) {
                                         selectedCity = trip.city
-                                        prefs.setCity(trip.city)
+                                        coroutineScope.launch(Dispatchers.IO) {
+                                            prefs.setCity(trip.city)
+                                        }
                                     }
                                     outcome = GenerationOutcome.Ok(trip)
                                     activeTab = BottomTab.ROUTE
@@ -532,19 +700,25 @@ private fun RelsokhodNativeApp(
                                 onDeleteSaved = { id ->
                                     val next = savedRoutes.filterNot { it.id == id }
                                     savedRoutes = next
-                                    prefs.persistSavedRoutes(next)
+                                    coroutineScope.launch(Dispatchers.IO) {
+                                        prefs.persistSavedRoutes(next)
+                                    }
                                 },
                                 onAddPhotoToHistory = { entryId, photo ->
                                     val next = history.map { e ->
                                         if (e.id == entryId) e.copy(photos = listOf(photo) + e.photos) else e
                                     }
                                     history = next
-                                    prefs.persistHistory(next)
+                                    coroutineScope.launch(Dispatchers.IO) {
+                                        prefs.persistHistory(next)
+                                    }
                                 },
                                 onDeleteHistory = { id ->
                                     val next = history.filterNot { it.id == id }
                                     history = next
-                                    prefs.persistHistory(next)
+                                    coroutineScope.launch(Dispatchers.IO) {
+                                        prefs.persistHistory(next)
+                                    }
                                 }
                             )
                         }
@@ -567,19 +741,19 @@ private fun RelsokhodNativeApp(
                 onChangeCity = { switchCity(it) },
                 onChangeThemeMode = {
                     themeMode = it
-                    prefs.setThemeMode(it)
+                    coroutineScope.launch(Dispatchers.IO) { prefs.setThemeMode(it) }
                 },
                 onChangeAccentSeed = {
                     accentSeed = it
-                    prefs.setAccentSeed(it)
+                    coroutineScope.launch(Dispatchers.IO) { prefs.setAccentSeed(it) }
                 },
                 onChangePhotoReminderMinutes = {
                     photoReminderMinutes = it
-                    prefs.setPhotoReminderMinutes(it)
+                    coroutineScope.launch(Dispatchers.IO) { prefs.setPhotoReminderMinutes(it) }
                 },
                 onRestartOnboarding = {
                     onboardingDone = false
-                    prefs.setOnboardingDone(false)
+                    coroutineScope.launch(Dispatchers.IO) { prefs.setOnboardingDone(false) }
                 },
                 onDismiss = { settingsOpen = false }
             )
