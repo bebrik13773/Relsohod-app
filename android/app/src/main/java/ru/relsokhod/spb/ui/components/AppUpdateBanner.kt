@@ -15,6 +15,7 @@ import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.SystemUpdate
+import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -23,15 +24,21 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ru.relsokhod.spb.update.AppUpdateLogic
 import ru.relsokhod.spb.update.AvailableRelease
+import ru.relsokhod.spb.update.SignatureCompatibility
 import ru.relsokhod.spb.update.UpdateDownloadState
 import java.io.File
 
@@ -41,11 +48,19 @@ fun AppUpdateBanner(
     downloadState: UpdateDownloadState,
     onStartDownload: () -> Unit,
     onInstallApk: (File) -> Unit,
+    onExportAndUninstall: (File, AvailableRelease) -> Unit,
     onOpenInBrowser: (String) -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val sizeLabel = AppUpdateLogic.formatFileSize(release.apkAsset.sizeBytes)
+    val changelogBlocks = remember(release.notesSummary) {
+        AppUpdateLogic.parseChangelogBlocks(release.notesSummary)
+    }
+    val allItems = remember(changelogBlocks) {
+        changelogBlocks.flatMap { block -> block.items }
+    }
+    var expandedChangelog by remember(release.tagName) { mutableStateOf(false) }
 
     Surface(
         shape = RoundedCornerShape(18.dp),
@@ -88,16 +103,6 @@ fun AppUpdateBanner(
                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.78f)
                         )
                     }
-                    if (release.notesSummary.isNotBlank() && downloadState is UpdateDownloadState.Idle) {
-                        Text(
-                            text = release.notesSummary,
-                            fontSize = 11.sp,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
-                            modifier = Modifier.padding(top = 3.dp)
-                        )
-                    }
                 }
                 if (downloadState !is UpdateDownloadState.Downloading) {
                     IconButton(
@@ -110,6 +115,31 @@ fun AppUpdateBanner(
                             modifier = Modifier.size(18.dp),
                             tint = MaterialTheme.colorScheme.onPrimaryContainer
                         )
+                    }
+                }
+            }
+
+            if (allItems.isNotEmpty() && downloadState !is UpdateDownloadState.Downloading) {
+                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    val visibleCount = if (expandedChangelog) allItems.size else 3
+                    allItems.take(visibleCount).forEach { line ->
+                        Text(
+                            text = "• $line",
+                            fontSize = 11.sp,
+                            lineHeight = 15.sp,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f)
+                        )
+                    }
+                    if (allItems.size > 3) {
+                        TextButton(
+                            onClick = { expandedChangelog = !expandedChangelog },
+                            modifier = Modifier.padding(top = 0.dp)
+                        ) {
+                            Text(
+                                text = if (expandedChangelog) "Свернуть список" else "Показать все изменения (${allItems.size})",
+                                fontSize = 11.sp
+                            )
+                        }
                     }
                 }
             }
@@ -161,13 +191,54 @@ fun AppUpdateBanner(
                 }
 
                 is UpdateDownloadState.ReadyToInstall -> {
-                    Button(
-                        onClick = { onInstallApk(downloadState.apkFile) },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Rounded.SystemUpdate, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.size(6.dp))
-                        Text("Установить ${release.tagName}", fontSize = 12.sp)
+                    if (downloadState.signatureCompatibility == SignatureCompatibility.DIFFERENT_SIGNATURE) {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFFF59E0B).copy(alpha = 0.16f),
+                            border = BorderStroke(1.dp, Color(0xFFD97706).copy(alpha = 0.45f))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(10.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                Icon(
+                                    Icons.Rounded.WarningAmber,
+                                    contentDescription = null,
+                                    tint = Color(0xFFD97706),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    text = "Текущая старая сборка была подписана прежним временным ключом. Сохраните APK в Загрузки и удалите старую версию — все будущие релизы с единым ключом будут ставиться поверх без удаления.",
+                                    fontSize = 11.sp,
+                                    lineHeight = 15.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Button(
+                                onClick = { onExportAndUninstall(downloadState.apkFile, release) },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("В Загрузки и удалить старую", fontSize = 11.sp)
+                            }
+                            OutlinedButton(onClick = { onInstallApk(downloadState.apkFile) }) {
+                                Text("Установить", fontSize = 11.sp)
+                            }
+                        }
+                    } else {
+                        Button(
+                            onClick = { onInstallApk(downloadState.apkFile) },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Rounded.SystemUpdate, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.size(6.dp))
+                            Text("Установить ${release.tagName}", fontSize = 12.sp)
+                        }
                     }
                 }
 

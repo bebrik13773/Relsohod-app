@@ -1,9 +1,14 @@
 package ru.relsokhod.spb.update
 
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageInfo
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
 import android.provider.Settings
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.CancellationException
@@ -70,11 +75,23 @@ sealed interface UpdateDownloadState {
 
     data class ReadyToInstall(
         val apkFile: File,
-        val release: AvailableRelease
+        val release: AvailableRelease,
+        val signatureCompatibility: SignatureCompatibility = SignatureCompatibility.UNKNOWN
     ) : UpdateDownloadState
 
     data class Failed(val message: String) : UpdateDownloadState
 }
+
+enum class SignatureCompatibility {
+    COMPATIBLE,
+    DIFFERENT_SIGNATURE,
+    UNKNOWN
+}
+
+data class ChangelogBlock(
+    val title: String,
+    val items: List<String>
+)
 
 object AppUpdateLogic {
     private val SEMVER_REGEX = Regex("""(\d+)\.(\d+)(?:\.(\d+))?""")
@@ -200,22 +217,89 @@ object AppUpdateLogic {
 
     fun extractReleaseSummary(markdownBody: String): String {
         if (markdownBody.isBlank()) return ""
-        val lines = markdownBody.lines()
-            .map { it.trim() }
-            .filter { line ->
-                line.startsWith("- ") &&
-                    !line.contains("SHA-256", ignoreCase = true) &&
-                    !line.contains("Сборка CI", ignoreCase = true) &&
-                    !line.contains("Версия:", ignoreCase = true)
+        val kept = mutableListOf<String>()
+        var insideDetails = false
+
+        for (rawLine in markdownBody.lines()) {
+            val line = rawLine.trim()
+            if (line.startsWith("<details", ignoreCase = true)) {
+                insideDetails = true
+                continue
             }
-            .take(3)
-            .map { line ->
-                line.removePrefix("- ")
+            if (line.startsWith("</details", ignoreCase = true)) {
+                insideDetails = false
+                continue
+            }
+            if (insideDetails || line.isBlank()) continue
+            if (line == "---") break
+            if (line.startsWith("### 📦") || line.startsWith("## 📦")) break
+
+            if (line.startsWith("### ")) {
+                val heading = line.removePrefix("### ").replace("`", "").replace("**", "").trim()
+                if (heading.isNotBlank()) kept.add(heading)
+            } else if (line.startsWith("- ")) {
+                if (line.contains("SHA-256", ignoreCase = true) ||
+                    line.contains("Сборка CI", ignoreCase = true) ||
+                    line.contains("Версия:", ignoreCase = true) ||
+                    line.contains("Relsokhod-release.apk", ignoreCase = true)
+                ) {
+                    continue
+                }
+                val item = line.removePrefix("- ")
                     .replace("**", "")
                     .replace("`", "")
                     .trim()
+                if (item.isNotBlank()) kept.add("- $item")
             }
-        return lines.joinToString("\n")
+        }
+        return kept.joinToString("\n")
+    }
+
+    fun extractTopChangelogSection(changelogMarkdown: String): String {
+        if (changelogMarkdown.isBlank()) return ""
+        val sectionLines = mutableListOf<String>()
+        var seenFirstVersion = false
+        for (rawLine in changelogMarkdown.lines()) {
+            val trimmed = rawLine.trim()
+            if (trimmed.startsWith("## ")) {
+                if (seenFirstVersion) break
+                seenFirstVersion = true
+                continue
+            }
+            if (seenFirstVersion) {
+                sectionLines.add(rawLine)
+            }
+        }
+        return extractReleaseSummary(sectionLines.joinToString("\n"))
+    }
+
+    fun parseChangelogBlocks(summaryText: String): List<ChangelogBlock> {
+        if (summaryText.isBlank()) return emptyList()
+        val blocks = mutableListOf<ChangelogBlock>()
+        var currentTitle = "Что изменилось"
+        val currentItems = mutableListOf<String>()
+
+        fun flush() {
+            if (currentItems.isNotEmpty()) {
+                blocks.add(ChangelogBlock(title = currentTitle, items = currentItems.toList()))
+                currentItems.clear()
+            }
+        }
+
+        for (rawLine in summaryText.lines()) {
+            val line = rawLine.trim()
+            if (line.isBlank()) continue
+            if (line.startsWith("- ")) {
+                currentItems.add(line.removePrefix("- ").trim())
+            } else if (line.startsWith("• ")) {
+                currentItems.add(line.removePrefix("• ").trim())
+            } else {
+                flush()
+                currentTitle = line.removePrefix("### ").trim()
+            }
+        }
+        flush()
+        return blocks
     }
 
     fun formatFileSize(bytes: Long): String {
@@ -425,6 +509,100 @@ object AppUpdateManager {
             Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
             Uri.parse("package:${context.packageName}")
         )
+    }
+
+    fun readBundledChangelogSummary(context: Context): String {
+        return runCatching {
+            context.assets.open("changelog.md").bufferedReader().use { reader ->
+                AppUpdateLogic.extractTopChangelogSection(reader.readText())
+            }
+        }.getOrDefault("")
+    }
+
+    fun checkSignatureCompatibility(context: Context, apkFile: File): SignatureCompatibility {
+        if (!apkFile.exists()) return SignatureCompatibility.UNKNOWN
+        val installedHashes = getPackageSignatureHashes(context.packageManager, context.packageName, isArchive = false)
+        val archiveHashes = getPackageSignatureHashes(context.packageManager, apkFile.absolutePath, isArchive = true)
+        if (installedHashes.isEmpty() || archiveHashes.isEmpty()) return SignatureCompatibility.UNKNOWN
+        return if (installedHashes.any { it in archiveHashes }) {
+            SignatureCompatibility.COMPATIBLE
+        } else {
+            SignatureCompatibility.DIFFERENT_SIGNATURE
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun getPackageSignatureHashes(pm: PackageManager, target: String, isArchive: Boolean): Set<String> {
+        return runCatching {
+            val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                PackageManager.GET_SIGNING_CERTIFICATES
+            } else {
+                PackageManager.GET_SIGNATURES
+            }
+            val pkgInfo: PackageInfo? = if (isArchive) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    pm.getPackageArchiveInfo(target, PackageManager.PackageInfoFlags.of(flags.toLong()))
+                } else {
+                    pm.getPackageArchiveInfo(target, flags)
+                }
+            } else {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    pm.getPackageInfo(target, PackageManager.PackageInfoFlags.of(flags.toLong()))
+                } else {
+                    pm.getPackageInfo(target, flags)
+                }
+            }
+            if (pkgInfo == null) return emptySet()
+
+            val signatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                pkgInfo.signingInfo?.let { info ->
+                    if (info.hasMultipleSigners()) info.apkContentsSigners else info.signingCertificateHistory
+                }
+            } else {
+                pkgInfo.signatures
+            } ?: return emptySet()
+
+            val digest = MessageDigest.getInstance("SHA-256")
+            signatures.map { sig ->
+                digest.digest(sig.toByteArray()).joinToString("") { "%02x".format(it) }
+            }.toSet()
+        }.getOrDefault(emptySet())
+    }
+
+    suspend fun exportApkToDownloads(context: Context, apkFile: File, displayName: String): Boolean =
+        withContext(Dispatchers.IO) {
+            if (!apkFile.exists() || Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return@withContext false
+            val safeName = displayName.replace(Regex("""[^A-Za-z0-9._-]"""), "_")
+                .ifBlank { "Relsokhod-release.apk" }
+            val resolver = context.contentResolver
+            val values = ContentValues().apply {
+                put(MediaStore.Downloads.DISPLAY_NAME, safeName)
+                put(MediaStore.Downloads.MIME_TYPE, "application/vnd.android.package-archive")
+                put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+                put(MediaStore.Downloads.IS_PENDING, 1)
+            }
+            val itemUri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                ?: return@withContext false
+            return@withContext runCatching {
+                resolver.openOutputStream(itemUri)?.use { out ->
+                    apkFile.inputStream().use { input ->
+                        input.copyTo(out)
+                    }
+                } ?: throw IllegalStateException("Cannot open Downloads stream")
+                values.clear()
+                values.put(MediaStore.Downloads.IS_PENDING, 0)
+                resolver.update(itemUri, values, null, null)
+                true
+            }.getOrElse {
+                runCatching { resolver.delete(itemUri, null, null) }
+                false
+            }
+        }
+
+    fun buildUninstallCurrentAppIntent(context: Context): Intent {
+        return Intent(Intent.ACTION_DELETE, Uri.parse("package:${context.packageName}")).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
     }
 
     fun launchApkInstaller(context: Context, apkFile: File): Boolean {

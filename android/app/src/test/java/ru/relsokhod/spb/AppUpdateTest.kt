@@ -82,7 +82,7 @@ class AppUpdateTest {
                 "prerelease": false,
                 "html_url": "https://github.com/bebrik13773/Reslohid/releases/tag/v2.3.0-build.14",
                 "published_at": "2026-11-22T12:00:00Z",
-                "body": "# Рельсоход\n- **Официальные аудиогиды**: прямые ссылки\n- **Обновления**: скачивание APK внутри приложения\n- **Версия:** 2.3.0",
+                "body": "# 🚋 Рельсоход v2.3.0-build.14\n\n### ✨ Новое\n- **Официальные аудиогиды**: прямые ссылки\n- **Обновления**: скачивание APK внутри приложения\n\n### 🧾 Коммиты с версии `v2.2.0-build.9`\n- Добавлен чейнджлог (`abc1234`)\n\n---\n\n### 📦 Что скачать и как обновиться\n- `Relsokhod-release.apk`\n\n<details>\n- **Версия:** 2.3.0\n</details>",
                 "assets": [
                   {
                     "name": "Relsokhod-debug.apk",
@@ -108,13 +108,43 @@ class AppUpdateTest {
         assertEquals("v2.3.0-build.14", releaseApk!!.tagName)
         assertEquals("Relsokhod-release.apk", releaseApk.apkAsset.name)
         assertEquals("abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789", releaseApk.apkAsset.sha256Hex)
-        assertTrue(releaseApk.notesSummary.contains("Официальные аудиогиды"))
+
+        val blocks = AppUpdateLogic.parseChangelogBlocks(releaseApk.notesSummary)
+        assertEquals(2, blocks.size)
+        assertEquals("✨ Новое", blocks[0].title)
+        assertTrue(blocks[0].items.any { it.contains("Официальные аудиогиды") })
+        assertEquals("🧾 Коммиты с версии v2.2.0-build.9", blocks[1].title)
         assertFalse(releaseApk.notesSummary.contains("Версия:"))
+        assertFalse(releaseApk.notesSummary.contains("Что скачать"))
 
         val debugApk = AppUpdateLogic.parseLatestReleaseFromReleasesJson(sampleJson, preferDebugApk = true)
         assertNotNull(debugApk)
         assertEquals("Relsokhod-debug.apk", debugApk!!.apkAsset.name)
 
         assertNull(AppUpdateLogic.normalizeSha256("md5:1234"))
+    }
+
+    @Test
+    fun extractsTopSectionFromChangelogMarkdown() {
+        val md = """
+            # История изменений
+            
+            ## 2.3.0
+            ### ✨ Новое
+            - Проверка обновлений
+            ### 🛠️ Исправления
+            - Стабильный ключ подписи
+            
+            ## 2.2.0
+            ### ✨ Новое
+            - Старый пункт
+        """.trimIndent()
+
+        val top = AppUpdateLogic.extractTopChangelogSection(md)
+        val blocks = AppUpdateLogic.parseChangelogBlocks(top)
+        assertEquals(2, blocks.size)
+        assertEquals("✨ Новое", blocks[0].title)
+        assertEquals(listOf("Проверка обновлений"), blocks[0].items)
+        assertFalse(top.contains("Старый пункт"))
     }
 }

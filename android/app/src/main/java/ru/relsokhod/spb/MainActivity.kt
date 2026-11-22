@@ -92,6 +92,7 @@ import ru.relsokhod.spb.storage.AppPrefs
 import ru.relsokhod.spb.ui.components.AppUpdateBanner
 import ru.relsokhod.spb.ui.components.SettingsSheet
 import ru.relsokhod.spb.ui.components.StartupSplash
+import ru.relsokhod.spb.ui.components.WhatsNewDialog
 import ru.relsokhod.spb.ui.screens.FavoritesTab
 import ru.relsokhod.spb.ui.screens.LinesTab
 import ru.relsokhod.spb.ui.screens.OnboardingScreen
@@ -101,6 +102,7 @@ import ru.relsokhod.spb.ui.theme.RelsokhodTheme
 import ru.relsokhod.spb.update.AppUpdateLogic
 import ru.relsokhod.spb.update.AppUpdateManager
 import ru.relsokhod.spb.update.AvailableRelease
+import ru.relsokhod.spb.update.SignatureCompatibility
 import ru.relsokhod.spb.update.UpdateCheckResult
 import ru.relsokhod.spb.update.UpdateDownloadState
 import java.io.File
@@ -126,7 +128,10 @@ private data class BootstrapData(
     val omskParams: SearchParamsState,
     val savedRoutes: List<SavedRoute>,
     val history: List<TripHistoryEntry>,
-    val dismissedUpdateTag: String?
+    val dismissedUpdateTag: String?,
+    val lastSeenVersionCode: Int,
+    val pendingUpdateNotes: Pair<String, String>?,
+    val bundledChangelog: String
 )
 
 class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
@@ -246,6 +251,12 @@ private fun RelsokhodNativeApp(
     var updateDownloadState by remember { mutableStateOf<UpdateDownloadState>(UpdateDownloadState.Idle) }
     var updateDownloadJob by remember { mutableStateOf<Job?>(null) }
     var pendingInstallApk by remember { mutableStateOf<File?>(null) }
+    var lastSeenVersionCode by remember { mutableStateOf(BuildConfig.VERSION_CODE) }
+    var bundledChangelog by remember { mutableStateOf("") }
+    var whatsNewNotes by remember { mutableStateOf("") }
+    var whatsNewReleaseTag by remember { mutableStateOf<String?>(null) }
+    var whatsNewIsPostUpdate by remember { mutableStateOf(false) }
+    var showWhatsNewDialog by remember { mutableStateOf(false) }
 
     val unknownSourcesLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -316,6 +327,11 @@ private fun RelsokhodNativeApp(
         if (updateDownloadState is UpdateDownloadState.Downloading) return
         updateDownloadJob?.cancel()
         updateDownloadJob = coroutineScope.launch {
+            withContext(Dispatchers.IO) {
+                if (release.notesSummary.isNotBlank()) {
+                    prefs.setPendingUpdateNotes(release.tagName, release.notesSummary)
+                }
+            }
             updateDownloadState = UpdateDownloadState.Downloading(
                 progress = null,
                 downloadedBytes = 0L,
@@ -333,12 +349,56 @@ private fun RelsokhodNativeApp(
                 }
             )
             result.onSuccess { apkFile ->
-                updateDownloadState = UpdateDownloadState.ReadyToInstall(apkFile, release)
-                triggerApkInstall(apkFile)
+                val sigCompat = withContext(Dispatchers.IO) {
+                    AppUpdateManager.checkSignatureCompatibility(appContext, apkFile)
+                }
+                updateDownloadState = UpdateDownloadState.ReadyToInstall(apkFile, release, sigCompat)
+                if (sigCompat == SignatureCompatibility.DIFFERENT_SIGNATURE) {
+                    Toast.makeText(
+                        activity,
+                        "Нужна однократная переустановка из-за смены ключа подписи",
+                        Toast.LENGTH_LONG
+                    ).show()
+                } else {
+                    triggerApkInstall(apkFile)
+                }
             }.onFailure { err ->
                 updateDownloadState = UpdateDownloadState.Failed(
                     err.message?.takeIf { it.isNotBlank() } ?: "Не удалось скачать APK"
                 )
+            }
+        }
+    }
+
+    fun exportAndUninstall(file: File, release: AvailableRelease) {
+        coroutineScope.launch {
+            val saved = AppUpdateManager.exportApkToDownloads(
+                context = appContext,
+                apkFile = file,
+                displayName = release.apkAsset.name
+            )
+            if (saved) {
+                Toast.makeText(
+                    activity,
+                    "APK сохранён в Загрузки (${release.apkAsset.name}). Удалите старую версию и откройте файл.",
+                    Toast.LENGTH_LONG
+                ).show()
+            } else {
+                Toast.makeText(
+                    activity,
+                    "Откройте страницу релиза в браузере, чтобы скачать APK после удаления старой версии.",
+                    Toast.LENGTH_LONG
+                ).show()
+                openReleaseInBrowser(release.htmlUrl)
+            }
+            runCatching {
+                activity.startActivity(AppUpdateManager.buildUninstallCurrentAppIntent(activity))
+            }.onFailure {
+                Toast.makeText(
+                    activity,
+                    "Удалите старую версию вручную и установите APK из папки «Загрузки».",
+                    Toast.LENGTH_LONG
+                ).show()
             }
         }
     }
@@ -504,7 +564,10 @@ private fun RelsokhodNativeApp(
                 omskParams = prefs.getSearchParams(CityId.OMSK, omskDefault),
                 savedRoutes = prefs.loadSavedRoutes(),
                 history = prefs.loadHistory(),
-                dismissedUpdateTag = prefs.getDismissedUpdateTag()
+                dismissedUpdateTag = prefs.getDismissedUpdateTag(),
+                lastSeenVersionCode = prefs.getLastSeenVersionCode(),
+                pendingUpdateNotes = prefs.getPendingUpdateNotes(),
+                bundledChangelog = AppUpdateManager.readBundledChangelogSummary(appContext)
             )
         }
         cities = data.cities
@@ -518,6 +581,14 @@ private fun RelsokhodNativeApp(
         savedRoutes = data.savedRoutes
         history = data.history
         dismissedUpdateTag = data.dismissedUpdateTag
+        lastSeenVersionCode = data.lastSeenVersionCode
+        bundledChangelog = data.bundledChangelog
+        if (data.onboardingDone && data.lastSeenVersionCode < BuildConfig.VERSION_CODE) {
+            whatsNewNotes = data.pendingUpdateNotes?.second?.takeIf { it.isNotBlank() } ?: data.bundledChangelog
+            whatsNewReleaseTag = data.pendingUpdateNotes?.first
+            whatsNewIsPostUpdate = true
+            showWhatsNewDialog = true
+        }
         isBootstrapping = false
 
         val initialCfg = data.cities[data.selectedCity] ?: data.cities.values.firstOrNull()
@@ -573,8 +644,11 @@ private fun RelsokhodNativeApp(
                         onRequestLocation = { triggerLocationFlow(applyNearestStart = true) },
                         onComplete = {
                             onboardingDone = true
+                            lastSeenVersionCode = BuildConfig.VERSION_CODE
                             coroutineScope.launch(Dispatchers.IO) {
                                 prefs.setOnboardingDone(true)
+                                prefs.setLastSeenVersionCode(BuildConfig.VERSION_CODE)
+                                prefs.clearPendingUpdateNotes()
                             }
                         }
                     )
@@ -675,6 +749,7 @@ private fun RelsokhodNativeApp(
                         downloadState = updateDownloadState,
                         onStartDownload = { startUpdateDownload(availableUpdate) },
                         onInstallApk = { file -> triggerApkInstall(file) },
+                        onExportAndUninstall = { file, release -> exportAndUninstall(file, release) },
                         onOpenInBrowser = { url -> openReleaseInBrowser(url) },
                         onDismiss = {
                             dismissedUpdateTag = availableUpdate.tagName
@@ -879,7 +954,14 @@ private fun RelsokhodNativeApp(
                 onCheckUpdates = { checkUpdates(manual = true) },
                 onStartUpdateDownload = { release -> startUpdateDownload(release) },
                 onInstallUpdateApk = { file -> triggerApkInstall(file) },
+                onExportAndUninstall = { file, release -> exportAndUninstall(file, release) },
                 onOpenReleaseUrl = { url -> openReleaseInBrowser(url) },
+                onShowWhatsNew = {
+                    whatsNewNotes = bundledChangelog
+                    whatsNewReleaseTag = null
+                    whatsNewIsPostUpdate = false
+                    showWhatsNewDialog = true
+                },
                 onChangeCity = { switchCity(it) },
                 onChangeThemeMode = {
                     themeMode = it
@@ -898,6 +980,24 @@ private fun RelsokhodNativeApp(
                     coroutineScope.launch(Dispatchers.IO) { prefs.setOnboardingDone(false) }
                 },
                 onDismiss = { settingsOpen = false }
+            )
+        }
+
+        if (showWhatsNewDialog) {
+            WhatsNewDialog(
+                changelogSummary = whatsNewNotes,
+                isPostUpdate = whatsNewIsPostUpdate,
+                releaseTag = whatsNewReleaseTag,
+                onDismiss = {
+                    showWhatsNewDialog = false
+                    if (lastSeenVersionCode < BuildConfig.VERSION_CODE) {
+                        lastSeenVersionCode = BuildConfig.VERSION_CODE
+                        coroutineScope.launch(Dispatchers.IO) {
+                            prefs.setLastSeenVersionCode(BuildConfig.VERSION_CODE)
+                            prefs.clearPendingUpdateNotes()
+                        }
+                    }
+                }
             )
         }
                 }

@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.CameraAlt
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.LocationCity
@@ -40,6 +41,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -58,6 +60,7 @@ import ru.relsokhod.spb.model.CityId
 import ru.relsokhod.spb.model.ThemeMode
 import ru.relsokhod.spb.update.AppUpdateLogic
 import ru.relsokhod.spb.update.AvailableRelease
+import ru.relsokhod.spb.update.SignatureCompatibility
 import ru.relsokhod.spb.update.UpdateCheckResult
 import ru.relsokhod.spb.update.UpdateDownloadState
 import java.io.File
@@ -84,7 +87,9 @@ fun SettingsSheet(
     onCheckUpdates: () -> Unit,
     onStartUpdateDownload: (AvailableRelease) -> Unit,
     onInstallUpdateApk: (File) -> Unit,
+    onExportAndUninstall: (File, AvailableRelease) -> Unit,
     onOpenReleaseUrl: (String) -> Unit,
+    onShowWhatsNew: () -> Unit,
     onChangeCity: (CityId) -> Unit,
     onChangeThemeMode: (ThemeMode) -> Unit,
     onChangeAccentSeed: (AccentSeed) -> Unit,
@@ -279,11 +284,28 @@ fun SettingsSheet(
                 } else {
                     ""
                 }
-                Text(
-                    text = "Текущая версия: ${BuildConfig.VERSION_NAME}$buildSuffix",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Версия: ${BuildConfig.VERSION_NAME}$buildSuffix",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(
+                        onClick = {
+                            onDismiss()
+                            onShowWhatsNew()
+                        }
+                    ) {
+                        Icon(Icons.Rounded.AutoAwesome, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.size(4.dp))
+                        Text("Что нового", fontSize = 11.sp)
+                    }
+                }
 
                 when {
                     isCheckingUpdates -> {
@@ -325,6 +347,7 @@ fun SettingsSheet(
                     updateCheckResult is UpdateCheckResult.UpdateAvailable -> {
                         val rel = updateCheckResult.release
                         val sizeLabel = AppUpdateLogic.formatFileSize(rel.apkAsset.sizeBytes)
+                        val blocks = AppUpdateLogic.parseChangelogBlocks(rel.notesSummary)
                         Surface(
                             shape = RoundedCornerShape(16.dp),
                             color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f),
@@ -347,12 +370,23 @@ fun SettingsSheet(
                                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                                     )
                                 }
-                                if (rel.notesSummary.isNotBlank()) {
-                                    Text(
-                                        text = rel.notesSummary,
-                                        fontSize = 11.sp,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f)
-                                    )
+                                blocks.forEach { block ->
+                                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                        Text(
+                                            text = block.title,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                        block.items.forEach { item ->
+                                            Text(
+                                                text = "• $item",
+                                                fontSize = 11.sp,
+                                                lineHeight = 15.sp,
+                                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.92f)
+                                            )
+                                        }
+                                    }
                                 }
 
                                 when (updateDownloadState) {
@@ -385,13 +419,33 @@ fun SettingsSheet(
                                     }
 
                                     is UpdateDownloadState.ReadyToInstall -> {
-                                        Button(
-                                            onClick = { onInstallUpdateApk(updateDownloadState.apkFile) },
-                                            modifier = Modifier.fillMaxWidth()
-                                        ) {
-                                            Icon(Icons.Rounded.SystemUpdate, contentDescription = null, modifier = Modifier.size(16.dp))
-                                            Spacer(modifier = Modifier.size(6.dp))
-                                            Text("Установить скачанный APK", fontSize = 12.sp)
+                                        if (updateDownloadState.signatureCompatibility == SignatureCompatibility.DIFFERENT_SIGNATURE) {
+                                            Text(
+                                                text = "Подпись текущей сборки отличается от нового постоянного ключа. Сохраните APK в Загрузки и удалите старую версию один раз.",
+                                                fontSize = 11.sp,
+                                                color = Color(0xFFB45309)
+                                            )
+                                            Button(
+                                                onClick = { onExportAndUninstall(updateDownloadState.apkFile, rel) },
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Text("Сохранить в Загрузки и удалить старую", fontSize = 12.sp)
+                                            }
+                                            OutlinedButton(
+                                                onClick = { onInstallUpdateApk(updateDownloadState.apkFile) },
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Text("Попробовать установить напрямую", fontSize = 12.sp)
+                                            }
+                                        } else {
+                                            Button(
+                                                onClick = { onInstallUpdateApk(updateDownloadState.apkFile) },
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Icon(Icons.Rounded.SystemUpdate, contentDescription = null, modifier = Modifier.size(16.dp))
+                                                Spacer(modifier = Modifier.size(6.dp))
+                                                Text("Установить скачанный APK", fontSize = 12.sp)
+                                            }
                                         }
                                     }
 

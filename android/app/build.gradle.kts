@@ -12,13 +12,14 @@ android {
         applicationId = "ru.relsokhod.spb"
         minSdk = 24
         targetSdk = 36
-        versionCode = 5
-        versionName = "2.3.0-native"
-
         val githubRepo = System.getenv("GITHUB_REPOSITORY")
             ?.takeIf { it.isNotBlank() && it.contains("/") }
             ?: "bebrik13773/Reslohid"
         val ciRunNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 0
+        val baseVersionCode = 5
+        versionCode = if (ciRunNumber > 0) baseVersionCode + ciRunNumber else baseVersionCode
+        versionName = "2.3.0-native"
+
         buildConfigField("String", "GITHUB_REPO", "\"$githubRepo\"")
         buildConfigField("int", "CI_RUN_NUMBER", "$ciRunNumber")
 

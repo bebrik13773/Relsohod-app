@@ -49,6 +49,29 @@ class AppPrefs(context: Context) {
         }.apply()
     }
 
+    fun getLastSeenVersionCode(): Int = prefs.getInt("last_seen_version_code", 0)
+    fun setLastSeenVersionCode(code: Int) = prefs.edit().putInt("last_seen_version_code", code).apply()
+
+    fun getPendingUpdateNotes(): Pair<String, String>? {
+        val tag = prefs.getString("pending_update_tag", null) ?: return null
+        val notes = prefs.getString("pending_update_notes", null) ?: return null
+        return tag to notes
+    }
+
+    fun setPendingUpdateNotes(tag: String, notes: String) {
+        prefs.edit()
+            .putString("pending_update_tag", tag)
+            .putString("pending_update_notes", notes)
+            .apply()
+    }
+
+    fun clearPendingUpdateNotes() {
+        prefs.edit()
+            .remove("pending_update_tag")
+            .remove("pending_update_notes")
+            .apply()
+    }
+
     fun getSearchParams(city: CityId, defaultStartId: String): SearchParamsState {
         val raw = prefs.getString("search_params_${city.id}", null)
             ?: return SearchParamsState(startStopId = defaultStartId)

@@ -20,7 +20,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 10
+          fetch-depth: 0
+          fetch-tags: true
 
       - name: Set up Node.js & sync tram network data
         uses: actions/setup-node@v4
@@ -54,6 +55,12 @@ jobs:
         working-directory: android
         run: ./gradlew assembleDebug --stacktrace
 
+      - name: Restore cached signing keystore
+        uses: actions/cache@v4
+        with:
+          path: android/release.keystore
+          key: relsokhod-release-keystore-v1
+
       - name: Prepare signing keystore for Release APK
         working-directory: android
         env:
@@ -68,6 +75,12 @@ jobs:
             echo "ANDROID_KEYSTORE_PASSWORD=$KEYSTORE_PASS" >> $GITHUB_ENV
             echo "ANDROID_KEY_ALIAS=$KEY_ALIAS" >> $GITHUB_ENV
             echo "ANDROID_KEY_PASSWORD=$KEY_PASS" >> $GITHUB_ENV
+          elif [ -f release.keystore ]; then
+            echo "Reusing cached signing keystore so APK upgrades preserve app data and signature."
+            echo "ANDROID_KEYSTORE_PATH=$(pwd)/release.keystore" >> $GITHUB_ENV
+            echo "ANDROID_KEYSTORE_PASSWORD=relsokhod123" >> $GITHUB_ENV
+            echo "ANDROID_KEY_ALIAS=relsokhod" >> $GITHUB_ENV
+            echo "ANDROID_KEY_PASSWORD=relsokhod123" >> $GITHUB_ENV
           else
             keytool -genkeypair -v \
               -keystore release.keystore \
@@ -108,7 +121,7 @@ jobs:
         run: |
           VERSION_NAME="$(grep -E 'versionName[[:space:]]*=' android/app/build.gradle.kts | head -n1 | sed -E 's/.*"([^"]+)".*/\1/' || true)"
           if [ -z "$VERSION_NAME" ]; then
-            VERSION_NAME="2.1.0-native"
+            VERSION_NAME="2.3.0-native"
           fi
           BASE_VER="${VERSION_NAME%%-*}"
           SHORT_SHA="${GITHUB_SHA::7}"
@@ -125,53 +138,54 @@ jobs:
           DEBUG_SIZE="$(du -h dist-apk/Relsokhod-debug.apk | cut -f1)"
           RELEASE_SHA="$(sha256sum dist-apk/Relsokhod-release.apk | awk '{print $1}')"
           DEBUG_SHA="$(sha256sum dist-apk/Relsokhod-debug.apk | awk '{print $1}')"
-          RECENT_CHANGES="$(git log -n 8 --pretty='- %s (`%h`)' 2>/dev/null || echo '- Сборка актуальной версии приложения')"
+
+          PREV_TAG="$(git tag --sort=-creatordate | grep -v "^${TAG_NAME}$" | head -n1 || true)"
+          if [ -n "$PREV_TAG" ]; then
+            COMMITS_RANGE="${PREV_TAG}..HEAD"
+            COMMITS_TITLE="### 🧾 Коммиты с версии \`${PREV_TAG}\`"
+          else
+            COMMITS_RANGE="HEAD"
+            COMMITS_TITLE="### 🧾 Последние коммиты"
+          fi
+
+          RECENT_CHANGES="$(git log ${COMMITS_RANGE} --no-merges -n 12 --pretty='- %s (`%h`)' 2>/dev/null || true)"
+          if [ -z "$RECENT_CHANGES" ]; then
+            RECENT_CHANGES="$(git log -n 6 --no-merges --pretty='- %s (`%h`)' 2>/dev/null || echo '- Сборка актуальной версии приложения')"
+          fi
+
+          MANUAL_CHANGELOG=""
+          if [ -f CHANGELOG.md ]; then
+            MANUAL_CHANGELOG="$(awk '/^## /{ if (seen++) exit; next } seen { print }' CHANGELOG.md | sed '/./,$!d')"
+          fi
+          if [ -z "$MANUAL_CHANGELOG" ]; then
+            MANUAL_CHANGELOG="### ✨ Новое
+          - Актуальная сборка нативного Android-приложения «Рельсоход»."
+          fi
 
           cat <<EOF > release-notes.md
-          # 🚋 Рельсоход — нативное Android-приложение
+          # 🚋 Рельсоход ${TAG_NAME}
 
-          Умный маршрутизатор городских прогулок на трамваях, городском транспорте и пешком по **Санкт-Петербургу** и **Омску**. Полностью нативный клиент на **Kotlin + Jetpack Compose** (без WebView).
+          > Нативный клиент (**Kotlin + Jetpack Compose**) для трамвайных и пеших прогулок по **Санкт-Петербургу** и **Омску**.
 
-          ---
+          ${MANUAL_CHANGELOG}
 
-          ## 📦 Какой файл скачать
-
-          | Файл | Назначение | Размер | Рекомендация |
-          | --- | --- | --- | --- |
-          | **\`Relsokhod-release.apk\`** | Основная релизная версия с R8-оптимизацией и подписью | \`${RELEASE_SIZE}\` | ⭐ **Скачивайте этот файл** |
-          | **\`Relsokhod-debug.apk\`** | Отладочная сборка для тестирования и логов | \`${DEBUG_SIZE}\` | Для разработчиков |
+          ${COMMITS_TITLE}
+          ${RECENT_CHANGES}
 
           ---
 
-          ## ✨ Что внутри этой версии (\`${VERSION_NAME}\`)
-
-          - **⚡ Быстрый и плавный интерфейс**: парсинг сети, построение маршрутов, работа с фото и сохранение настроек выполняются в фоне; сглаженная карта и треугольный баланс работают без лагов.
-          - **🛡️ Актуальная совместимость (Android 16 / API 36)**: поддержка системного фотопикера (*Privacy Photo Picker*) без лишних разрешений, правила резервного копирования и предиктивный жест «Назад».
-          - **🔺 Треугольный регулятор баланса**: наглядная настройка соотношения **Трамваи / Транспорт / Пешком** с быстрыми пресетами.
-          - **🗺️ Плавная схема и навигация**: сглаженные кривыми Безье линии с разведением по полосам, выбор точек на карте и экспорт готового маршрута в **Яндекс Карты**.
-          - **🎙️ Режим «В пути», Паспорт и статистика**: автоинформатор, таймер пересадок, фотоальбом, достижения и сводная статистика по пройденным километрам и районам СПб в **Избранном**.
-          - **🔄 Обновления прямо в приложении**: автоматическая проверка новых релизов на GitHub, загрузка APK с индикатором прогресса и прямой запуск установщика.
-
-          ---
-
-          ## 📲 Как установить на смартфон
-
-          1. Раскройте блок **Assets** ниже и скачайте **\`Relsokhod-release.apk\`**.
-          2. Откройте скачанный файл на телефоне (**Android 7.0 — Android 16**).
-          3. При первой установке разрешите установку приложений из этого источника (браузера или проводника).
-
-          ---
+          ### 📦 Что скачать и как обновиться
+          - ⭐ **\`Relsokhod-release.apk\`** (\`${RELEASE_SIZE}\`) — основная сборка для смартфонов (**Android 7.0 – 16**).
+          - 🔄 Новые версии можно проверять, скачивать и открывать для установки **прямо внутри приложения** (баннер при старте или *Настройки → Обновления*).
+          - 🔑 При самом первом переходе со старых сборок с временным ключом Android может попросить один раз удалить старую версию — далее единая подпись позволяет обновляться поверх с сохранением маршрутов.
 
           <details>
-          <summary>🛠️ Технические детали сборки и последние изменения</summary>
+          <summary>🛠️ Детали сборки (\`${VERSION_NAME}\` · #${GITHUB_RUN_NUMBER}) и отладочный APK (\`${DEBUG_SIZE}\`)</summary>
 
           - **Версия:** \`${VERSION_NAME}\`
           - **Сборка CI:** \`#${GITHUB_RUN_NUMBER}\` · коммит \`${SHORT_SHA}\`
           - **SHA-256 (\`Relsokhod-release.apk\`):** \`${RELEASE_SHA}\`
-          - **SHA-256 (\`Relsokhod-debug.apk\`):** \`${DEBUG_SHA}\`
-
-          ### Последние коммиты
-          ${RECENT_CHANGES}
+          - **SHA-256 (\`Relsokhod-debug.apk\`):** \`${DEBUG_SHA}\` (\`Relsokhod-debug.apk\` — для разработки и отладки)
 
           </details>
           EOF
