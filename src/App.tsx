@@ -43,6 +43,14 @@ import {
   persistTheme,
   persistTripHistory,
 } from './utils/storage';
+import {
+  MAX_BACKUP_BYTES,
+  buildBackupFilename,
+  createBackupPayload,
+  isAcceptedBackupFilename,
+  parseAndValidateBackup,
+  serializeBackup,
+} from './utils/backup';
 import { triggerHaptic } from './utils/haptics';
 import { ActiveTab, TopBar } from './components/TopBar';
 import { MobileBottomNav, MobileNavTab } from './components/MobileBottomNav';
@@ -314,58 +322,122 @@ export default function App() {
     ]
   );
 
-  const handleDetectLocation = useCallback(() => {
-    if (!('geolocation' in navigator)) {
-      setGeoStatus({
-        state: 'error',
-        message: 'Геолокация не поддерживается вашим браузером.',
-      });
-      return;
-    }
-
-    setGeoStatus({ state: 'loading' });
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const detection = detectCityFromCoords(pos.coords.latitude, pos.coords.longitude);
-        setCityDetection(detection);
-        setMismatchDismissed(false);
-
-        if (detection.detected === city) {
-          const nearest = findNearestStops(
-            pos.coords.latitude,
-            pos.coords.longitude,
-            CITIES[city].stops,
-            1,
-            false
-          )[0];
-          if (nearest) {
-            setStartStopId(nearest.stop.id);
-            setGeoStatus({
-              state: 'ok',
-              message: `Ближайшая остановка: ${nearest.stop.name} (${nearest.distanceKm.toFixed(1)} км)`,
-            });
-          }
-        } else if (detection.detected === 'other') {
-          setGeoStatus({
-            state: 'ok',
-            message: `Координаты вне СПб и Омска — выбрана сеть города ${CITIES[city].name}.`,
-          });
-        } else {
-          setGeoStatus({
-            state: 'ok',
-            message: `Обнаружен другой город: ${CITIES[detection.detected].name}. Вы можете переключить сеть выше.`,
-          });
-        }
-      },
-      () => {
+  const handleDetectLocation = useCallback(
+    (autoSelectCity = false) => {
+      if (!('geolocation' in navigator)) {
         setGeoStatus({
           state: 'error',
-          message: 'Доступ к геопозиции отклонён — выберите остановку на карте или из списка.',
+          message: 'Геолокация не поддерживается вашим браузером.',
         });
-      },
-      { timeout: 6000 }
-    );
-  }, [city]);
+        return;
+      }
+
+      setGeoStatus({ state: 'loading' });
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const detection = detectCityFromCoords(pos.coords.latitude, pos.coords.longitude);
+          setCityDetection(detection);
+          setMismatchDismissed(false);
+
+          if (autoSelectCity && detection.detected !== 'other') {
+            const targetCity = detection.detected;
+            const targetCfg = CITIES[targetCity];
+            const nearest = findNearestStops(
+              pos.coords.latitude,
+              pos.coords.longitude,
+              targetCfg.stops,
+              1,
+              false
+            )[0];
+            const chosenStart = nearest ? nearest.stop.id : targetCfg.defaultStartStopId;
+
+            setCity(targetCity);
+            persistCity(targetCity);
+            setStartStopId(chosenStart);
+            setDestinationStopId(null);
+            setDestinationAddressLabel('');
+            setSelectedLandmarkId(null);
+            setMapPickMode(null);
+
+            const nextOutcome = generateTramAdventure({
+              city: targetCity,
+              stops: targetCfg.stops,
+              routes: targetCfg.routes,
+              landmarks: targetCfg.landmarks,
+              startStopId: chosenStart,
+              destinationStopId: null,
+              theme: themeFilter,
+              durationPreset,
+              dayOfWeek,
+              timeMinutes,
+              allowFallbackTransit,
+              modeBalance,
+              loopMode,
+              weatherMode,
+              preferSpecialFleet,
+            });
+            setOutcome(nextOutcome);
+
+            setGeoStatus({
+              state: 'ok',
+              message: nearest
+                ? `Город выбран автоматически: ${targetCfg.name} · ближайшая остановка: ${nearest.stop.name} (${nearest.distanceKm.toFixed(1)} км)`
+                : `Город выбран автоматически: ${targetCfg.name}.`,
+            });
+            return;
+          }
+
+          if (detection.detected === city) {
+            const nearest = findNearestStops(
+              pos.coords.latitude,
+              pos.coords.longitude,
+              CITIES[city].stops,
+              1,
+              false
+            )[0];
+            if (nearest) {
+              setStartStopId(nearest.stop.id);
+              setGeoStatus({
+                state: 'ok',
+                message: `Ближайшая остановка: ${nearest.stop.name} (${nearest.distanceKm.toFixed(1)} км)`,
+              });
+            }
+          } else if (detection.detected === 'other') {
+            setGeoStatus({
+              state: 'ok',
+              message: autoSelectCity
+                ? 'Координаты вне СПб и Омска — выберите город вручную на следующем шаге.'
+                : `Координаты вне СПб и Омска — выбрана сеть города ${CITIES[city].name}.`,
+            });
+          } else {
+            setGeoStatus({
+              state: 'ok',
+              message: `Обнаружен другой город: ${CITIES[detection.detected].name}. Вы можете переключить сеть выше.`,
+            });
+          }
+        },
+        () => {
+          setGeoStatus({
+            state: 'error',
+            message: 'Доступ к геопозиции отклонён — выберите город и остановку вручную.',
+          });
+        },
+        { timeout: 6000 }
+      );
+    },
+    [
+      city,
+      themeFilter,
+      durationPreset,
+      dayOfWeek,
+      timeMinutes,
+      allowFallbackTransit,
+      modeBalance,
+      loopMode,
+      weatherMode,
+      preferSpecialFleet,
+    ]
+  );
 
   // Passive city-mismatch check on entry if onboarding is finished & permission already granted
   useEffect(() => {
@@ -375,13 +447,170 @@ export default function App() {
       .query({ name: 'geolocation' as PermissionName })
       .then((res) => {
         if (res.state === 'granted') {
-          handleDetectLocation();
+          handleDetectLocation(false);
         }
       })
       .catch(() => {
         // Ignore browsers without permissions.query support
       });
   }, [onboardingOpen, handleDetectLocation]);
+
+  const handleExportBackup = useCallback((): string => {
+    const filename = buildBackupFilename();
+    const envelope = createBackupPayload({
+      settings: {
+        city,
+        theme,
+        accentSeed,
+        photoReminderMinutes,
+        onboardingDone: !onboardingOpen,
+      },
+      plannerState: {
+        city,
+        startStopId,
+        destinationStopId,
+        destinationAddressLabel,
+        themeFilter,
+        durationPreset,
+        dayOfWeek,
+        timeMinutes,
+        allowFallbackTransit,
+        modeBalance,
+        showAllNetwork,
+        loopMode,
+        weatherMode,
+        preferSpecialFleet,
+        onlyWithPhotos,
+        landmarkCategories,
+      },
+      savedRoutes,
+      tripHistory,
+    });
+    const jsonText = serializeBackup(envelope);
+    const blob = new Blob([jsonText], { type: 'application/octet-stream' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    return filename;
+  }, [
+    city,
+    theme,
+    accentSeed,
+    photoReminderMinutes,
+    onboardingOpen,
+    startStopId,
+    destinationStopId,
+    destinationAddressLabel,
+    themeFilter,
+    durationPreset,
+    dayOfWeek,
+    timeMinutes,
+    allowFallbackTransit,
+    modeBalance,
+    showAllNetwork,
+    loopMode,
+    weatherMode,
+    preferSpecialFleet,
+    onlyWithPhotos,
+    landmarkCategories,
+    savedRoutes,
+    tripHistory,
+  ]);
+
+  const handleImportBackupFile = useCallback(
+    async (
+      file: File
+    ): Promise<{ ok: true; message: string } | { ok: false; error: string }> => {
+      if (!isAcceptedBackupFilename(file.name)) {
+        return {
+          ok: false,
+          error: 'Выберите файл с расширением .relsohod (или .relsokhod).',
+        };
+      }
+      if (file.size > MAX_BACKUP_BYTES) {
+        return {
+          ok: false,
+          error: 'Файл резервной копии слишком большой (более 35 МБ).',
+        };
+      }
+
+      try {
+        const text = await file.text();
+        const result = parseAndValidateBackup(text);
+        if (!result.ok) {
+          return { ok: false, error: result.error };
+        }
+
+        const { settings, plannerState, savedRoutes: nextSaved, tripHistory: nextHistory, summary } =
+          result.data;
+
+        setCity(settings.city);
+        persistCity(settings.city);
+        setTheme(settings.theme);
+        persistTheme(settings.theme);
+        setAccentSeed(settings.accentSeed);
+        persistAccent(settings.accentSeed);
+        setPhotoReminderMinutes(settings.photoReminderMinutes);
+        persistPhotoReminderMinutes(settings.photoReminderMinutes);
+
+        setStartStopId(plannerState.startStopId);
+        setDestinationStopId(plannerState.destinationStopId);
+        setDestinationAddressLabel(plannerState.destinationAddressLabel);
+        setThemeFilter(plannerState.themeFilter);
+        setDurationPreset(plannerState.durationPreset);
+        setDayOfWeek(plannerState.dayOfWeek);
+        setTimeMinutes(plannerState.timeMinutes);
+        setAllowFallbackTransit(plannerState.allowFallbackTransit);
+        setModeBalance(plannerState.modeBalance);
+        setShowAllNetwork(plannerState.showAllNetwork);
+        setLoopMode(plannerState.loopMode);
+        setWeatherMode(plannerState.weatherMode);
+        setPreferSpecialFleet(plannerState.preferSpecialFleet);
+        setOnlyWithPhotos(plannerState.onlyWithPhotos);
+        setLandmarkCategories(plannerState.landmarkCategories);
+        persistPlannerState(plannerState);
+
+        setSavedRoutes(nextSaved);
+        persistSavedRoutes(nextSaved);
+        setTripHistory(nextHistory);
+        persistTripHistory(nextHistory);
+
+        const nextCfg = CITIES[settings.city];
+        const nextOutcome = generateTramAdventure({
+          city: settings.city,
+          stops: nextCfg.stops,
+          routes: nextCfg.routes,
+          landmarks: nextCfg.landmarks,
+          startStopId: plannerState.startStopId,
+          destinationStopId: plannerState.destinationStopId,
+          theme: plannerState.themeFilter,
+          durationPreset: plannerState.durationPreset,
+          dayOfWeek: plannerState.dayOfWeek,
+          timeMinutes: plannerState.timeMinutes,
+          allowFallbackTransit: plannerState.allowFallbackTransit,
+          modeBalance: plannerState.modeBalance,
+          loopMode: plannerState.loopMode,
+          weatherMode: plannerState.weatherMode,
+          preferSpecialFleet: plannerState.preferSpecialFleet,
+        });
+        setOutcome(nextOutcome);
+        setMismatchDismissed(false);
+
+        return {
+          ok: true,
+          message: `Восстановлено (${CITIES[summary.city].shortName}): маршрутов — ${summary.savedRoutesCount}, поездок в паспорте — ${summary.historyCount}, фото — ${summary.photosCount}.`,
+        };
+      } catch {
+        return { ok: false, error: 'Не удалось прочитать выбранный файл.' };
+      }
+    },
+    []
+  );
 
   const handleGenerate = useCallback(
     (overrideFallback?: boolean, overrideDay?: number, overrideTime?: number) => {
@@ -1071,7 +1300,8 @@ export default function App() {
           onSelectCity={handleChangeCity}
           geoStatus={geoStatus}
           cityDetection={cityDetection}
-          onRequestLocation={handleDetectLocation}
+          onRequestLocation={() => handleDetectLocation(true)}
+          onImportBackupFile={handleImportBackupFile}
           onComplete={() => {
             persistOnboardingDone(true);
             setOnboardingOpen(false);
@@ -1092,6 +1322,8 @@ export default function App() {
             setPhotoReminderMinutes(mins);
             persistPhotoReminderMinutes(mins);
           }}
+          onExportBackup={handleExportBackup}
+          onImportBackupFile={handleImportBackupFile}
           onRestartOnboarding={() => setOnboardingOpen(true)}
         />
 

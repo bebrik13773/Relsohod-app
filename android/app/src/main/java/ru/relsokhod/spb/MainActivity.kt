@@ -88,7 +88,10 @@ import ru.relsokhod.spb.model.SearchParamsState
 import ru.relsokhod.spb.model.ThemeMode
 import ru.relsokhod.spb.model.TripHistoryEntry
 import ru.relsokhod.spb.router.TramRouter
+import ru.relsokhod.spb.storage.AndroidBackupStorage
 import ru.relsokhod.spb.storage.AppPrefs
+import ru.relsokhod.spb.storage.BackupCodec
+import ru.relsokhod.spb.storage.BackupDecodeResult
 import ru.relsokhod.spb.ui.components.AppUpdateBanner
 import ru.relsokhod.spb.ui.components.SettingsSheet
 import ru.relsokhod.spb.ui.components.StartupSplash
@@ -257,6 +260,128 @@ private fun RelsokhodNativeApp(
     var whatsNewReleaseTag by remember { mutableStateOf<String?>(null) }
     var whatsNewIsPostUpdate by remember { mutableStateOf(false) }
     var showWhatsNewDialog by remember { mutableStateOf(false) }
+    var backupFeedback by remember { mutableStateOf<String?>(null) }
+    var backupFeedbackIsError by remember { mutableStateOf(false) }
+    var backupRestoredSuccess by remember { mutableStateOf(false) }
+
+    val exportBackupLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/octet-stream")
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        coroutineScope.launch {
+            val jsonText = withContext(Dispatchers.IO) {
+                BackupCodec.encodeBackupJson(
+                    city = selectedCity,
+                    themeMode = themeMode,
+                    accentSeed = accentSeed,
+                    photoReminderMinutes = photoReminderMinutes,
+                    onboardingDone = onboardingDone,
+                    spbParams = spbParams,
+                    omskParams = omskParams,
+                    savedRoutes = savedRoutes,
+                    history = history,
+                    photoToDataUrl = { photo ->
+                        AndroidBackupStorage.encodePhotoFileToDataUrl(photo.filePath)
+                    }
+                )
+            }
+            val saved = AndroidBackupStorage.writeBackupToUri(appContext, uri, jsonText)
+            if (saved) {
+                backupFeedbackIsError = false
+                backupFeedback = "Резервная копия сохранена (${BackupCodec.buildBackupFilename()})."
+                Toast.makeText(activity, "Файл .relsohod сохранён", Toast.LENGTH_SHORT).show()
+            } else {
+                backupFeedbackIsError = true
+                backupFeedback = "Не удалось записать файл резервной копии."
+            }
+        }
+    }
+
+    val importBackupLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        coroutineScope.launch {
+            val rawText = AndroidBackupStorage.readBackupTextFromUri(appContext, uri)
+            if (rawText == null) {
+                backupFeedbackIsError = true
+                backupRestoredSuccess = false
+                backupFeedback = "Не удалось прочитать файл или превышен размер 35 МБ."
+                return@launch
+            }
+            val decodeResult = withContext(Dispatchers.IO) {
+                BackupCodec.decodeBackupJson(
+                    rawText = rawText,
+                    cities = cities,
+                    dataUrlToFilePath = { photoId, dataUrl ->
+                        AndroidBackupStorage.saveDataUrlToInternalPhotoFile(appContext, photoId, dataUrl)
+                    }
+                )
+            }
+            when (decodeResult) {
+                is BackupDecodeResult.Error -> {
+                    backupFeedbackIsError = true
+                    backupRestoredSuccess = false
+                    backupFeedback = decodeResult.message
+                }
+                is BackupDecodeResult.Success -> {
+                    val data = decodeResult.data
+                    withContext(Dispatchers.IO) {
+                        prefs.setCity(data.city)
+                        prefs.setThemeMode(data.themeMode)
+                        prefs.setAccentSeed(data.accentSeed)
+                        prefs.setPhotoReminderMinutes(data.photoReminderMinutes)
+                        prefs.saveSearchParams(CityId.SPB, data.spbParams)
+                        prefs.saveSearchParams(CityId.OMSK, data.omskParams)
+                        prefs.persistSavedRoutes(data.savedRoutes)
+                        prefs.persistHistory(data.history)
+                    }
+                    selectedCity = data.city
+                    themeMode = data.themeMode
+                    accentSeed = data.accentSeed
+                    photoReminderMinutes = data.photoReminderMinutes
+                    spbParams = data.spbParams
+                    omskParams = data.omskParams
+                    spbParamsDirty = false
+                    omskParamsDirty = false
+                    savedRoutes = data.savedRoutes
+                    history = data.history
+                    mismatchDismissed = true
+
+                    val restoredCfg = cities[data.city]
+                    if (restoredCfg != null) {
+                        val restoredParams = if (data.city == CityId.OMSK) data.omskParams else data.spbParams
+                        val regen = withContext(Dispatchers.Default) {
+                            TramRouter.generateTramAdventure(
+                                city = restoredCfg.id,
+                                stops = restoredCfg.stops,
+                                routes = restoredCfg.routes,
+                                landmarks = restoredCfg.landmarks,
+                                startStopId = restoredParams.startStopId,
+                                destinationStopId = restoredParams.destinationStopId,
+                                theme = restoredParams.themeFilter,
+                                durationPreset = restoredParams.durationPreset,
+                                dayOfWeek = restoredParams.dayOfWeek,
+                                timeMinutes = restoredParams.timeMinutes,
+                                allowFallbackTransit = restoredParams.allowFallbackTransit,
+                                modeBalance = restoredParams.modeBalance,
+                                loopMode = restoredParams.loopMode,
+                                weatherMode = restoredParams.weatherMode,
+                                preferSpecialFleet = restoredParams.preferSpecialFleet
+                            )
+                        }
+                        outcome = regen
+                    }
+
+                    backupFeedbackIsError = false
+                    backupRestoredSuccess = true
+                    val cityShort = restoredCfg?.shortName ?: data.city.id
+                    backupFeedback = "Восстановлено ($cityShort): маршрутов — ${data.savedRoutes.size}, поездок — ${data.history.size}, фото — ${data.photosRestoredCount}."
+                    Toast.makeText(activity, "Данные из .relsohod восстановлены", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
 
     val unknownSourcesLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -483,11 +608,48 @@ private fun RelsokhodNativeApp(
     }
 
     var pendingApplyNearestStart by remember { mutableStateOf(false) }
+    var pendingAutoSelectCity by remember { mutableStateOf(false) }
 
-    fun handleLocationSuccess(lat: Double, lng: Double, applyNearestStart: Boolean) {
+    fun handleLocationSuccess(
+        lat: Double,
+        lng: Double,
+        applyNearestStart: Boolean,
+        autoSelectCity: Boolean = false
+    ) {
         val detection = NetworkRepository.detectCityFromCoords(lat, lng, cities)
         cityDetection = detection
         mismatchDismissed = false
+
+        if (autoSelectCity && detection.detected != null) {
+            val detectedCity = detection.detected
+            val detectedCfg = cities[detectedCity] ?: return
+            selectedCity = detectedCity
+            coroutineScope.launch(Dispatchers.IO) {
+                prefs.setCity(detectedCity)
+            }
+            val nearest = TramRouter.findNearestStops(lat, lng, detectedCfg.stops, limit = 1, includeIsolated = false).firstOrNull()
+            val baseParams = if (detectedCity == CityId.SPB) spbParams else omskParams
+            val updatedParams = if (nearest != null) {
+                baseParams.copy(startStopId = nearest.first.id, destinationStopId = null, destinationAddressLabel = "")
+            } else {
+                baseParams
+            }
+            if (detectedCity == CityId.SPB) {
+                spbParams = updatedParams
+                spbParamsDirty = true
+            } else {
+                omskParams = updatedParams
+                omskParamsDirty = true
+            }
+            launchGenerate(detectedCfg, updatedParams, seed = System.currentTimeMillis())
+            geoStatusMessage = if (nearest != null) {
+                val distMeters = (nearest.second * 1000).toInt()
+                "Город выбран автоматически: ${detectedCfg.name} · ближайшая остановка: «${nearest.first.name}» (~$distMeters м)"
+            } else {
+                "Город выбран автоматически: ${detectedCfg.name}."
+            }
+            return
+        }
 
         val cfg = cities[selectedCity] ?: currentCityConfig ?: return
         if (detection.detected != null && detection.detected != selectedCity) {
@@ -496,7 +658,11 @@ private fun RelsokhodNativeApp(
             return
         }
         if (detection.detected == null) {
-            geoStatusMessage = "Вы находитесь за пределами СПб и Омска — показана сеть выбранного города (${cfg.name})."
+            geoStatusMessage = if (autoSelectCity) {
+                "Вы находитесь за пределами СПб и Омска — выберите город вручную на следующем шаге."
+            } else {
+                "Вы находитесь за пределами СПб и Омска — показана сеть выбранного города (${cfg.name})."
+            }
             return
         }
 
@@ -512,11 +678,11 @@ private fun RelsokhodNativeApp(
         }
     }
 
-    fun requestSingleLocation(applyNearestStart: Boolean) {
+    fun requestSingleLocation(applyNearestStart: Boolean, autoSelectCity: Boolean) {
         geoStatusMessage = "Определяем координаты..."
         fetchCurrentLocation(
             context = activity,
-            onSuccess = { loc -> handleLocationSuccess(loc.latitude, loc.longitude, applyNearestStart) },
+            onSuccess = { loc -> handleLocationSuccess(loc.latitude, loc.longitude, applyNearestStart, autoSelectCity) },
             onFailure = { reason -> geoStatusMessage = reason }
         )
     }
@@ -527,16 +693,17 @@ private fun RelsokhodNativeApp(
         val granted = (grants[Manifest.permission.ACCESS_FINE_LOCATION] == true) ||
             (grants[Manifest.permission.ACCESS_COARSE_LOCATION] == true)
         if (granted) {
-            requestSingleLocation(pendingApplyNearestStart)
+            requestSingleLocation(pendingApplyNearestStart, pendingAutoSelectCity)
         } else {
-            geoStatusMessage = "Доступ к геолокации отклонён — выберите остановку вручную."
+            geoStatusMessage = "Доступ к геолокации отклонён — выберите город и остановку вручную."
         }
     }
 
-    fun triggerLocationFlow(applyNearestStart: Boolean) {
+    fun triggerLocationFlow(applyNearestStart: Boolean, autoSelectCity: Boolean = false) {
         pendingApplyNearestStart = applyNearestStart
+        pendingAutoSelectCity = autoSelectCity
         if (hasLocationPermission(activity)) {
-            requestSingleLocation(applyNearestStart)
+            requestSingleLocation(applyNearestStart, autoSelectCity)
         } else {
             permissionLauncher.launch(
                 arrayOf(
@@ -640,11 +807,19 @@ private fun RelsokhodNativeApp(
                         cities = cities,
                         geoStatusMessage = geoStatusMessage,
                         cityDetection = cityDetection,
+                        backupFeedback = backupFeedback,
+                        backupFeedbackIsError = backupFeedbackIsError,
+                        backupRestoredSuccess = backupRestoredSuccess,
                         onSelectCity = { switchCity(it) },
-                        onRequestLocation = { triggerLocationFlow(applyNearestStart = true) },
+                        onRequestLocation = { triggerLocationFlow(applyNearestStart = true, autoSelectCity = true) },
+                        onImportBackup = {
+                            importBackupLauncher.launch(arrayOf("*/*"))
+                        },
                         onComplete = {
                             onboardingDone = true
                             lastSeenVersionCode = BuildConfig.VERSION_CODE
+                            backupFeedback = null
+                            backupRestoredSuccess = false
                             coroutineScope.launch(Dispatchers.IO) {
                                 prefs.setOnboardingDone(true)
                                 prefs.setLastSeenVersionCode(BuildConfig.VERSION_CODE)
@@ -962,6 +1137,14 @@ private fun RelsokhodNativeApp(
                     whatsNewIsPostUpdate = false
                     showWhatsNewDialog = true
                 },
+                backupFeedback = backupFeedback,
+                backupFeedbackIsError = backupFeedbackIsError,
+                onExportBackup = {
+                    exportBackupLauncher.launch(BackupCodec.buildBackupFilename())
+                },
+                onImportBackup = {
+                    importBackupLauncher.launch(arrayOf("*/*"))
+                },
                 onChangeCity = { switchCity(it) },
                 onChangeThemeMode = {
                     themeMode = it
@@ -976,6 +1159,8 @@ private fun RelsokhodNativeApp(
                     coroutineScope.launch(Dispatchers.IO) { prefs.setPhotoReminderMinutes(it) }
                 },
                 onRestartOnboarding = {
+                    backupFeedback = null
+                    backupRestoredSuccess = false
                     onboardingDone = false
                     coroutineScope.launch(Dispatchers.IO) { prefs.setOnboardingDone(false) }
                 },

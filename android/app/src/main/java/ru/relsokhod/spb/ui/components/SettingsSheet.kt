@@ -24,6 +24,7 @@ import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.CameraAlt
 import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.LocationCity
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Refresh
@@ -58,6 +59,7 @@ import ru.relsokhod.spb.model.AccentSeed
 import ru.relsokhod.spb.model.CityConfig
 import ru.relsokhod.spb.model.CityId
 import ru.relsokhod.spb.model.ThemeMode
+import ru.relsokhod.spb.storage.BackupCodec
 import ru.relsokhod.spb.update.AppUpdateLogic
 import ru.relsokhod.spb.update.AvailableRelease
 import ru.relsokhod.spb.update.SignatureCompatibility
@@ -90,6 +92,10 @@ fun SettingsSheet(
     onExportAndUninstall: (File, AvailableRelease) -> Unit,
     onOpenReleaseUrl: (String) -> Unit,
     onShowWhatsNew: () -> Unit,
+    backupFeedback: String?,
+    backupFeedbackIsError: Boolean,
+    onExportBackup: () -> Unit,
+    onImportBackup: () -> Unit,
     onChangeCity: (CityId) -> Unit,
     onChangeThemeMode: (ThemeMode) -> Unit,
     onChangeAccentSeed: (AccentSeed) -> Unit,
@@ -487,6 +493,67 @@ fun SettingsSheet(
                     Icon(Icons.Rounded.Refresh, contentDescription = null, modifier = Modifier.size(17.dp))
                     Spacer(modifier = Modifier.size(8.dp))
                     Text("Проверить обновления")
+                }
+            }
+
+            HorizontalDivider()
+
+            // Backup Export / Import (.relsohod)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(Icons.Rounded.FolderOpen, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Text("Резервная копия и перенос (.relsohod)", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+                Text(
+                    text = "Единый формат для Android и браузера: сохраняет избранное, паспорт с фото и настройки в ${BackupCodec.buildBackupFilename()}.",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = onExportBackup,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Rounded.Download, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.size(6.dp))
+                        Text("Экспорт", fontSize = 12.sp)
+                    }
+                    OutlinedButton(
+                        onClick = onImportBackup,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(Icons.Rounded.FolderOpen, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.size(6.dp))
+                        Text("Восстановить", fontSize = 12.sp)
+                    }
+                }
+                if (!backupFeedback.isNullOrBlank()) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (backupFeedbackIsError) {
+                            MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.7f)
+                        } else {
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = backupFeedback,
+                            fontSize = 11.sp,
+                            color = if (backupFeedbackIsError) {
+                                MaterialTheme.colorScheme.onErrorContainer
+                            } else {
+                                MaterialTheme.colorScheme.onPrimaryContainer
+                            },
+                            modifier = Modifier.padding(10.dp)
+                        )
+                    }
                 }
             }
 

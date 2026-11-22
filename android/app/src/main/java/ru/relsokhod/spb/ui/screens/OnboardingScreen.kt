@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Explore
+import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.MyLocation
 import androidx.compose.material.icons.rounded.Navigation
@@ -59,12 +60,16 @@ fun OnboardingScreen(
     cities: Map<CityId, CityConfig>,
     geoStatusMessage: String?,
     cityDetection: CityDetectionResult?,
+    backupFeedback: String?,
+    backupFeedbackIsError: Boolean,
+    backupRestoredSuccess: Boolean,
     onSelectCity: (CityId) -> Unit,
     onRequestLocation: () -> Unit,
+    onImportBackup: () -> Unit,
     onComplete: () -> Unit
 ) {
     var step by remember { mutableIntStateOf(0) }
-    val mismatch = cityDetection != null && cityDetection.detected != selectedCity
+    val detectedCity = cityDetection?.detected
 
     Scaffold(
         topBar = {
@@ -101,7 +106,7 @@ fun OnboardingScreen(
                 }
 
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    repeat(3) { idx ->
+                    repeat(4) { idx ->
                         Box(
                             modifier = Modifier
                                 .height(8.dp)
@@ -126,13 +131,22 @@ fun OnboardingScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (step > 0) {
-                        OutlinedButton(onClick = { step -= 1 }) { Text("Назад") }
-                    } else {
-                        TextButton(onClick = onComplete) { Text("Пропустить") }
+                    when (step) {
+                        0 -> {
+                            TextButton(onClick = onComplete) { Text("Пропустить") }
+                        }
+                        1 -> {
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                OutlinedButton(onClick = { step = 0 }) { Text("Назад") }
+                                TextButton(onClick = { step = 2 }) { Text("Пропустить") }
+                            }
+                        }
+                        else -> {
+                            OutlinedButton(onClick = { step -= 1 }) { Text("Назад") }
+                        }
                     }
 
-                    if (step < 2) {
+                    if (step < 3) {
                         Button(onClick = { step += 1 }) { Text("Далее") }
                     } else {
                         Button(onClick = onComplete) {
@@ -185,67 +199,73 @@ fun OnboardingScreen(
 
                 1 -> {
                     Text(
-                        text = "Выберите ваш город",
+                        text = "Восстановить из файла .relsohod?",
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.ExtraBold
                     )
                     Text(
-                        text = "Доступны Санкт-Петербург и Омск. Поменять город позже можно в Настройках.",
+                        text = "Если у вас уже есть файл резервной копии (export-....relsohod) из телефона или браузера, выберите его сейчас — или пропустите этот шаг.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    listOf(CityId.SPB, CityId.OMSK).forEach { id ->
-                        val cfg = cities[id] ?: return@forEach
-                        val active = selectedCity == id
+
+                    FilledTonalButton(
+                        onClick = onImportBackup,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp)
+                    ) {
+                        Icon(Icons.Rounded.FolderOpen, contentDescription = null)
+                        Spacer(modifier = Modifier.size(8.dp))
+                        Text("Выбрать файл .relsohod", fontWeight = FontWeight.Bold)
+                    }
+
+                    if (!backupFeedback.isNullOrBlank()) {
                         Surface(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(22.dp))
-                                .clickable { onSelectCity(id) },
-                            shape = RoundedCornerShape(22.dp),
-                            color = if (active) MaterialTheme.colorScheme.primaryContainer
-                            else MaterialTheme.colorScheme.surfaceVariant,
-                            border = if (active) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null
+                            shape = RoundedCornerShape(16.dp),
+                            color = if (backupFeedbackIsError) {
+                                MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.7f)
+                            } else {
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f)
+                            },
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Row(
-                                modifier = Modifier.padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                    ) {
-                                        Icon(Icons.Rounded.LocationOn, contentDescription = null, modifier = Modifier.size(18.dp))
-                                        Text(cfg.name, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
+                                Text(
+                                    text = backupFeedback,
+                                    fontSize = 13.sp,
+                                    color = if (backupFeedbackIsError) {
+                                        MaterialTheme.colorScheme.onErrorContainer
+                                    } else {
+                                        MaterialTheme.colorScheme.onPrimaryContainer
                                     }
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(cfg.tagline, fontSize = 13.sp)
-                                    Spacer(modifier = Modifier.height(6.dp))
-                                    Text(
-                                        text = "${cfg.routes.size} линий · ${cfg.stops.size} остановок",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                if (active) {
-                                    Icon(Icons.Rounded.CheckCircle, contentDescription = null)
+                                )
+                                if (backupRestoredSuccess) {
+                                    Button(
+                                        onClick = onComplete,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Icon(Icons.Rounded.Explore, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Spacer(modifier = Modifier.size(6.dp))
+                                        Text("Перейти в приложение")
+                                    }
                                 }
                             }
                         }
                     }
                 }
 
-                else -> {
+                2 -> {
                     Text(
-                        text = "Разрешить доступ к местоположению?",
+                        text = "Определить ваш город автоматически?",
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.ExtraBold
                     )
                     Text(
-                        text = "Геолокация автоматически найдёт ближайшую трамвайную остановку в ${cities[selectedCity]?.genitiveName ?: "выбранном городе"} и предупредит, если вы находитесь в другом городе.",
+                        text = "Разрешите доступ к геолокации — приложение само выберет Санкт-Петербург или Омск и подберёт ближайшую трамвайную остановку.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -275,39 +295,124 @@ fun OnboardingScreen(
                         }
                     }
 
-                    if (mismatch) {
+                    if (detectedCity != null) {
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(14.dp),
+                                verticalAlignment = Alignment.Top,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Icon(
+                                    Icons.Rounded.CheckCircle,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Column {
+                                    Text(
+                                        text = "Автоматически выбран город: ${cities[detectedCity]?.name ?: ""}",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp
+                                    )
+                                    Text(
+                                        text = "На следующем шаге вы сможете подтвердить выбор или переключить город вручную.",
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    } else if (cityDetection != null) {
                         Surface(
                             shape = RoundedCornerShape(16.dp),
                             color = Color(0xFFF59E0B).copy(alpha = 0.16f),
                             border = BorderStroke(1.dp, Color(0xFFD97706).copy(alpha = 0.45f)),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Column(modifier = Modifier.padding(14.dp)) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Rounded.WarningAmber,
-                                        contentDescription = null,
-                                        tint = Color(0xFFD97706)
-                                    )
-                                    Text("Обнаружен другой город", fontWeight = FontWeight.Bold)
-                                }
-                                Spacer(modifier = Modifier.height(6.dp))
+                            Row(
+                                modifier = Modifier.padding(14.dp),
+                                verticalAlignment = Alignment.Top,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Icon(
+                                    Icons.Rounded.WarningAmber,
+                                    contentDescription = null,
+                                    tint = Color(0xFFD97706)
+                                )
                                 Text(
-                                    text = if (cityDetection.detected == null) {
-                                        "Вы сейчас за пределами СПб и Омска — приложение продолжит работу для выбранного города (${cities[selectedCity]?.name})."
-                                    } else {
-                                        "По координатам вы находитесь в городе ${cities[cityDetection.detected]?.name}, а выбран ${cities[selectedCity]?.name}."
-                                    },
+                                    text = "Вы находитесь за пределами СПб и Омска — выберите город вручную на следующем шаге.",
                                     fontSize = 13.sp
                                 )
-                                if (cityDetection.detected != null) {
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Button(onClick = { onSelectCity(cityDetection.detected) }) {
-                                        Text("Переключиться на ${cities[cityDetection.detected]?.name}")
+                            }
+                        }
+                    }
+                }
+
+                else -> {
+                    Text(
+                        text = if (detectedCity != null) "Подтвердите или выберите город" else "Выберите ваш город",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                    Text(
+                        text = if (detectedCity != null) {
+                            "По геопозиции выбран город ${cities[detectedCity]?.name}. При желании переключите сеть — поменять город можно и позже в Настройках."
+                        } else {
+                            "Доступны Санкт-Петербург и Омск. Поменять город позже можно в Настройках."
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    listOf(CityId.SPB, CityId.OMSK).forEach { id ->
+                        val cfg = cities[id] ?: return@forEach
+                        val active = selectedCity == id
+                        val matchedGeo = detectedCity == id
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(22.dp))
+                                .clickable { onSelectCity(id) },
+                            shape = RoundedCornerShape(22.dp),
+                            color = if (active) MaterialTheme.colorScheme.primaryContainer
+                            else MaterialTheme.colorScheme.surfaceVariant,
+                            border = if (active) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Icon(Icons.Rounded.LocationOn, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Text(cfg.name, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
                                     }
+                                    if (matchedGeo) {
+                                        Text(
+                                            text = "Определён по геопозиции",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(cfg.tagline, fontSize = 13.sp)
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text(
+                                        text = "${cfg.routes.size} линий · ${cfg.stops.size} остановок",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                if (active) {
+                                    Icon(Icons.Rounded.CheckCircle, contentDescription = null)
                                 }
                             }
                         }

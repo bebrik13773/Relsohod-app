@@ -1,7 +1,19 @@
-import { Camera, GraduationCap, MapPin, X } from 'lucide-react';
+import { ChangeEvent, useEffect, useRef, useState } from 'react';
+import {
+  AlertTriangle,
+  Camera,
+  CheckCircle2,
+  Download,
+  FolderOpen,
+  GraduationCap,
+  MapPin,
+  Upload,
+  X,
+} from 'lucide-react';
 import { AccentSeed, AppTheme, CityId } from '../types/tram';
 import { CITIES } from '../data/cities';
 import { triggerHaptic } from '../utils/haptics';
+import { buildBackupFilename } from '../utils/backup';
 import { MaterialYouAccentPicker } from './MaterialYouAccentPicker';
 
 interface SettingsModalProps {
@@ -15,6 +27,10 @@ interface SettingsModalProps {
   onChangeAccentSeed: (accent: AccentSeed) => void;
   photoReminderMinutes: number;
   onChangePhotoReminderMinutes: (mins: number) => void;
+  onExportBackup: () => string;
+  onImportBackupFile: (
+    file: File
+  ) => Promise<{ ok: true; message: string } | { ok: false; error: string }>;
   onRestartOnboarding: () => void;
 }
 
@@ -43,9 +59,43 @@ export function SettingsModal({
   onChangeAccentSeed,
   photoReminderMinutes,
   onChangePhotoReminderMinutes,
+  onExportBackup,
+  onImportBackupFile,
   onRestartOnboarding,
 }: SettingsModalProps) {
+  const [backupFeedback, setBackupFeedback] = useState<{
+    kind: 'idle' | 'ok' | 'error';
+    message: string;
+  }>({ kind: 'idle', message: '' });
+  const [isImporting, setIsImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setBackupFeedback({ kind: 'idle', message: '' });
+      setIsImporting(false);
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
+
+  const expectedFilename = buildBackupFilename();
+
+  const handleImportFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setIsImporting(true);
+    const res = await onImportBackupFile(file);
+    setIsImporting(false);
+    if (res.ok) {
+      triggerHaptic('success');
+      setBackupFeedback({ kind: 'ok', message: res.message });
+    } else {
+      triggerHaptic('light');
+      setBackupFeedback({ kind: 'error', message: res.error });
+    }
+  };
 
   return (
     <div
@@ -210,6 +260,92 @@ export function SettingsModal({
               onChangeAccent={onChangeAccentSeed}
               disabled={theme === 'tram'}
             />
+          </div>
+
+          {/* Backup Export / Import (.relsohod) */}
+          <div
+            className="flex flex-col gap-2.5 border-t pt-4"
+            style={{ borderColor: 'var(--border-hairline)' }}
+          >
+            <span className="text-xs font-bold" style={{ color: 'var(--text-secondary)' }}>
+              Резервная копия и перенос (.relsohod)
+            </span>
+            <p className="text-[11px] leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+              Единый формат для браузера и Android: сохраняет избранные маршруты, паспорт с фото и все настройки в файл <span className="font-mono">{expectedFilename}</span>.
+            </p>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".relsohod,.relsokhod,.json,application/json,application/octet-stream"
+              onChange={handleImportFileChange}
+              className="hidden"
+              aria-label="Выбрать файл резервной копии .relsohod"
+            />
+
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => {
+                  triggerHaptic('medium');
+                  const filename = onExportBackup();
+                  setBackupFeedback({
+                    kind: 'ok',
+                    message: `Файл ${filename} сформирован и скачан.`,
+                  });
+                }}
+                className="m3-tactile flex min-h-[44px] cursor-pointer items-center justify-center gap-2 rounded-2xl px-3.5 py-2 text-xs font-bold"
+                style={{
+                  backgroundColor: 'var(--md-primary-container)',
+                  color: 'var(--md-on-primary-container)',
+                }}
+              >
+                <Download className="h-4 w-4 shrink-0" />
+                <span>Экспорт .relsohod</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={isImporting}
+                onClick={() => {
+                  triggerHaptic('light');
+                  fileInputRef.current?.click();
+                }}
+                className="m3-tactile flex min-h-[44px] cursor-pointer items-center justify-center gap-2 rounded-2xl border px-3.5 py-2 text-xs font-semibold disabled:opacity-60"
+                style={{
+                  backgroundColor: 'var(--bg-elevated)',
+                  color: 'var(--text-primary)',
+                  borderColor: 'var(--border-hairline)',
+                }}
+              >
+                {isImporting ? (
+                  <Upload className="h-4 w-4 shrink-0 animate-pulse" />
+                ) : (
+                  <FolderOpen className="h-4 w-4 shrink-0" />
+                )}
+                <span>{isImporting ? 'Импорт...' : 'Восстановить файл'}</span>
+              </button>
+            </div>
+
+            {backupFeedback.kind !== 'idle' && (
+              <div
+                className="flex items-start gap-2 rounded-2xl p-3 text-xs leading-relaxed"
+                style={{
+                  backgroundColor:
+                    backupFeedback.kind === 'error'
+                      ? 'rgba(185, 28, 28, 0.1)'
+                      : 'var(--md-surface-container)',
+                  color: backupFeedback.kind === 'error' ? '#b91c1c' : 'var(--text-primary)',
+                }}
+              >
+                {backupFeedback.kind === 'ok' ? (
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                ) : (
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
+                )}
+                <span>{backupFeedback.message}</span>
+              </div>
+            )}
           </div>
 
           {/* Replay Onboarding */}
