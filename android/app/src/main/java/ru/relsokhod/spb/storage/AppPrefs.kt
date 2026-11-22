@@ -41,6 +41,14 @@ class AppPrefs(context: Context) {
     fun getPhotoReminderMinutes(): Int = prefs.getInt("photo_reminder_mins", 30)
     fun setPhotoReminderMinutes(mins: Int) = prefs.edit().putInt("photo_reminder_mins", mins).apply()
 
+    fun getDismissedUpdateTag(): String? = prefs.getString("dismissed_update_tag", null)
+    fun setDismissedUpdateTag(tag: String?) {
+        prefs.edit().apply {
+            if (tag == null) remove("dismissed_update_tag")
+            else putString("dismissed_update_tag", tag)
+        }.apply()
+    }
+
     fun getSearchParams(city: CityId, defaultStartId: String): SearchParamsState {
         val raw = prefs.getString("search_params_${city.id}", null)
             ?: return SearchParamsState(startStopId = defaultStartId)

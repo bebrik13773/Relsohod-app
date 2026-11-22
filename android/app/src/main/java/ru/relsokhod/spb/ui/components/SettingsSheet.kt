@@ -20,14 +20,21 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.CameraAlt
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.LocationCity
 import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.School
+import androidx.compose.material.icons.rounded.SystemUpdate
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
@@ -44,10 +51,16 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import ru.relsokhod.spb.BuildConfig
 import ru.relsokhod.spb.model.AccentSeed
 import ru.relsokhod.spb.model.CityConfig
 import ru.relsokhod.spb.model.CityId
 import ru.relsokhod.spb.model.ThemeMode
+import ru.relsokhod.spb.update.AppUpdateLogic
+import ru.relsokhod.spb.update.AvailableRelease
+import ru.relsokhod.spb.update.UpdateCheckResult
+import ru.relsokhod.spb.update.UpdateDownloadState
+import java.io.File
 
 private val REMINDER_OPTIONS = listOf(
     0 to "Выкл",
@@ -65,6 +78,13 @@ fun SettingsSheet(
     themeMode: ThemeMode,
     accentSeed: AccentSeed,
     photoReminderMinutes: Int,
+    isCheckingUpdates: Boolean,
+    updateCheckResult: UpdateCheckResult?,
+    updateDownloadState: UpdateDownloadState,
+    onCheckUpdates: () -> Unit,
+    onStartUpdateDownload: (AvailableRelease) -> Unit,
+    onInstallUpdateApk: (File) -> Unit,
+    onOpenReleaseUrl: (String) -> Unit,
     onChangeCity: (CityId) -> Unit,
     onChangeThemeMode: (ThemeMode) -> Unit,
     onChangeAccentSeed: (AccentSeed) -> Unit,
@@ -239,6 +259,180 @@ fun SettingsSheet(
                             label = { Text(label, fontSize = 12.sp) }
                         )
                     }
+                }
+            }
+
+            HorizontalDivider()
+
+            // In-app updates from GitHub Releases
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(Icons.Rounded.SystemUpdate, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Text("Обновления приложения", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+
+                val buildSuffix = if (BuildConfig.CI_RUN_NUMBER > 0) {
+                    " · сборка #${BuildConfig.CI_RUN_NUMBER}"
+                } else {
+                    ""
+                }
+                Text(
+                    text = "Текущая версия: ${BuildConfig.VERSION_NAME}$buildSuffix",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                when {
+                    isCheckingUpdates -> {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp
+                            )
+                            Text(
+                                text = "Проверяем релизы на GitHub...",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    updateCheckResult is UpdateCheckResult.UpToDate -> {
+                        Text(
+                            text = updateCheckResult.latestTag?.let {
+                                "Установлена актуальная версия (последний релиз: $it)."
+                            } ?: "Установлена актуальная версия.",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    updateCheckResult is UpdateCheckResult.Error -> {
+                        Text(
+                            text = updateCheckResult.message,
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+
+                    updateCheckResult is UpdateCheckResult.UpdateAvailable -> {
+                        val rel = updateCheckResult.release
+                        val sizeLabel = AppUpdateLogic.formatFileSize(rel.apkAsset.sizeBytes)
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = "Доступна версия ${rel.tagName}",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                                if (sizeLabel.isNotEmpty()) {
+                                    Text(
+                                        text = "${rel.apkAsset.name} · $sizeLabel",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                                    )
+                                }
+                                if (rel.notesSummary.isNotBlank()) {
+                                    Text(
+                                        text = rel.notesSummary,
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.9f)
+                                    )
+                                }
+
+                                when (updateDownloadState) {
+                                    is UpdateDownloadState.Idle -> {
+                                        Button(
+                                            onClick = { onStartUpdateDownload(rel) },
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Icon(Icons.Rounded.Download, contentDescription = null, modifier = Modifier.size(16.dp))
+                                            Spacer(modifier = Modifier.size(6.dp))
+                                            Text("Скачать и установить APK", fontSize = 12.sp)
+                                        }
+                                    }
+
+                                    is UpdateDownloadState.Downloading -> {
+                                        val pct = updateDownloadState.progress?.let { "${(it * 100).toInt()}%" } ?: "..."
+                                        if (updateDownloadState.progress != null) {
+                                            LinearProgressIndicator(
+                                                progress = { updateDownloadState.progress },
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
+                                        } else {
+                                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                                        }
+                                        Text(
+                                            text = "Загрузка APK: $pct",
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
+                                    }
+
+                                    is UpdateDownloadState.ReadyToInstall -> {
+                                        Button(
+                                            onClick = { onInstallUpdateApk(updateDownloadState.apkFile) },
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Icon(Icons.Rounded.SystemUpdate, contentDescription = null, modifier = Modifier.size(16.dp))
+                                            Spacer(modifier = Modifier.size(6.dp))
+                                            Text("Установить скачанный APK", fontSize = 12.sp)
+                                        }
+                                    }
+
+                                    is UpdateDownloadState.Failed -> {
+                                        Text(
+                                            text = updateDownloadState.message,
+                                            fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.error
+                                        )
+                                        Button(
+                                            onClick = { onStartUpdateDownload(rel) },
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Text("Повторить загрузку", fontSize = 12.sp)
+                                        }
+                                    }
+                                }
+
+                                OutlinedButton(
+                                    onClick = { onOpenReleaseUrl(rel.htmlUrl) },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = null, modifier = Modifier.size(15.dp))
+                                    Spacer(modifier = Modifier.size(6.dp))
+                                    Text("Открыть релиз на GitHub", fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
+
+                    null -> Unit
+                }
+
+                OutlinedButton(
+                    enabled = !isCheckingUpdates && updateDownloadState !is UpdateDownloadState.Downloading,
+                    onClick = onCheckUpdates,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Rounded.Refresh, contentDescription = null, modifier = Modifier.size(17.dp))
+                    Spacer(modifier = Modifier.size(8.dp))
+                    Text("Проверить обновления")
                 }
             }
 

@@ -3,10 +3,12 @@ package ru.relsokhod.spb
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -87,6 +89,7 @@ import ru.relsokhod.spb.model.ThemeMode
 import ru.relsokhod.spb.model.TripHistoryEntry
 import ru.relsokhod.spb.router.TramRouter
 import ru.relsokhod.spb.storage.AppPrefs
+import ru.relsokhod.spb.ui.components.AppUpdateBanner
 import ru.relsokhod.spb.ui.components.SettingsSheet
 import ru.relsokhod.spb.ui.components.StartupSplash
 import ru.relsokhod.spb.ui.screens.FavoritesTab
@@ -95,6 +98,12 @@ import ru.relsokhod.spb.ui.screens.OnboardingScreen
 import ru.relsokhod.spb.ui.screens.RouteTab
 import ru.relsokhod.spb.ui.screens.SearchTab
 import ru.relsokhod.spb.ui.theme.RelsokhodTheme
+import ru.relsokhod.spb.update.AppUpdateLogic
+import ru.relsokhod.spb.update.AppUpdateManager
+import ru.relsokhod.spb.update.AvailableRelease
+import ru.relsokhod.spb.update.UpdateCheckResult
+import ru.relsokhod.spb.update.UpdateDownloadState
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -116,7 +125,8 @@ private data class BootstrapData(
     val spbParams: SearchParamsState,
     val omskParams: SearchParamsState,
     val savedRoutes: List<SavedRoute>,
-    val history: List<TripHistoryEntry>
+    val history: List<TripHistoryEntry>,
+    val dismissedUpdateTag: String?
 )
 
 class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
@@ -229,6 +239,109 @@ private fun RelsokhodNativeApp(
 
     var outcome by remember { mutableStateOf<GenerationOutcome?>(null) }
     var generationJob by remember { mutableStateOf<Job?>(null) }
+
+    var dismissedUpdateTag by remember { mutableStateOf<String?>(null) }
+    var isCheckingUpdates by remember { mutableStateOf(false) }
+    var updateCheckResult by remember { mutableStateOf<UpdateCheckResult?>(null) }
+    var updateDownloadState by remember { mutableStateOf<UpdateDownloadState>(UpdateDownloadState.Idle) }
+    var updateDownloadJob by remember { mutableStateOf<Job?>(null) }
+    var pendingInstallApk by remember { mutableStateOf<File?>(null) }
+
+    val unknownSourcesLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        val file = pendingInstallApk
+        if (file != null && file.exists() && AppUpdateManager.canRequestPackageInstalls(activity)) {
+            pendingInstallApk = null
+            if (!AppUpdateManager.launchApkInstaller(activity, file)) {
+                Toast.makeText(activity, "Не удалось запустить установщик APK", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    fun triggerApkInstall(file: File) {
+        if (!file.exists()) {
+            Toast.makeText(activity, "Файл обновления не найден, скачайте заново", Toast.LENGTH_SHORT).show()
+            updateDownloadState = UpdateDownloadState.Idle
+            return
+        }
+        if (AppUpdateManager.canRequestPackageInstalls(activity)) {
+            if (!AppUpdateManager.launchApkInstaller(activity, file)) {
+                Toast.makeText(activity, "Не удалось открыть установщик APK", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            pendingInstallApk = file
+            Toast.makeText(activity, "Разрешите установку обновлений для Рельсохода", Toast.LENGTH_LONG).show()
+            runCatching {
+                unknownSourcesLauncher.launch(AppUpdateManager.buildUnknownSourcesSettingsIntent(activity))
+            }.onFailure {
+                pendingInstallApk = null
+                Toast.makeText(activity, "Откройте настройки безопасности и разрешите установку APK", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    fun openReleaseInBrowser(rawUrl: String) {
+        if (!AppUpdateLogic.isAllowedGitHubUrl(rawUrl)) return
+        runCatching {
+            activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(rawUrl)))
+        }.onFailure {
+            Toast.makeText(activity, "Не найден браузер для открытия GitHub", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun checkUpdates(manual: Boolean) {
+        if (isCheckingUpdates) return
+        coroutineScope.launch {
+            isCheckingUpdates = true
+            if (manual) {
+                dismissedUpdateTag = null
+                withContext(Dispatchers.IO) { prefs.setDismissedUpdateTag(null) }
+            }
+            val result = AppUpdateManager.checkForUpdates(
+                repoSlug = BuildConfig.GITHUB_REPO,
+                currentVersionName = BuildConfig.VERSION_NAME,
+                currentCiRunNumber = BuildConfig.CI_RUN_NUMBER,
+                preferDebugApk = BuildConfig.DEBUG
+            )
+            updateCheckResult = result
+            isCheckingUpdates = false
+            if (manual && result is UpdateCheckResult.UpToDate) {
+                Toast.makeText(activity, "У вас установлена актуальная версия", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    fun startUpdateDownload(release: AvailableRelease) {
+        if (updateDownloadState is UpdateDownloadState.Downloading) return
+        updateDownloadJob?.cancel()
+        updateDownloadJob = coroutineScope.launch {
+            updateDownloadState = UpdateDownloadState.Downloading(
+                progress = null,
+                downloadedBytes = 0L,
+                totalBytes = release.apkAsset.sizeBytes
+            )
+            val result = AppUpdateManager.downloadUpdateApk(
+                context = appContext,
+                release = release,
+                onProgress = { progress, downloaded, total ->
+                    coroutineScope.launch {
+                        if (updateDownloadState is UpdateDownloadState.Downloading) {
+                            updateDownloadState = UpdateDownloadState.Downloading(progress, downloaded, total)
+                        }
+                    }
+                }
+            )
+            result.onSuccess { apkFile ->
+                updateDownloadState = UpdateDownloadState.ReadyToInstall(apkFile, release)
+                triggerApkInstall(apkFile)
+            }.onFailure { err ->
+                updateDownloadState = UpdateDownloadState.Failed(
+                    err.message?.takeIf { it.isNotBlank() } ?: "Не удалось скачать APK"
+                )
+            }
+        }
+    }
 
     fun generateTripFor(
         cityCfg: CityConfig,
@@ -390,7 +503,8 @@ private fun RelsokhodNativeApp(
                 spbParams = prefs.getSearchParams(CityId.SPB, spbDefault),
                 omskParams = prefs.getSearchParams(CityId.OMSK, omskDefault),
                 savedRoutes = prefs.loadSavedRoutes(),
-                history = prefs.loadHistory()
+                history = prefs.loadHistory(),
+                dismissedUpdateTag = prefs.getDismissedUpdateTag()
             )
         }
         cities = data.cities
@@ -403,6 +517,7 @@ private fun RelsokhodNativeApp(
         omskParams = data.omskParams
         savedRoutes = data.savedRoutes
         history = data.history
+        dismissedUpdateTag = data.dismissedUpdateTag
         isBootstrapping = false
 
         val initialCfg = data.cities[data.selectedCity] ?: data.cities.values.firstOrNull()
@@ -435,6 +550,13 @@ private fun RelsokhodNativeApp(
         if (!isBootstrapping && showAnimatedSplash) {
             delay(1050)
             showAnimatedSplash = false
+        }
+    }
+
+    LaunchedEffect(isBootstrapping) {
+        if (!isBootstrapping && updateCheckResult == null) {
+            delay(1200)
+            checkUpdates(manual = false)
         }
     }
 
@@ -542,6 +664,27 @@ private fun RelsokhodNativeApp(
                     .fillMaxSize()
                     .padding(innerPadding)
             ) {
+                val availableUpdate = (updateCheckResult as? UpdateCheckResult.UpdateAvailable)?.release
+                val showUpdateBanner = availableUpdate != null && (
+                    dismissedUpdateTag != availableUpdate.tagName ||
+                        updateDownloadState !is UpdateDownloadState.Idle
+                    )
+                if (showUpdateBanner && availableUpdate != null) {
+                    AppUpdateBanner(
+                        release = availableUpdate,
+                        downloadState = updateDownloadState,
+                        onStartDownload = { startUpdateDownload(availableUpdate) },
+                        onInstallApk = { file -> triggerApkInstall(file) },
+                        onOpenInBrowser = { url -> openReleaseInBrowser(url) },
+                        onDismiss = {
+                            dismissedUpdateTag = availableUpdate.tagName
+                            coroutineScope.launch(Dispatchers.IO) {
+                                prefs.setDismissedUpdateTag(availableUpdate.tagName)
+                            }
+                        }
+                    )
+                }
+
                 if (!mismatchDismissed && cityDetection != null && cityDetection?.detected != selectedCity) {
                     CityMismatchBanner(
                         selectedCity = currentCityConfig,
@@ -730,6 +873,13 @@ private fun RelsokhodNativeApp(
                 themeMode = themeMode,
                 accentSeed = accentSeed,
                 photoReminderMinutes = photoReminderMinutes,
+                isCheckingUpdates = isCheckingUpdates,
+                updateCheckResult = updateCheckResult,
+                updateDownloadState = updateDownloadState,
+                onCheckUpdates = { checkUpdates(manual = true) },
+                onStartUpdateDownload = { release -> startUpdateDownload(release) },
+                onInstallUpdateApk = { file -> triggerApkInstall(file) },
+                onOpenReleaseUrl = { url -> openReleaseInBrowser(url) },
                 onChangeCity = { switchCity(it) },
                 onChangeThemeMode = {
                     themeMode = it
