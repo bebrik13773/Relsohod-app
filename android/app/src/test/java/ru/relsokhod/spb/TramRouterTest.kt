@@ -240,4 +240,60 @@ class TramRouterTest {
         assertEquals(spbTotalDistricts, stats.spbDistrictsTotal)
         assertTrue(stats.spbDistrictNames.all { it in spbTrip.districtsVisited })
     }
+
+    @Test
+    fun officialAudioGuidesMatchSpbLinesAndOmskCity() {
+        val cities = loadCities()
+        val spb = cities.getValue(CityId.SPB)
+        val omsk = cities.getValue(CityId.OMSK)
+
+        assertTrue(TramRouter.OFFICIAL_AUDIO_GUIDES.all { it.url.startsWith("https://") })
+
+        val spbOutcome = TramRouter.generateTramAdventure(
+            city = CityId.SPB,
+            stops = spb.stops,
+            routes = spb.routes,
+            landmarks = spb.landmarks,
+            startStopId = spb.defaultStartStopId,
+            durationPreset = DurationPreset.MEDIUM,
+            dayOfWeek = 3,
+            timeMinutes = 14 * 60,
+            seed = 123L
+        ) as GenerationOutcome.Ok
+        val spbGuides = TramRouter.matchAudioGuidesForTrip(spbOutcome.trip, limit = 3)
+        assertEquals(3, spbGuides.size)
+        assertTrue(spbGuides.all { it.guide.city == CityId.SPB })
+
+        val t1Trip = spbOutcome.trip.copy(
+            tramLinesUsed = listOf("3"),
+            districtsVisited = listOf("Адмиралтейский", "Центральный")
+        )
+        val route3Guides = TramRouter.matchAudioGuidesForTrip(t1Trip, limit = 3)
+        assertEquals("spb-get-route-3", route3Guides.first().guide.id)
+        assertTrue(route3Guides.first().matchReason.contains("№ 3"))
+
+        val omskOutcome = TramRouter.generateTramAdventure(
+            city = CityId.OMSK,
+            stops = omsk.stops,
+            routes = omsk.routes,
+            landmarks = omsk.landmarks,
+            startStopId = omsk.defaultStartStopId,
+            durationPreset = DurationPreset.SHORT,
+            dayOfWeek = 3,
+            timeMinutes = 14 * 60,
+            seed = 77L
+        ) as GenerationOutcome.Ok
+        val omskGuides = TramRouter.matchAudioGuidesForTrip(omskOutcome.trip, limit = 3)
+        assertEquals(3, omskGuides.size)
+        assertTrue(omskGuides.all { it.guide.city == CityId.OMSK })
+
+        val multiLineTrip = spbOutcome.trip.copy(
+            tramLinesUsed = listOf("3", "52", "60"),
+            districtsVisited = listOf("Адмиралтейский", "Кировский")
+        )
+        val step3Guide = TramRouter.matchAudioGuidesForTrip(multiLineTrip, limit = 1, preferredRouteNumber = "3").first()
+        assertEquals("spb-get-route-3", step3Guide.guide.id)
+        assertTrue(step3Guide.matchReason.contains("№ 3"))
+    }
 }
+

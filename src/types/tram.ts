@@ -162,3 +162,23 @@ export interface PersistedPlannerState {
   onlyWithPhotos: boolean;
   landmarkCategories: LandmarkCategory[];
 }
+
+export interface OfficialAudioGuide {
+  id: string;
+  city: CityId;
+  title: string;
+  portalName: string;
+  url: string;
+  durationLabel: string;
+  description: string;
+  matchRouteNumbers: string[];
+  matchDistricts: string[];
+  matchLandmarkIds?: string[];
+  isCityOverview?: boolean;
+}
+
+export interface MatchedAudioGuide extends OfficialAudioGuide {
+  matchReason: string;
+  matchScore: number;
+}
+

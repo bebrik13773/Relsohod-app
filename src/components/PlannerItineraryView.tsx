@@ -9,6 +9,7 @@ import {
   Dices,
   ExternalLink,
   Footprints,
+  Headphones,
   Navigation2,
   Play,
   RefreshCw,
@@ -20,6 +21,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { CityId, GeneratedTrip, GenerationOutcome } from '../types/tram';
+import { matchAudioGuidesForTrip } from '../data/audioGuides';
 import {
   buildTripAnnouncements,
   speakAnnouncement,
@@ -78,6 +80,10 @@ export function PlannerItineraryView({
   }, []);
 
   const tripForMemo = outcome?.status === 'ok' ? outcome.trip : null;
+  const matchedGuides = useMemo(
+    () => (tripForMemo ? matchAudioGuidesForTrip(tripForMemo, 3) : []),
+    [tripForMemo]
+  );
   const announcements = useMemo(
     () => (tripForMemo ? buildTripAnnouncements(tripForMemo, city) : []),
     [tripForMemo, city]
@@ -314,7 +320,7 @@ export function PlannerItineraryView({
 
         {/* Yandex Maps Navigation Strip */}
         <div
-          className="mt-4 flex flex-wrap items-center gap-2 rounded-2xl border p-2.5"
+          className="mt-4 flex flex-nowrap items-center gap-2 rounded-2xl border p-2.5"
           style={{
             backgroundColor: 'var(--md-surface-container)',
             borderColor: 'var(--border-hairline)',
@@ -325,21 +331,21 @@ export function PlannerItineraryView({
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => triggerHaptic('light')}
-            className="m3-tactile inline-flex min-h-[38px] flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold whitespace-nowrap"
+            className="m3-tactile inline-flex min-h-[38px] min-w-0 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold whitespace-nowrap"
             style={{
               backgroundColor: 'var(--md-primary-container)',
               color: 'var(--md-on-primary-container)',
             }}
           >
-            <Navigation2 className="h-3.5 w-3.5" />
-            Открыть в Яндекс Картах
-            <ExternalLink className="h-3 w-3 opacity-75" />
+            <Navigation2 className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">Яндекс Карты</span>
+            <ExternalLink className="h-3 w-3 shrink-0 opacity-75" />
           </a>
           <button
             type="button"
             onClick={handleCopyYandex}
             aria-label="Скопировать ссылку на маршрут в Яндекс Картах"
-            className="m3-tactile inline-flex min-h-[38px] cursor-pointer items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold whitespace-nowrap"
+            className="m3-tactile inline-flex min-h-[38px] shrink-0 cursor-pointer items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold whitespace-nowrap"
             style={{
               backgroundColor: 'var(--bg-surface)',
               color: 'var(--text-primary)',
@@ -528,41 +534,116 @@ export function PlannerItineraryView({
         )}
       </div>
 
-      {/* Idea 2: Authentic City Auto-Informer Preview */}
-      {announcements.length > 0 && (
-        <div className="m3-card rounded-3xl p-4 sm:p-5">
+      {/* Curated Official Portal Audio Guides Matched to This Route */}
+      {matchedGuides.length > 0 && (
+        <section
+          aria-label="Официальные аудиогиды по маршруту"
+          className="m3-card rounded-3xl p-4 sm:p-5"
+        >
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-bold" style={{ color: 'var(--text-secondary)' }}>
-              Автоинформатор ({city === 'omsk' ? 'Электрический транспорт' : 'Горэлектротранс'})
-            </span>
-            <button
-              type="button"
-              onClick={() =>
-                handleToggleSpeech(announcements[0].id, announcements[0].text)
-              }
-              className="m3-tactile inline-flex min-h-[34px] cursor-pointer items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold"
-              style={{
-                backgroundColor: 'var(--md-primary-container)',
-                color: 'var(--md-on-primary-container)',
-              }}
-            >
-              {playingAnnId === announcements[0].id ? (
-                <>
-                  <VolumeX className="h-3.5 w-3.5" />
-                  Стоп
-                </>
-              ) : (
-                <>
-                  <Volume2 className="h-3.5 w-3.5" />
-                  Диктовка
-                </>
-              )}
-            </button>
+            <div className="flex min-w-0 items-center gap-2">
+              <Headphones className="h-4 w-4 shrink-0" style={{ color: 'var(--accent-primary)' }} />
+              <h3 className="truncate text-[13px] font-bold sm:text-sm" style={{ color: 'var(--text-primary)' }}>
+                Официальные аудиогиды
+              </h3>
+            </div>
+            {announcements.length > 0 && (
+              <button
+                type="button"
+                aria-label="Озвучка остановок (TTS)"
+                onClick={() =>
+                  handleToggleSpeech(
+                    'all-stops',
+                    announcements.map((a) => a.text).join(' ')
+                  )
+                }
+                className="m3-tactile inline-flex min-h-[36px] cursor-pointer items-center gap-1.5 rounded-xl px-2.5 py-1 text-xs font-medium transition-colors whitespace-nowrap shrink-0"
+                style={{
+                  backgroundColor: 'var(--bg-elevated)',
+                  color: 'var(--text-secondary)',
+                }}
+              >
+                {playingAnnId === 'all-stops' ? (
+                  <>
+                    <VolumeX className="h-3.5 w-3.5" />
+                    <span>Стоп<span className="hidden sm:inline"> TTS</span></span>
+                  </>
+                ) : (
+                  <>
+                    <Volume2 className="h-3.5 w-3.5" />
+                    <span>Озвучка<span className="hidden sm:inline"> (TTS)</span></span>
+                  </>
+                )}
+              </button>
+            )}
           </div>
-          <p className="mt-2 text-xs italic leading-relaxed" style={{ color: 'var(--text-primary)' }}>
-            «{announcements[0].text}»
-          </p>
-        </div>
+
+          <div className="mt-3 flex flex-col">
+            {matchedGuides.map((guide, index) => (
+              <div
+                key={guide.id}
+                className={index > 0 ? 'mt-3.5 border-t pt-3.5' : ''}
+                style={index > 0 ? { borderColor: 'var(--border-hairline)' } : undefined}
+              >
+                <div
+                  className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] font-medium"
+                  style={{ color: 'var(--accent-primary)' }}
+                >
+                  <span>{guide.matchReason}</span>
+                  <span aria-hidden="true" style={{ color: 'var(--text-muted)' }}>
+                    ·
+                  </span>
+                  <span style={{ color: 'var(--text-muted)' }}>{guide.portalName}</span>
+                  <span aria-hidden="true" style={{ color: 'var(--text-muted)' }}>
+                    ·
+                  </span>
+                  <span className="font-mono-num" style={{ color: 'var(--text-muted)' }}>
+                    {guide.durationLabel}
+                  </span>
+                </div>
+
+                <div
+                  className="mt-1 text-sm font-bold leading-snug"
+                  style={{ color: 'var(--text-primary)' }}
+                >
+                  {guide.title}
+                </div>
+
+                <p
+                  className="mt-1 text-xs leading-relaxed"
+                  style={{ color: 'var(--text-secondary)' }}
+                >
+                  {guide.description}
+                </p>
+
+                <div className="mt-2.5 flex items-center">
+                  <a
+                    href={guide.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => triggerHaptic('light')}
+                    className="m3-tactile inline-flex min-h-[40px] cursor-pointer items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold whitespace-nowrap"
+                    style={
+                      index === 0
+                        ? {
+                            backgroundColor: 'var(--md-primary-container)',
+                            color: 'var(--md-on-primary-container)',
+                          }
+                        : {
+                            backgroundColor: 'var(--bg-elevated)',
+                            color: 'var(--text-primary)',
+                          }
+                    }
+                  >
+                    <Headphones className="h-3.5 w-3.5" />
+                    Слушать на официальном портале
+                    <ExternalLink className="h-3 w-3 opacity-75" />
+                  </a>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
       )}
 
       {/* Spacious Step-by-Step Transit Timeline */}

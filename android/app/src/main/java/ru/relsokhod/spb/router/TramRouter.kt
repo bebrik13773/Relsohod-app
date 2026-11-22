@@ -6,7 +6,9 @@ import ru.relsokhod.spb.model.GeneratedTrip
 import ru.relsokhod.spb.model.GenerationOutcome
 import ru.relsokhod.spb.model.Landmark
 import ru.relsokhod.spb.model.LandmarkCategory
+import ru.relsokhod.spb.model.MatchedAudioGuide
 import ru.relsokhod.spb.model.ModeBalance
+import ru.relsokhod.spb.model.OfficialAudioGuide
 import ru.relsokhod.spb.model.PassportBadge
 import ru.relsokhod.spb.model.RouteSegment
 import ru.relsokhod.spb.model.RouteThemeFilter
@@ -1020,5 +1022,211 @@ object TramRouter {
             spbDistrictsTotal = spbTotalDistrictsCount,
             spbDistrictNames = spbDistricts.sorted()
         )
+    }
+
+    val OFFICIAL_AUDIO_GUIDES: List<OfficialAudioGuide> = listOf(
+        OfficialAudioGuide(
+            id = "spb-get-route-3",
+            city = CityId.SPB,
+            title = "Видовой трамвайный маршрут № 3",
+            portalName = "izi.TRAVEL · СПб ГУП «Горэлектротранс»",
+            url = "https://izi.travel/ru/3f47-vidovoy-tramvaynyy-marshrut-no3/ru",
+            durationLabel = "~45 мин",
+            description = "Официальный аудиогид Горэлектротранса по трамваю № 3: площадь Репина, Семимостье, Сенная, Марсово поле, Троицкий мост и Финляндский вокзал.",
+            matchRouteNumbers = listOf("3"),
+            matchDistricts = listOf("Адмиралтейский", "Центральный", "Петроградская сторона", "Петроградский")
+        ),
+        OfficialAudioGuide(
+            id = "spb-get-museum-channel",
+            city = CityId.SPB,
+            title = "Экскурсии «Петербургский Горэлектротранс» и ретро-трамвай Т1",
+            portalName = "izi.TRAVEL · Музей ГЭТ СПб",
+            url = "https://izi.travel/ru/0721-peterburgskiy-gorelektrotrans/ru",
+            durationLabel = "Подборка",
+            description = "Фирменные аудиоэкскурсии перевозчика об истории петербургского трамвая, маршруте «Первый туристический» (Т1) и трамвайных мостах через Неву.",
+            matchRouteNumbers = listOf("Т1", "6", "40", "23", "1"),
+            matchDistricts = listOf("Васильевский остров", "Петроградская сторона", "Центральный"),
+            isCityOverview = true
+        ),
+        OfficialAudioGuide(
+            id = "spb-get-museum-site",
+            city = CityId.SPB,
+            title = "Музей городского электрического транспорта и ретро-рейс Т1",
+            portalName = "Официальный сайт Музея ГЭТ",
+            url = "https://getmuseum.ru/",
+            durationLabel = "Расписание и гид",
+            description = "Официальная страница Экспозиционно-выставочного комплекса ГЭТ на Среднем проспекте В.О., 77: трассы туристического ретро-трамвая Т1 и история вагонов.",
+            matchRouteNumbers = listOf("Т1"),
+            matchDistricts = listOf("Васильевский остров")
+        ),
+        OfficialAudioGuide(
+            id = "spb-kgiop-52-60",
+            city = CityId.SPB,
+            title = "Краеведческие аудиогиды по трамваям № 52 и № 60",
+            portalName = "izi.TRAVEL · КГИОП СПб",
+            url = "https://izi.travel/ru/6f29-mezhregionalnyy-festival-socialnykh-proektov-kgiop-missiya-sokhranit/ru",
+            durationLabel = "~40 мин",
+            description = "Аудиомаршруты по юго-западу Петербурга (к Северной верфи, Сосновой Поляне и ЛЭМЗ), озвученные актрисой Анастасией Мельниковой в проекте КГИОП.",
+            matchRouteNumbers = listOf("52", "60", "36", "41"),
+            matchDistricts = listOf("Кировский", "Красносельский", "Петродворцовый")
+        ),
+        OfficialAudioGuide(
+            id = "spb-visit-kolomna",
+            city = CityId.SPB,
+            title = "Очарование Коломны",
+            portalName = "Visit Petersburg · Комитет по туризму СПб",
+            url = "https://visit-petersburg.ru/route/ocharovanie-kolomny/",
+            durationLabel = "~50 мин",
+            description = "Официальный городской аудиомаршрут вдоль Крюкова канала, Никольского собора, Семимостья и площади Тургенева рядом с линией трамваев № 3 и № 16.",
+            matchRouteNumbers = listOf("3", "16", "41"),
+            matchDistricts = listOf("Адмиралтейский")
+        ),
+        OfficialAudioGuide(
+            id = "spb-visit-vasilevsky",
+            city = CityId.SPB,
+            title = "Васильевский. Остров памяти и славы",
+            portalName = "Visit Petersburg · Комитет по туризму СПб",
+            url = "https://visit-petersburg.ru/route/vasilevskiy-ostrov-pamyati-i-slavy/",
+            durationLabel = "~55 мин",
+            description = "Официальный аудиомаршрут по линиям Васильевского острова, Стрелке, Среднему проспекту и набережным Невы вдоль трамваев № 1, № 6, № 40 и Т1.",
+            matchRouteNumbers = listOf("1", "6", "40", "Т1"),
+            matchDistricts = listOf("Васильевский остров")
+        ),
+        OfficialAudioGuide(
+            id = "spb-visit-nevsky",
+            city = CityId.SPB,
+            title = "Храмы Невского проспекта и исторический центр",
+            portalName = "Visit Petersburg · Комитет по туризму СПб",
+            url = "https://visit-petersburg.ru/route/khramy-nevskogo-prospekta/",
+            durationLabel = "~45 мин",
+            description = "Официальный аудиопутеводитель Visit Petersburg по парадному центру, Литейному, Садовой и окрестностям центральных трамвайных линий.",
+            matchRouteNumbers = listOf("3", "16", "А", "Т1"),
+            matchDistricts = listOf("Центральный", "Адмиралтейский")
+        ),
+        OfficialAudioGuide(
+            id = "spb-visit-new-geography",
+            city = CityId.SPB,
+            title = "Новая туристская география Петербурга XXI века",
+            portalName = "Visit Petersburg · Комитет по туризму СПб",
+            url = "https://visit-petersburg.ru/route/audiomarshrut-novaya-turistskaya-geografiya-10-dostoprimechatelnostey-sankt-peterburga-xxi-veka/",
+            durationLabel = "~60 мин",
+            description = "Официальный аудиомаршрут по современным кварталам, набережным Приморского, Невского и Красногвардейского районов и сети «Чижик».",
+            matchRouteNumbers = listOf("48", "19", "7", "8", "63", "64", "23"),
+            matchDistricts = listOf(
+                "Приморский", "Невский", "Красногвардейский",
+                "Выборгский", "Калининский", "Московский", "Фрунзенский"
+            )
+        ),
+        OfficialAudioGuide(
+            id = "spb-visit-portal",
+            city = CityId.SPB,
+            title = "Официальный туристский портал Санкт-Петербурга",
+            portalName = "Visit Petersburg",
+            url = "https://visit-petersburg.ru/",
+            durationLabel = "Каталог гидов",
+            description = "Официальная подборка городских аудиоэкскурсий, подкастов и маршрутов по всем районам Петербурга.",
+            matchRouteNumbers = emptyList(),
+            matchDistricts = emptyList(),
+            isCityOverview = true
+        ),
+        OfficialAudioGuide(
+            id = "omsk-tic-welcome",
+            city = CityId.OMSK,
+            title = "Добро пожаловать в Омск!",
+            portalName = "izi.TRAVEL · ТИЦ Омской области",
+            url = "https://izi.travel/ru/09f1-dobro-pozhalovat-v-omsk/ru",
+            durationLabel = "~50 мин",
+            description = "Официальный обзорный аудиогид Туристского информационного центра Омской области: Омская крепость, Любинский проспект, площадь Бухгольца и набережная Иртыша.",
+            matchRouteNumbers = listOf("1", "2", "4", "7", "8", "9"),
+            matchDistricts = listOf("Центральный", "Ленинский", "Кировский"),
+            isCityOverview = true
+        ),
+        OfficialAudioGuide(
+            id = "omsk-next-stop",
+            city = CityId.OMSK,
+            title = "Следующая остановка — Омск из окна электротранспорта",
+            portalName = "izi.TRAVEL · Культурный проект Омска",
+            url = "https://izi.travel/ru/c234-sleduyuschaya-ostanovka/ru",
+            durationLabel = "~45 мин",
+            description = "Аудиоэкскурсия о районах и магистралях Омска из окна городского электротранспорта — отличное сопровождение для прогулки на омском трамвае.",
+            matchRouteNumbers = listOf("4", "7", "8", "2", "9"),
+            matchDistricts = listOf("Центральный", "Октябрьский", "Советский", "Ленинский", "Амурский посёлок"),
+            isCityOverview = true
+        ),
+        OfficialAudioGuide(
+            id = "omsk-dostoevsky-walk",
+            city = CityId.OMSK,
+            title = "Прогулка с Ф. М. Достоевским по Омску",
+            portalName = "izi.TRAVEL · Литературный Омск",
+            url = "https://izi.travel/ru/bd19-progulka-s-f-m-dostoevskim/ru",
+            durationLabel = "~40 мин",
+            description = "Аудиомаршрут по историческому центру, Воскресенскому военному собору, Омской крепости и дому коменданта — вдоль центральных трамвайных узлов.",
+            matchRouteNumbers = listOf("1", "4", "7", "8"),
+            matchDistricts = listOf("Центральный")
+        ),
+        OfficialAudioGuide(
+            id = "omsk-dostoevsky-fortress",
+            city = CityId.OMSK,
+            title = "Достоевский. Я здесь сидел",
+            portalName = "izi.TRAVEL · Омская крепость",
+            url = "https://izi.travel/ru/7fc4-dostoevskiy-ya-zdes-sidel/ru",
+            durationLabel = "~35 мин",
+            description = "Исторический аудиогид о годах писателя в Омске, Тарских и Тобольских воротах и памятниках центра города.",
+            matchRouteNumbers = listOf("4", "7", "8"),
+            matchDistricts = listOf("Центральный", "Октябрьский")
+        )
+    )
+
+    fun matchAudioGuidesForTrip(
+        trip: GeneratedTrip,
+        limit: Int = 3,
+        preferredRouteNumber: String? = null
+    ): List<MatchedAudioGuide> {
+        val usedLines = trip.tramLinesUsed.map { it.trim().uppercase(Locale.ROOT) }.toSet()
+        val preferredToken = preferredRouteNumber?.trim()?.uppercase(Locale.ROOT)
+        val visitedDistricts = trip.districtsVisited.map { it.trim() }.toSet()
+        val landmarkIds = trip.landmarks.map { it.id }.toSet()
+
+        return OFFICIAL_AUDIO_GUIDES
+            .filter { it.city == trip.city }
+            .map { guide ->
+                val matchedLines = guide.matchRouteNumbers.filter {
+                    it.trim().uppercase(Locale.ROOT) in usedLines
+                }
+                val matchesPreferredLine = preferredToken != null &&
+                    guide.matchRouteNumbers.any { it.trim().uppercase(Locale.ROOT) == preferredToken }
+                val matchedDistricts = guide.matchDistricts.filter { it.trim() in visitedDistricts }
+                val matchedLandmarks = guide.matchLandmarkIds.filter { it in landmarkIds }
+
+                var score = (if (matchesPreferredLine) 600 + (if (guide.matchRouteNumbers.size == 1) 250 else 0) else 0) +
+                    matchedLines.size * 100 +
+                    matchedDistricts.size * 35 +
+                    matchedLandmarks.size * 20
+                if (guide.isCityOverview) score += 12
+
+                val reason = when {
+                    matchesPreferredLine && !preferredRouteNumber.isNullOrBlank() ->
+                        "Сейчас по шагу: трамвай № $preferredRouteNumber"
+                    matchedLines.isNotEmpty() ->
+                        "По вашему маршруту: трамвай № ${matchedLines.joinToString(", № ")}"
+                    matchedDistricts.isNotEmpty() ->
+                        "Район маршрута: ${matchedDistricts.take(2).joinToString(", ")}"
+                    trip.city == CityId.OMSK ->
+                        "Официальный обзорный аудиогид по Омску"
+                    else ->
+                        "Официальный городской аудиопортал СПб"
+                }
+
+                MatchedAudioGuide(
+                    guide = guide,
+                    matchReason = reason,
+                    matchScore = score
+                )
+            }
+            .sortedWith(
+                compareByDescending<MatchedAudioGuide> { it.matchScore }
+                    .thenBy { it.guide.title }
+            )
+            .take(limit.coerceAtLeast(1))
     }
 }

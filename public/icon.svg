@@ -1,25 +1,101 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
-    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0f5e8c" />
-      <stop offset="100%" stop-color="#0a4468" />
+    <linearGradient id="nevaBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#072B47" />
+      <stop offset="55%" stop-color="#0F5E8C" />
+      <stop offset="100%" stop-color="#0D7A6F" />
+    </linearGradient>
+    <linearGradient id="nevaGlass" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#082F49" />
+      <stop offset="100%" stop-color="#0E4A6F" />
+    </linearGradient>
+    <linearGradient id="nevaWave" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#38BDF8" />
+      <stop offset="50%" stop-color="#5EEAD4" />
+      <stop offset="100%" stop-color="#38BDF8" />
     </linearGradient>
   </defs>
-  <rect width="512" height="512" rx="112" fill="url(#bgGrad)" />
-  <!-- Pantograph bow -->
-  <path d="M188 124 L324 124 M214 124 L256 164 L298 124" fill="none" stroke="#ffffff" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" opacity="0.92" />
-  <!-- Tram body -->
-  <rect x="148" y="164" width="216" height="206" rx="46" fill="#ffffff" />
-  <!-- Windshield -->
-  <rect x="176" y="196" width="160" height="82" rx="22" fill="#0f5e8c" />
-  <!-- Route strip highlight -->
-  <rect x="218" y="176" width="76" height="10" rx="5" fill="#0d7a5f" />
-  <!-- Headlights -->
-  <circle cx="196" cy="322" r="18" fill="#0f5e8c" />
-  <circle cx="316" cy="322" r="18" fill="#0f5e8c" />
-  <!-- Center coupler line -->
-  <rect x="234" y="316" width="44" height="12" rx="6" fill="#94a3b8" />
-  <!-- Rails -->
-  <path d="M196 382 L152 444 M316 382 L360 444" fill="none" stroke="#ffffff" stroke-width="18" stroke-linecap="round" opacity="0.88" />
-  <path d="M180 416 L332 416" fill="none" stroke="#ffffff" stroke-width="12" stroke-linecap="round" opacity="0.55" />
+
+  <!-- Deep Neva River & Sky Gradient -->
+  <rect width="512" height="512" rx="112" fill="url(#nevaBg)" />
+
+  <!-- Subtle Neva bridge arch halo -->
+  <path
+    d="M72 340 Q256 170 440 340"
+    fill="none"
+    stroke="#7DD3FC"
+    stroke-width="8"
+    stroke-linecap="round"
+    opacity="0.16"
+  />
+  <path
+    d="M136 118 Q256 104 376 118"
+    fill="none"
+    stroke="#7DD3FC"
+    stroke-width="6"
+    stroke-linecap="round"
+    opacity="0.55"
+  />
+
+  <!-- Pantograph -->
+  <path
+    d="M206 124 L306 124"
+    fill="none"
+    stroke="#FFFFFF"
+    stroke-width="14"
+    stroke-linecap="round"
+  />
+  <path
+    d="M224 124 L256 156 L288 124"
+    fill="none"
+    stroke="#E0F2FE"
+    stroke-width="12"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <rect x="220" y="150" width="72" height="16" rx="8" fill="#BAE6FD" />
+
+  <!-- Streamlined Tram Cabin -->
+  <rect x="162" y="162" width="188" height="178" rx="44" fill="#FFFFFF" />
+  <!-- Route LED Bar -->
+  <rect x="212" y="176" width="88" height="11" rx="5.5" fill="#14B8A6" />
+  <!-- Panoramic Windshield -->
+  <rect x="184" y="198" width="144" height="72" rx="20" fill="url(#nevaGlass)" />
+  <!-- Glass Sheen -->
+  <path d="M198 260 L234 206 L256 206 L220 260 Z" fill="#38BDF8" opacity="0.26" />
+  <path d="M242 260 L272 214 L286 214 L256 260 Z" fill="#5EEAD4" opacity="0.18" />
+
+  <!-- Dual Headlights -->
+  <circle cx="204" cy="304" r="15" fill="#0F5E8C" />
+  <circle cx="204" cy="304" r="7" fill="#7DD3FC" />
+  <circle cx="308" cy="304" r="15" fill="#0F5E8C" />
+  <circle cx="308" cy="304" r="7" fill="#7DD3FC" />
+  <!-- Center Coupler -->
+  <rect x="234" y="298" width="44" height="12" rx="6" fill="#94A3B8" />
+
+  <!-- Converging Rails -->
+  <path
+    d="M204 344 L164 402 M308 344 L348 402"
+    fill="none"
+    stroke="#E0F2FE"
+    stroke-width="14"
+    stroke-linecap="round"
+  />
+  <path
+    d="M186 368 L326 368"
+    fill="none"
+    stroke="#BAE6FD"
+    stroke-width="10"
+    stroke-linecap="round"
+    opacity="0.82"
+  />
+
+  <!-- Neva Wave Crest -->
+  <path
+    d="M138 398 Q197 378 256 398 T374 398"
+    fill="none"
+    stroke="url(#nevaWave)"
+    stroke-width="14"
+    stroke-linecap="round"
+  />
 </svg>

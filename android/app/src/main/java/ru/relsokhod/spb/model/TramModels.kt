@@ -257,3 +257,24 @@ data class SearchParamsState(
     val weatherMode: WeatherMode = WeatherMode.CLEAR,
     val preferSpecialFleet: Boolean = false
 )
+
+data class OfficialAudioGuide(
+    val id: String,
+    val city: CityId,
+    val title: String,
+    val portalName: String,
+    val url: String,
+    val durationLabel: String,
+    val description: String,
+    val matchRouteNumbers: List<String>,
+    val matchDistricts: List<String>,
+    val matchLandmarkIds: List<String> = emptyList(),
+    val isCityOverview: Boolean = false
+)
+
+data class MatchedAudioGuide(
+    val guide: OfficialAudioGuide,
+    val matchReason: String,
+    val matchScore: Int
+)
+

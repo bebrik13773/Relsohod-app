@@ -29,6 +29,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.BookmarkAdd
 import androidx.compose.material.icons.rounded.BookmarkAdded
@@ -36,6 +37,7 @@ import androidx.compose.material.icons.rounded.CameraAlt
 import androidx.compose.material.icons.rounded.Casino
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material.icons.rounded.Headphones
 import androidx.compose.material.icons.rounded.Navigation
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.Pause
@@ -70,7 +72,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -213,6 +214,7 @@ fun RouteTab(
                         is GenerationOutcome.Ok -> {
                             val trip = outcome.trip
                             val yandexUrl = remember(trip) { TramRouter.buildYandexMapsRouteUrl(trip) }
+                            val matchedGuides = remember(trip) { TramRouter.matchAudioGuidesForTrip(trip, limit = 3) }
                             val announcements = remember(trip) {
                                 TramRouter.buildAnnouncements(trip, cityConfig.announcerIntro)
                             }
@@ -319,36 +321,110 @@ fun RouteTab(
                                 }
                             }
 
-                            // Автоинформатор card
-                            Surface(
-                                shape = RoundedCornerShape(18.dp),
-                                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(modifier = Modifier.padding(14.dp)) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
+                            // Официальные аудиогиды по маршруту + опциональный TTS автоинформатор
+                            if (matchedGuides.isNotEmpty()) {
+                                Surface(
+                                    shape = RoundedCornerShape(18.dp),
+                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.48f),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(
+                                        modifier = Modifier.padding(14.dp),
+                                        verticalArrangement = Arrangement.spacedBy(10.dp)
                                     ) {
-                                        Text("Автоинформатор", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                        FilledTonalButton(
-                                            onClick = {
-                                                playTramBell()
-                                                onSpeakText(announcements.joinToString(". ") { it.second })
-                                            }
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Icon(Icons.AutoMirrored.Rounded.VolumeUp, contentDescription = null, modifier = Modifier.size(16.dp))
-                                            Spacer(modifier = Modifier.size(4.dp))
-                                            Text("Диктовка", fontSize = 12.sp)
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Icon(
+                                                    Icons.Rounded.Headphones,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                                Text(
+                                                    text = "Официальные аудиогиды",
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 14.sp
+                                                )
+                                            }
+                                            if (announcements.isNotEmpty()) {
+                                                TextButton(
+                                                    onClick = {
+                                                        playTramBell()
+                                                        onSpeakText(announcements.joinToString(". ") { it.second })
+                                                    }
+                                                ) {
+                                                    Icon(
+                                                        Icons.AutoMirrored.Rounded.VolumeUp,
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(15.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.size(4.dp))
+                                                    Text("Озвучка (TTS)", fontSize = 11.sp)
+                                                }
+                                            }
+                                        }
+
+                                        matchedGuides.forEachIndexed { idx, matched ->
+                                            if (idx > 0) {
+                                                HorizontalDivider(
+                                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
+                                                )
+                                            }
+                                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                Text(
+                                                    text = "${matched.matchReason} · ${matched.guide.portalName} · ${matched.guide.durationLabel}",
+                                                    fontSize = 11.sp,
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                    fontWeight = FontWeight.SemiBold
+                                                )
+                                                Text(
+                                                    text = matched.guide.title,
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                                Text(
+                                                    text = matched.guide.description,
+                                                    fontSize = 12.sp,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                                Spacer(modifier = Modifier.height(2.dp))
+                                                val openGuide = {
+                                                    runCatching {
+                                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(matched.guide.url))
+                                                        context.startActivity(intent)
+                                                    }.onFailure {
+                                                        Toast.makeText(context, "Не найдено приложение для открытия портала", Toast.LENGTH_SHORT).show()
+                                                    }
+                                                    Unit
+                                                }
+                                                if (idx == 0) {
+                                                    FilledTonalButton(onClick = openGuide) {
+                                                        Icon(Icons.Rounded.Headphones, contentDescription = null, modifier = Modifier.size(16.dp))
+                                                        Spacer(modifier = Modifier.size(6.dp))
+                                                        Text("Слушать на официальном портале", fontSize = 12.sp)
+                                                        Spacer(modifier = Modifier.size(4.dp))
+                                                        Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = null, modifier = Modifier.size(14.dp))
+                                                    }
+                                                } else {
+                                                    OutlinedButton(onClick = openGuide) {
+                                                        Icon(Icons.Rounded.Headphones, contentDescription = null, modifier = Modifier.size(15.dp))
+                                                        Spacer(modifier = Modifier.size(6.dp))
+                                                        Text("Открыть гид", fontSize = 12.sp)
+                                                        Spacer(modifier = Modifier.size(4.dp))
+                                                        Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = null, modifier = Modifier.size(13.dp))
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
-                                    Spacer(modifier = Modifier.height(6.dp))
-                                    Text(
-                                        text = "«${announcements.firstOrNull()?.second.orEmpty()}»",
-                                        fontSize = 12.sp,
-                                        fontStyle = FontStyle.Italic
-                                    )
                                 }
                             }
 
@@ -534,6 +610,13 @@ private fun LiveTripDialog(
     var elapsedPhotoSec by remember { mutableIntStateOf(0) }
     var showPhotoPrompt by remember { mutableStateOf(false) }
 
+    val primaryGuide = remember(trip, currSeg.route?.number) {
+        TramRouter.matchAudioGuidesForTrip(
+            trip = trip,
+            limit = 1,
+            preferredRouteNumber = currSeg.route?.number
+        ).firstOrNull()
+    }
     val announcements = remember(trip) { TramRouter.buildAnnouncements(trip, announcerIntro) }
 
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
@@ -633,6 +716,47 @@ private fun LiveTripDialog(
                     }
                 }
 
+                if (primaryGuide != null) {
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = "${primaryGuide.matchReason} · ${primaryGuide.guide.portalName}",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = primaryGuide.guide.title,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            FilledTonalButton(
+                                onClick = {
+                                    runCatching {
+                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(primaryGuide.guide.url))
+                                        context.startActivity(intent)
+                                    }.onFailure {
+                                        Toast.makeText(context, "Не найдено приложение для открытия портала", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Rounded.Headphones, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.size(6.dp))
+                                Text("Открыть официальный аудиогид", fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(
                         onClick = {
@@ -645,7 +769,7 @@ private fun LiveTripDialog(
                     ) {
                         Icon(Icons.AutoMirrored.Rounded.VolumeUp, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.size(4.dp))
-                        Text("Автоинформатор", fontSize = 11.sp)
+                        Text("Озвучка (TTS)", fontSize = 11.sp)
                     }
 
                     OutlinedButton(

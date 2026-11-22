@@ -4,6 +4,8 @@ import {
   Camera,
   CheckCircle2,
   ChevronRight,
+  ExternalLink,
+  Headphones,
   Pause,
   Play,
   Square,
@@ -12,6 +14,7 @@ import {
   X,
 } from 'lucide-react';
 import { CityId, GeneratedTrip, TripPhotoMemory } from '../types/tram';
+import { matchAudioGuidesForTrip } from '../data/audioGuides';
 import {
   buildTripAnnouncements,
   playTramChime,
@@ -75,9 +78,13 @@ export function LiveTripCompanion({
   const [elapsedForPhotoSec, setElapsedForPhotoSec] = useState(0);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const announcements = useMemo(() => buildTripAnnouncements(trip, city), [trip, city]);
   const currentSeg = trip.segments[segIndex];
   const isLastSeg = segIndex >= trip.segments.length - 1;
+  const primaryGuide = useMemo(
+    () => matchAudioGuidesForTrip(trip, 1, currentSeg?.route?.number)[0] ?? null,
+    [trip, currentSeg?.route?.number]
+  );
+  const announcements = useMemo(() => buildTripAnnouncements(trip, city), [trip, city]);
 
   // Countdown + Photo Reminder Timer
   useEffect(() => {
@@ -278,31 +285,62 @@ export function LiveTripCompanion({
             </div>
           )}
 
-          {/* Announcer Script Card */}
+          {/* Official Audio Guide Card + Compact Stop TTS */}
           <div
             className="rounded-3xl p-4"
             style={{ backgroundColor: 'var(--md-surface-container)' }}
           >
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-bold" style={{ color: 'var(--text-secondary)' }}>
-                Автоинформатор вагона
+            {primaryGuide && (
+              <div>
+                <div className="flex flex-wrap items-center gap-x-1.5 text-[11px] font-medium" style={{ color: 'var(--accent-primary)' }}>
+                  <span>{primaryGuide.matchReason}</span>
+                  <span aria-hidden="true" style={{ color: 'var(--text-muted)' }}>·</span>
+                  <span style={{ color: 'var(--text-muted)' }}>{primaryGuide.portalName}</span>
+                </div>
+                <div className="mt-1 text-sm font-bold leading-snug" style={{ color: 'var(--text-primary)' }}>
+                  {primaryGuide.title}
+                </div>
+                <p className="mt-1 text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                  {primaryGuide.description}
+                </p>
+                <a
+                  href={primaryGuide.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => triggerHaptic('light')}
+                  className="m3-tactile mt-2.5 inline-flex min-h-[40px] cursor-pointer items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-bold whitespace-nowrap"
+                  style={{
+                    backgroundColor: 'var(--md-primary-container)',
+                    color: 'var(--md-on-primary-container)',
+                  }}
+                >
+                  <Headphones className="h-3.5 w-3.5" />
+                  Слушать официальный аудиогид
+                  <ExternalLink className="h-3 w-3 opacity-75" />
+                </a>
+              </div>
+            )}
+
+            <div
+              className={primaryGuide ? 'mt-3 flex items-center justify-between gap-2 border-t pt-3' : 'flex items-center justify-between gap-2'}
+              style={primaryGuide ? { borderColor: 'var(--border-hairline)' } : undefined}
+            >
+              <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
+                Объявление остановки (TTS)
               </span>
               <button
                 type="button"
                 onClick={handleSpeakCurrent}
-                className="m3-tactile inline-flex min-h-[34px] cursor-pointer items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold"
+                className="m3-tactile inline-flex min-h-[36px] cursor-pointer items-center gap-1.5 rounded-xl px-3 py-1 text-xs font-semibold whitespace-nowrap shrink-0"
                 style={{
-                  backgroundColor: 'var(--md-primary-container)',
-                  color: 'var(--md-on-primary-container)',
+                  backgroundColor: 'var(--bg-elevated)',
+                  color: 'var(--text-primary)',
                 }}
               >
                 {isSpeaking ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
                 {isSpeaking ? 'Стоп' : 'Озвучить'}
               </button>
             </div>
-            <p className="mt-2 text-xs italic leading-relaxed" style={{ color: 'var(--text-primary)' }}>
-              «{announcements.find((a) => a.id.startsWith(currentSeg.id))?.text ?? announcements[0]?.text}»
-            </p>
           </div>
 
           {/* Photo Memories Row */}

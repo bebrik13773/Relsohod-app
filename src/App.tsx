@@ -59,6 +59,7 @@ import { CityMismatchBanner } from './components/CityMismatchBanner';
 import { SettingsModal } from './components/SettingsModal';
 import { LiveTripCompanion } from './components/LiveTripCompanion';
 import { RoutePostcardModal } from './components/RoutePostcardModal';
+import { StartupSplash } from './components/StartupSplash';
 
 function getInitialScheduleSlot(): { dayOfWeek: number; timeMinutes: number } {
   const now = new Date();
@@ -95,6 +96,10 @@ export default function App() {
   const [mobileRouteSubView, setMobileRouteSubView] = useState<MobileRouteSubView>('map');
   const [quotaExceeded, setQuotaExceeded] = useState(false);
 
+  const [showSplash, setShowSplash] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return new URLSearchParams(window.location.search).get('autostart') !== '1';
+  });
   const [onboardingOpen, setOnboardingOpen] = useState<boolean>(() => !loadOnboardingDone());
   const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
   const [liveTripOpen, setLiveTripOpen] = useState<boolean>(false);
@@ -1107,6 +1112,8 @@ export default function App() {
             onClose={() => setPostcardOpen(false)}
           />
         )}
+
+        <StartupSplash visible={showSplash} onFinish={() => setShowSplash(false)} />
       </div>
     </MotionConfig>
   );

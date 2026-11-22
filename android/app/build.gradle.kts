@@ -12,8 +12,8 @@ android {
         applicationId = "ru.relsokhod.spb"
         minSdk = 24
         targetSdk = 36
-        versionCode = 3
-        versionName = "2.1.0-native"
+        versionCode = 4
+        versionName = "2.2.0-native"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -72,6 +72,7 @@ android {
 dependencies {
     implementation(platform("androidx.compose:compose-bom:2025.02.00"))
     implementation("androidx.core:core-ktx:1.15.0")
+    implementation("androidx.core:core-splashscreen:1.0.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("androidx.activity:activity-compose:1.10.1")
     implementation("androidx.profileinstaller:profileinstaller:1.4.1")

@@ -17,6 +17,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -66,6 +69,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -84,6 +88,7 @@ import ru.relsokhod.spb.model.TripHistoryEntry
 import ru.relsokhod.spb.router.TramRouter
 import ru.relsokhod.spb.storage.AppPrefs
 import ru.relsokhod.spb.ui.components.SettingsSheet
+import ru.relsokhod.spb.ui.components.StartupSplash
 import ru.relsokhod.spb.ui.screens.FavoritesTab
 import ru.relsokhod.spb.ui.screens.LinesTab
 import ru.relsokhod.spb.ui.screens.OnboardingScreen
@@ -122,6 +127,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
     private var pendingSpeakText: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
@@ -193,6 +199,7 @@ private fun RelsokhodNativeApp(
 
     var cities by remember { mutableStateOf<Map<CityId, CityConfig>>(emptyMap()) }
     var isBootstrapping by remember { mutableStateOf(true) }
+    var showAnimatedSplash by remember { mutableStateOf(true) }
     var isGenerating by remember { mutableStateOf(false) }
 
     var onboardingDone by remember { mutableStateOf(false) }
@@ -424,51 +431,36 @@ private fun RelsokhodNativeApp(
         launchGenerate(newCfg, newParams, seed = System.currentTimeMillis())
     }
 
+    LaunchedEffect(isBootstrapping) {
+        if (!isBootstrapping && showAnimatedSplash) {
+            delay(1050)
+            showAnimatedSplash = false
+        }
+    }
+
     RelsokhodTheme(themeMode = themeMode, accentSeed = accentSeed) {
-        if (isBootstrapping || currentCityConfig == null) {
-            Surface(
-                modifier = Modifier.fillMaxSize(),
-                color = MaterialTheme.colorScheme.background
-            ) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        CircularProgressIndicator()
-                        Text(
-                            text = "Загружаем трамвайную сеть...",
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-            return@RelsokhodTheme
-        }
+        Box(modifier = Modifier.fillMaxSize()) {
+            if (!isBootstrapping && currentCityConfig != null) {
+                if (!onboardingDone) {
+                    OnboardingScreen(
+                        selectedCity = selectedCity,
+                        cities = cities,
+                        geoStatusMessage = geoStatusMessage,
+                        cityDetection = cityDetection,
+                        onSelectCity = { switchCity(it) },
+                        onRequestLocation = { triggerLocationFlow(applyNearestStart = true) },
+                        onComplete = {
+                            onboardingDone = true
+                            coroutineScope.launch(Dispatchers.IO) {
+                                prefs.setOnboardingDone(true)
+                            }
+                        }
+                    )
+                } else {
+                    val activeTrip = (outcome as? GenerationOutcome.Ok)?.trip
+                    val isTripSaved = activeTrip != null && savedRoutes.any { it.trip.id == activeTrip.id }
 
-        if (!onboardingDone) {
-            OnboardingScreen(
-                selectedCity = selectedCity,
-                cities = cities,
-                geoStatusMessage = geoStatusMessage,
-                cityDetection = cityDetection,
-                onSelectCity = { switchCity(it) },
-                onRequestLocation = { triggerLocationFlow(applyNearestStart = true) },
-                onComplete = {
-                    onboardingDone = true
-                    coroutineScope.launch(Dispatchers.IO) {
-                        prefs.setOnboardingDone(true)
-                    }
-                }
-            )
-            return@RelsokhodTheme
-        }
-
-        val activeTrip = (outcome as? GenerationOutcome.Ok)?.trip
-        val isTripSaved = activeTrip != null && savedRoutes.any { it.trip.id == activeTrip.id }
-
-        Scaffold(
+                    Scaffold(
             topBar = {
                 TopAppBar(
                     title = {
@@ -757,6 +749,22 @@ private fun RelsokhodNativeApp(
                 },
                 onDismiss = { settingsOpen = false }
             )
+        }
+                }
+            }
+
+            AnimatedVisibility(
+                visible = showAnimatedSplash || isBootstrapping || currentCityConfig == null,
+                exit = fadeOut(animationSpec = tween(durationMillis = 360))
+            ) {
+                StartupSplash(
+                    onSkip = {
+                        if (!isBootstrapping && currentCityConfig != null) {
+                            showAnimatedSplash = false
+                        }
+                    }
+                )
+            }
         }
     }
 }
