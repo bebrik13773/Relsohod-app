@@ -44,6 +44,7 @@ import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Tram
 import androidx.compose.material.icons.rounded.WarningAmber
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -55,6 +56,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -263,11 +265,67 @@ private fun RelsokhodNativeApp(
     var backupFeedback by remember { mutableStateOf<String?>(null) }
     var backupFeedbackIsError by remember { mutableStateOf(false) }
     var backupRestoredSuccess by remember { mutableStateOf(false) }
+    var backupSavedForUpdate by remember { mutableStateOf(false) }
+    var reinstallBackupPrompt by remember { mutableStateOf<Pair<File, AvailableRelease>?>(null) }
+    var pendingUninstallAfterBackup by remember { mutableStateOf<Pair<File, AvailableRelease>?>(null) }
+
+    fun openReleaseInBrowser(rawUrl: String) {
+        if (!AppUpdateLogic.isAllowedGitHubUrl(rawUrl)) return
+        runCatching {
+            activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(rawUrl)))
+        }.onFailure {
+            Toast.makeText(activity, "Не найден браузер для открытия GitHub", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun exportAndUninstall(file: File, release: AvailableRelease) {
+        coroutineScope.launch {
+            val saved = AppUpdateManager.exportApkToDownloads(
+                context = appContext,
+                apkFile = file,
+                displayName = release.apkAsset.name
+            )
+            if (saved) {
+                Toast.makeText(
+                    activity,
+                    "APK сохранён в Загрузки (${release.apkAsset.name}). Удалите старую версию и откройте файл.",
+                    Toast.LENGTH_LONG
+                ).show()
+            } else {
+                Toast.makeText(
+                    activity,
+                    "Откройте страницу релиза в браузере, чтобы скачать APK после удаления старой версии.",
+                    Toast.LENGTH_LONG
+                ).show()
+                openReleaseInBrowser(release.htmlUrl)
+            }
+            runCatching {
+                activity.startActivity(AppUpdateManager.buildUninstallCurrentAppIntent(activity))
+            }.onFailure {
+                Toast.makeText(
+                    activity,
+                    "Удалите старую версию вручную и установите APK из папки «Загрузки».",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+    }
+
+    fun requestExportAndUninstall(file: File, release: AvailableRelease) {
+        if (!backupSavedForUpdate) {
+            reinstallBackupPrompt = file to release
+        } else {
+            exportAndUninstall(file, release)
+        }
+    }
 
     val exportBackupLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/octet-stream")
     ) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
+        if (uri == null) {
+            pendingUninstallAfterBackup = null
+            return@rememberLauncherForActivityResult
+        }
         coroutineScope.launch {
             val jsonText = withContext(Dispatchers.IO) {
                 BackupCodec.encodeBackupJson(
@@ -287,10 +345,17 @@ private fun RelsokhodNativeApp(
             }
             val saved = AndroidBackupStorage.writeBackupToUri(appContext, uri, jsonText)
             if (saved) {
+                backupSavedForUpdate = true
                 backupFeedbackIsError = false
                 backupFeedback = "Резервная копия сохранена (${BackupCodec.buildBackupFilename()})."
                 Toast.makeText(activity, "Файл .relsohod сохранён", Toast.LENGTH_SHORT).show()
+                val pending = pendingUninstallAfterBackup
+                pendingUninstallAfterBackup = null
+                if (pending != null) {
+                    exportAndUninstall(pending.first, pending.second)
+                }
             } else {
+                pendingUninstallAfterBackup = null
                 backupFeedbackIsError = true
                 backupFeedback = "Не удалось записать файл резервной копии."
             }
@@ -417,15 +482,6 @@ private fun RelsokhodNativeApp(
         }
     }
 
-    fun openReleaseInBrowser(rawUrl: String) {
-        if (!AppUpdateLogic.isAllowedGitHubUrl(rawUrl)) return
-        runCatching {
-            activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(rawUrl)))
-        }.onFailure {
-            Toast.makeText(activity, "Не найден браузер для открытия GitHub", Toast.LENGTH_SHORT).show()
-        }
-    }
-
     fun checkUpdates(manual: Boolean) {
         if (isCheckingUpdates) return
         coroutineScope.launch {
@@ -509,39 +565,6 @@ private fun RelsokhodNativeApp(
                 updateDownloadState = UpdateDownloadState.Failed(
                     err.message?.takeIf { it.isNotBlank() } ?: "Не удалось скачать APK"
                 )
-            }
-        }
-    }
-
-    fun exportAndUninstall(file: File, release: AvailableRelease) {
-        coroutineScope.launch {
-            val saved = AppUpdateManager.exportApkToDownloads(
-                context = appContext,
-                apkFile = file,
-                displayName = release.apkAsset.name
-            )
-            if (saved) {
-                Toast.makeText(
-                    activity,
-                    "APK сохранён в Загрузки (${release.apkAsset.name}). Удалите старую версию и откройте файл.",
-                    Toast.LENGTH_LONG
-                ).show()
-            } else {
-                Toast.makeText(
-                    activity,
-                    "Откройте страницу релиза в браузере, чтобы скачать APK после удаления старой версии.",
-                    Toast.LENGTH_LONG
-                ).show()
-                openReleaseInBrowser(release.htmlUrl)
-            }
-            runCatching {
-                activity.startActivity(AppUpdateManager.buildUninstallCurrentAppIntent(activity))
-            }.onFailure {
-                Toast.makeText(
-                    activity,
-                    "Удалите старую версию вручную и установите APK из папки «Загрузки».",
-                    Toast.LENGTH_LONG
-                ).show()
             }
         }
     }
@@ -942,7 +965,11 @@ private fun RelsokhodNativeApp(
                         downloadState = updateDownloadState,
                         onStartDownload = { startUpdateDownload(availableUpdate) },
                         onInstallApk = { file -> triggerApkInstall(file) },
-                        onExportAndUninstall = { file, release -> exportAndUninstall(file, release) },
+                        onExportAndUninstall = { file, release -> requestExportAndUninstall(file, release) },
+                        onExportBackup = {
+                            exportBackupLauncher.launch(BackupCodec.buildBackupFilename())
+                        },
+                        backupSavedForUpdate = backupSavedForUpdate,
                         onOpenInBrowser = { url -> openReleaseInBrowser(url) },
                         onDismiss = {
                             dismissedUpdateTag = availableUpdate.tagName
@@ -1059,6 +1086,7 @@ private fun RelsokhodNativeApp(
                                             )
                                         ) + savedRoutes
                                         savedRoutes = nextSaved
+                                        backupSavedForUpdate = false
                                         coroutineScope.launch(Dispatchers.IO) {
                                             prefs.persistSavedRoutes(nextSaved)
                                         }
@@ -1075,6 +1103,7 @@ private fun RelsokhodNativeApp(
                                     )
                                     val nextHistory = listOf(entry) + history
                                     history = nextHistory
+                                    backupSavedForUpdate = false
                                     coroutineScope.launch(Dispatchers.IO) {
                                         prefs.persistHistory(nextHistory)
                                     }
@@ -1147,7 +1176,7 @@ private fun RelsokhodNativeApp(
                 onCheckUpdates = { checkUpdates(manual = true) },
                 onStartUpdateDownload = { release -> startUpdateDownload(release) },
                 onInstallUpdateApk = { file -> triggerApkInstall(file) },
-                onExportAndUninstall = { file, release -> exportAndUninstall(file, release) },
+                onExportAndUninstall = { file, release -> requestExportAndUninstall(file, release) },
                 onOpenReleaseUrl = { url -> openReleaseInBrowser(url) },
                 onShowWhatsNew = {
                     whatsNewNotes = bundledChangelog
@@ -1157,6 +1186,7 @@ private fun RelsokhodNativeApp(
                 },
                 backupFeedback = backupFeedback,
                 backupFeedbackIsError = backupFeedbackIsError,
+                backupSavedForUpdate = backupSavedForUpdate,
                 onExportBackup = {
                     exportBackupLauncher.launch(BackupCodec.buildBackupFilename())
                 },
@@ -1199,6 +1229,66 @@ private fun RelsokhodNativeApp(
                             prefs.setLastSeenVersionCode(BuildConfig.VERSION_CODE)
                             prefs.clearPendingUpdateNotes()
                         }
+                    }
+                }
+            )
+        }
+
+        val promptTarget = reinstallBackupPrompt
+        if (promptTarget != null) {
+            val compat = (updateDownloadState as? UpdateDownloadState.ReadyToInstall)?.signatureCompatibility
+            val reasonLine = when (compat) {
+                SignatureCompatibility.PACKAGE_MISMATCH ->
+                    "Скачанный APK относится к другому пакету (debug/release)."
+                SignatureCompatibility.DOWNGRADE_CONFLICT ->
+                    "Для перехода на эту версию нужна чистая переустановка."
+                else ->
+                    "Удаление старой версии перед переустановкой сотрёт избранные маршруты, паспорт с фото и настройки."
+            }
+            AlertDialog(
+                onDismissRequest = { reinstallBackupPrompt = null },
+                title = {
+                    Text(
+                        text = "Сделать бэкап перед переустановкой?",
+                        fontWeight = FontWeight.Bold
+                    )
+                },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(
+                            text = "$reasonLine Сохраните файл .relsohod сейчас — после сохранения приложение сразу выгрузит APK и откроет удаление старой версии.",
+                            fontSize = 13.sp,
+                            lineHeight = 18.sp
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            TextButton(
+                                onClick = {
+                                    reinstallBackupPrompt = null
+                                    exportAndUninstall(promptTarget.first, promptTarget.second)
+                                }
+                            ) {
+                                Text("Удалить без бэкапа", color = MaterialTheme.colorScheme.error)
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            pendingUninstallAfterBackup = promptTarget
+                            reinstallBackupPrompt = null
+                            exportBackupLauncher.launch(BackupCodec.buildBackupFilename())
+                        }
+                    ) {
+                        Text("Сделать бэкап (.relsohod)")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { reinstallBackupPrompt = null }) {
+                        Text("Отмена")
                     }
                 }
             )

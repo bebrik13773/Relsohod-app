@@ -23,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.CameraAlt
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.LocationCity
@@ -33,6 +34,7 @@ import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -94,6 +96,7 @@ fun SettingsSheet(
     onShowWhatsNew: () -> Unit,
     backupFeedback: String?,
     backupFeedbackIsError: Boolean,
+    backupSavedForUpdate: Boolean = false,
     onExportBackup: () -> Unit,
     onImportBackup: () -> Unit,
     onChangeCity: (CityId) -> Unit,
@@ -433,17 +436,36 @@ fun SettingsSheet(
                                         ) {
                                             val conflictHint = when (compat) {
                                                 SignatureCompatibility.PACKAGE_MISMATCH ->
-                                                    "Скачанный APK относится к другому варианту пакета (release/debug). Сохраните копию .relsohod ниже, сохраните APK в Загрузки и удалите текущую сборку."
+                                                    "Скачанный APK относится к другому варианту пакета (release/debug). Сначала сохраните копию .relsohod, затем выгрузите APK в Загрузки и удалите текущую сборку."
                                                 SignatureCompatibility.DOWNGRADE_CONFLICT ->
-                                                    "Установленная сборка имеет более высокий build-номер. Сохраните .relsohod, выгрузите APK в Загрузки и переустановите один раз."
+                                                    "Установленная сборка имеет более высокий build-номер. Сохраните копию .relsohod, выгрузите APK в Загрузки и переустановите один раз."
                                                 else ->
-                                                    "Старая сборка подписана другим ключом — прямая установка выдаст «Обновление конфликтует с другим пакетом». Сохраните .relsohod (ниже), выгрузите APK в Загрузки и удалите старую версию один раз; дальнейшие обновления будут ставиться поверх."
+                                                    "Старая сборка подписана другим ключом — прямая установка выдаст «Обновление конфликтует с другим пакетом». Сначала сохраните копию .relsohod, выгрузите APK в Загрузки и удалите старую версию один раз; дальнейшие обновления будут ставиться поверх."
                                             }
                                             Text(
                                                 text = conflictHint,
                                                 fontSize = 11.sp,
                                                 color = Color(0xFFB45309)
                                             )
+                                            if (backupSavedForUpdate) {
+                                                OutlinedButton(
+                                                    onClick = onExportBackup,
+                                                    modifier = Modifier.fillMaxWidth()
+                                                ) {
+                                                    Icon(Icons.Rounded.CheckCircle, contentDescription = null, modifier = Modifier.size(15.dp))
+                                                    Spacer(modifier = Modifier.size(6.dp))
+                                                    Text("Бэкап .relsohod сохранён", fontSize = 12.sp)
+                                                }
+                                            } else {
+                                                FilledTonalButton(
+                                                    onClick = onExportBackup,
+                                                    modifier = Modifier.fillMaxWidth()
+                                                ) {
+                                                    Icon(Icons.Rounded.FolderOpen, contentDescription = null, modifier = Modifier.size(15.dp))
+                                                    Spacer(modifier = Modifier.size(6.dp))
+                                                    Text("Сделать бэкап (.relsohod)", fontSize = 12.sp)
+                                                }
+                                            }
                                             Button(
                                                 onClick = { onExportAndUninstall(updateDownloadState.apkFile, rel) },
                                                 modifier = Modifier.fillMaxWidth()

@@ -14,9 +14,11 @@ import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -49,6 +51,8 @@ fun AppUpdateBanner(
     onStartDownload: () -> Unit,
     onInstallApk: (File) -> Unit,
     onExportAndUninstall: (File, AvailableRelease) -> Unit,
+    onExportBackup: () -> Unit,
+    backupSavedForUpdate: Boolean = false,
     onOpenInBrowser: (String) -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
@@ -199,11 +203,11 @@ fun AppUpdateBanner(
                     ) {
                         val reasonText = when (compat) {
                             SignatureCompatibility.PACKAGE_MISMATCH ->
-                                "Скачанный APK имеет другой ID пакета (release vs debug) и не может встать поверх текущей версии. Сохраните APK в Загрузки и установите после удаления старой сборки (не забудьте экспорт .relsohod в Настройках)."
+                                "Скачанный APK имеет другой ID пакета (release vs debug) и не может встать поверх текущей версии. Сохраните резервную копию .relsohod, выгрузите APK в Загрузки и переустановите приложение."
                             SignatureCompatibility.DOWNGRADE_CONFLICT ->
                                 "Установленная сборка имеет более высокий build-номер, чем скачанный APK. Если хотите перейти на ветку релизов этого репозитория, сохраните резервную копию .relsohod и переустановите APK один раз."
                             else ->
-                                "Текущая установленная сборка подписана другим ключом, поэтому Android покажет «Обновление конфликтует с другим пакетом». Сохраните APK в Загрузки и удалите старую версию один раз (маршруты можно сохранить через .relsohod в Настройках) — все следующие релизы будут ставиться поверх без удаления."
+                                "Текущая установленная сборка подписана другим ключом, поэтому Android покажет «Обновление конфликтует с другим пакетом». Сначала сохраните резервную копию .relsohod, затем выгрузите APK в Загрузки и удалите старую версию один раз — все следующие релизы будут ставиться поверх."
                         }
                         Surface(
                             shape = RoundedCornerShape(12.dp),
@@ -227,6 +231,25 @@ fun AppUpdateBanner(
                                     lineHeight = 15.sp,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
+                            }
+                        }
+                        if (backupSavedForUpdate) {
+                            OutlinedButton(
+                                onClick = onExportBackup,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Rounded.CheckCircle, contentDescription = null, modifier = Modifier.size(15.dp))
+                                Spacer(modifier = Modifier.size(6.dp))
+                                Text("Бэкап .relsohod сохранён", fontSize = 11.sp)
+                            }
+                        } else {
+                            FilledTonalButton(
+                                onClick = onExportBackup,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Rounded.FolderOpen, contentDescription = null, modifier = Modifier.size(15.dp))
+                                Spacer(modifier = Modifier.size(6.dp))
+                                Text("Сделать бэкап (.relsohod)", fontSize = 11.sp)
                             }
                         }
                         Button(
