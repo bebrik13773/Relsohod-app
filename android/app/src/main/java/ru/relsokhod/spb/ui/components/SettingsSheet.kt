@@ -408,10 +408,11 @@ fun SettingsSheet(
                                     }
 
                                     is UpdateDownloadState.Downloading -> {
-                                        val pct = updateDownloadState.progress?.let { "${(it * 100).toInt()}%" } ?: "..."
-                                        if (updateDownloadState.progress != null) {
+                                        val progressVal = updateDownloadState.progress
+                                        val pct = progressVal?.let { "${(it * 100).toInt()}%" } ?: "..."
+                                        if (progressVal != null) {
                                             LinearProgressIndicator(
-                                                progress = { updateDownloadState.progress },
+                                                progress = { progressVal },
                                                 modifier = Modifier.fillMaxWidth()
                                             )
                                         } else {
@@ -482,7 +483,7 @@ fun SettingsSheet(
                         }
                     }
 
-                    null -> Unit
+                    else -> Unit
                 }
 
                 OutlinedButton(

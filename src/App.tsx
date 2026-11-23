@@ -26,6 +26,7 @@ import {
   generateTramAdventure,
 } from './utils/tramRouter';
 import {
+  loadLastSeenAppVersion,
   loadOnboardingDone,
   loadPhotoReminderMinutes,
   loadPlannerState,
@@ -36,6 +37,7 @@ import {
   loadTripHistory,
   persistAccent,
   persistCity,
+  persistLastSeenAppVersion,
   persistOnboardingDone,
   persistPhotoReminderMinutes,
   persistPlannerState,
@@ -43,6 +45,11 @@ import {
   persistTheme,
   persistTripHistory,
 } from './utils/storage';
+import {
+  CURRENT_APP_VERSION,
+  LATEST_CHANGELOG,
+  shouldShowChangelogOnLaunch,
+} from './utils/changelog';
 import {
   MAX_BACKUP_BYTES,
   buildBackupFilename,
@@ -65,6 +72,7 @@ import { OfflineIndicator } from './components/OfflineIndicator';
 import { OnboardingModal } from './components/OnboardingModal';
 import { CityMismatchBanner } from './components/CityMismatchBanner';
 import { SettingsModal } from './components/SettingsModal';
+import { ChangelogModal } from './components/ChangelogModal';
 import { LiveTripCompanion } from './components/LiveTripCompanion';
 import { RoutePostcardModal } from './components/RoutePostcardModal';
 import { StartupSplash } from './components/StartupSplash';
@@ -108,7 +116,20 @@ export default function App() {
     if (typeof window === 'undefined') return false;
     return new URLSearchParams(window.location.search).get('autostart') !== '1';
   });
+  const [previousSeenVersion, setPreviousSeenVersion] = useState<string | null>(() =>
+    loadLastSeenAppVersion()
+  );
   const [onboardingOpen, setOnboardingOpen] = useState<boolean>(() => !loadOnboardingDone());
+  const [changelogOpen, setChangelogOpen] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const isAutostart = new URLSearchParams(window.location.search).get('autostart') === '1';
+    return shouldShowChangelogOnLaunch({
+      storedVersion: loadLastSeenAppVersion(),
+      currentVersion: CURRENT_APP_VERSION,
+      onboardingDone: loadOnboardingDone(),
+      isAutostart,
+    });
+  });
   const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
   const [liveTripOpen, setLiveTripOpen] = useState<boolean>(false);
   const [postcardOpen, setPostcardOpen] = useState<boolean>(false);
@@ -1304,6 +1325,8 @@ export default function App() {
           onImportBackupFile={handleImportBackupFile}
           onComplete={() => {
             persistOnboardingDone(true);
+            persistLastSeenAppVersion(CURRENT_APP_VERSION);
+            setPreviousSeenVersion(CURRENT_APP_VERSION);
             setOnboardingOpen(false);
           }}
         />
@@ -1324,7 +1347,19 @@ export default function App() {
           }}
           onExportBackup={handleExportBackup}
           onImportBackupFile={handleImportBackupFile}
+          onOpenChangelog={() => setChangelogOpen(true)}
           onRestartOnboarding={() => setOnboardingOpen(true)}
+        />
+
+        <ChangelogModal
+          isOpen={changelogOpen && !onboardingOpen}
+          release={LATEST_CHANGELOG}
+          previousVersion={previousSeenVersion}
+          onAcknowledge={() => {
+            persistLastSeenAppVersion(CURRENT_APP_VERSION);
+            setPreviousSeenVersion(CURRENT_APP_VERSION);
+            setChangelogOpen(false);
+          }}
         />
 
         {liveTripOpen && activeTrip && (

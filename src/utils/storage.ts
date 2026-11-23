@@ -15,6 +15,7 @@ const ONBOARDING_DONE_KEY = 'relsokhod_onboarding_done_v1';
 const PLANNER_STATE_KEY = 'relsokhod_planner_state_v1';
 const TRIP_HISTORY_KEY = 'relsokhod_trip_history_v1';
 const PHOTO_REMINDER_MINS_KEY = 'relsokhod_photo_reminder_mins_v1';
+const APP_VERSION_STORAGE_KEY = 'relsokhod_app_version_v1';
 
 export function loadSavedRoutes(): SavedRoute[] {
   try {
@@ -181,5 +182,21 @@ export function persistPhotoReminderMinutes(minutes: number): void {
     window.localStorage.setItem(PHOTO_REMINDER_MINS_KEY, String(minutes));
   } catch {
     // Ignore
+  }
+}
+
+export function loadLastSeenAppVersion(): string | null {
+  try {
+    return window.localStorage.getItem(APP_VERSION_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function persistLastSeenAppVersion(version: string): void {
+  try {
+    window.localStorage.setItem(APP_VERSION_STORAGE_KEY, version);
+  } catch {
+    // Ignore storage errors
   }
 }

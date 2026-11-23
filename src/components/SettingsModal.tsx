@@ -7,6 +7,7 @@ import {
   FolderOpen,
   GraduationCap,
   MapPin,
+  Sparkles,
   Upload,
   X,
 } from 'lucide-react';
@@ -31,6 +32,7 @@ interface SettingsModalProps {
   onImportBackupFile: (
     file: File
   ) => Promise<{ ok: true; message: string } | { ok: false; error: string }>;
+  onOpenChangelog: () => void;
   onRestartOnboarding: () => void;
 }
 
@@ -61,6 +63,7 @@ export function SettingsModal({
   onChangePhotoReminderMinutes,
   onExportBackup,
   onImportBackupFile,
+  onOpenChangelog,
   onRestartOnboarding,
 }: SettingsModalProps) {
   const [backupFeedback, setBackupFeedback] = useState<{
@@ -348,11 +351,29 @@ export function SettingsModal({
             )}
           </div>
 
-          {/* Replay Onboarding */}
+          {/* Changelog & Replay Onboarding */}
           <div
-            className="border-t pt-4"
+            className="flex flex-col gap-2 border-t pt-4"
             style={{ borderColor: 'var(--border-hairline)' }}
           >
+            <button
+              type="button"
+              onClick={() => {
+                triggerHaptic('light');
+                onClose();
+                onOpenChangelog();
+              }}
+              className="m3-tactile flex min-h-[42px] w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border px-4 py-2 text-xs font-semibold"
+              style={{
+                backgroundColor: 'var(--bg-elevated)',
+                color: 'var(--text-primary)',
+                borderColor: 'var(--border-hairline)',
+              }}
+            >
+              <Sparkles className="h-4 w-4" />
+              Что нового в обновлении
+            </button>
+
             <button
               type="button"
               onClick={() => {

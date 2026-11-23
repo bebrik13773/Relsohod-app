@@ -165,13 +165,14 @@ fun AppUpdateBanner(
                 }
 
                 is UpdateDownloadState.Downloading -> {
-                    val pctText = downloadState.progress?.let { "${(it * 100).toInt()}%" } ?: "..."
+                    val progressVal = downloadState.progress
+                    val pctText = progressVal?.let { "${(it * 100).toInt()}%" } ?: "..."
                     val loadedText = AppUpdateLogic.formatFileSize(downloadState.downloadedBytes)
                     val totalText = AppUpdateLogic.formatFileSize(downloadState.totalBytes)
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        if (downloadState.progress != null) {
+                        if (progressVal != null) {
                             LinearProgressIndicator(
-                                progress = { downloadState.progress },
+                                progress = { progressVal },
                                 modifier = Modifier.fillMaxWidth()
                             )
                         } else {
