@@ -3,6 +3,7 @@ import { Bus, Footprints, TramFront } from 'lucide-react';
 import { ModeBalance } from '../types/tram';
 import {
   balanceToTrianglePoint,
+  isPointInModeTriangle,
   TRIANGLE_VERTICES,
   trianglePointToBalance,
 } from '../utils/mapGeometry';
@@ -50,11 +51,20 @@ export function ModeTriangleSlider({ value, onChange }: ModeTriangleSliderProps)
   };
 
   const handlePointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+    const nx = (e.clientX - rect.left) / rect.width;
+    const ny = (e.clientY - rect.top) / rect.height;
+    if (!isPointInModeTriangle(nx, ny)) {
+      return;
+    }
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
     setDragging(true);
     triggerHaptic('light');
-    updateFromPointer(e.clientX, e.clientY);
+    onChange(trianglePointToBalance(nx, ny));
   };
 
   const handlePointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
@@ -127,16 +137,16 @@ export function ModeTriangleSlider({ value, onChange }: ModeTriangleSliderProps)
 
       {/* Interactive Barycentric Triangle */}
       <div
-        className="relative flex flex-col items-center rounded-3xl border px-2 pt-2 pb-1"
+        className="relative flex flex-col items-center rounded-[28px] border px-2 pt-2 pb-2"
         style={{
-          backgroundColor: 'var(--bg-input)',
-          borderColor: 'var(--border-hairline)',
+          backgroundColor: 'var(--md-surface-container-high)',
+          borderColor: 'var(--md-outline-variant)',
         }}
       >
         <svg
           ref={svgRef}
           viewBox={`0 0 ${PAD_W} ${PAD_H}`}
-          className="h-48 w-full max-w-[300px] touch-none select-none cursor-crosshair"
+          className="h-48 w-full max-w-[300px] touch-none select-none cursor-default rounded-2xl outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-primary)]"
           role="slider"
           aria-label="Треугольный регулятор баланса: Трамваи, Транспорт, Пешком"
           aria-valuetext={`Трамваи ${pctTram}%, Транспорт ${pctTransit}%, Пешком ${pctWalk}%`}
@@ -148,19 +158,21 @@ export function ModeTriangleSlider({ value, onChange }: ModeTriangleSliderProps)
         >
           <defs>
             <linearGradient id="tri-grad-base" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="var(--accent-primary)" stopOpacity="0.18" />
-              <stop offset="55%" stopColor="#d97706" stopOpacity="0.11" />
-              <stop offset="100%" stopColor="#059669" stopOpacity="0.16" />
+              <stop offset="0%" stopColor="var(--accent-primary)" stopOpacity="0.22" />
+              <stop offset="55%" stopColor="#d97706" stopOpacity="0.13" />
+              <stop offset="100%" stopColor="#059669" stopOpacity="0.18" />
             </linearGradient>
           </defs>
 
-          {/* Outer triangle fill */}
+          {/* Outer triangle fill (only interior activates slider) */}
           <polygon
             points={`${vTram.x},${vTram.y} ${vTransit.x},${vTransit.y} ${vWalk.x},${vWalk.y}`}
             fill="url(#tri-grad-base)"
-            stroke="var(--border-strong)"
-            strokeWidth={2}
+            stroke="var(--accent-primary)"
+            strokeOpacity={0.55}
+            strokeWidth={2.2}
             strokeLinejoin="round"
+            className="cursor-grab active:cursor-grabbing"
           />
 
           {/* Medians to centroid */}
@@ -236,7 +248,7 @@ export function ModeTriangleSlider({ value, onChange }: ModeTriangleSliderProps)
         </svg>
 
         {/* Quick 1-tap presets */}
-        <div className="mb-1.5 flex flex-wrap justify-center gap-1.5 px-1">
+        <div className="mb-1 flex flex-wrap justify-center gap-1.5 px-1">
           {PRESETS.map((preset) => {
             const isClose =
               Math.abs(value.tram - preset.value.tram) < 0.06 &&
@@ -246,15 +258,16 @@ export function ModeTriangleSlider({ value, onChange }: ModeTriangleSliderProps)
               <button
                 key={preset.label}
                 type="button"
+                aria-pressed={isClose}
                 onClick={() => {
                   triggerHaptic('light');
                   onChange(preset.value);
                 }}
-                className="m3-tactile cursor-pointer rounded-xl border px-2.5 py-1 text-[11px] font-semibold"
+                className="m3-tactile cursor-pointer rounded-full border px-3 py-1.5 text-[11px] font-semibold"
                 style={{
-                  backgroundColor: isClose ? 'var(--md-primary-container)' : 'var(--bg-surface)',
-                  color: isClose ? 'var(--md-on-primary-container)' : 'var(--text-secondary)',
-                  borderColor: isClose ? 'transparent' : 'var(--border-hairline)',
+                  backgroundColor: isClose ? 'var(--md-secondary-container)' : 'var(--md-surface-container-low)',
+                  color: isClose ? 'var(--md-on-secondary-container)' : 'var(--text-secondary)',
+                  borderColor: isClose ? 'transparent' : 'var(--md-outline-variant)',
                 }}
               >
                 {preset.label}

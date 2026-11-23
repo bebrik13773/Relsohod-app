@@ -6,6 +6,15 @@
 
 **Рельсоход** превращает обычную поездку по городу в готовое мини-путешествие по **Санкт-Петербургу** и **Омску**. Выбирайте настроение, задавайте баланс между трамваем, другим транспортом и пешими прогулками — и отправляйтесь в путь по актуальным маршрутам с готовой навигацией в Яндекс Картах.
 
+> ### ⬇️ Быстро скачать приложение на Android
+> **Android-приложение (Kotlin + Jetpack Compose)** — основная версия с плавной картой, автообновлением, фото-паспортом и удобным режимом «В пути».
+>
+> [![Скачать Relsokhod-release.apk](https://img.shields.io/badge/Скачать_APK-Последний_релиз-0f5e8c?style=for-the-badge&logo=android&logoColor=white)](https://github.com/bebrik13773/Reslohid/releases/latest/download/Relsokhod-release.apk)
+> &nbsp;
+> [![Страница релизов](https://img.shields.io/badge/GitHub_Releases-Все_версии_и_список_изменений-1e293b?style=for-the-badge&logo=github&logoColor=white)](https://github.com/bebrik13773/Reslohid/releases/latest)
+>
+> *Веб-версия подходит для быстрого знакомства без установки и для использования на ПК.*
+
 ---
 
 ## ✨ Что умеет приложение

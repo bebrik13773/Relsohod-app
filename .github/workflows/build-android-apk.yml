@@ -185,9 +185,6 @@ jobs:
 
           ${MANUAL_CHANGELOG}
 
-          ${COMMITS_TITLE}
-          ${RECENT_CHANGES}
-
           ---
 
           ### 📦 Что скачать и как обновиться
@@ -196,12 +193,15 @@ jobs:
           - 🔑 При самом первом переходе со старых сборок с временным ключом Android может попросить один раз удалить старую версию — далее единая подпись позволяет обновляться поверх с сохранением маршрутов.
 
           <details>
-          <summary>🛠️ Детали сборки (\`${VERSION_NAME}\` · #${GITHUB_RUN_NUMBER}) и отладочный APK (\`${DEBUG_SIZE}\`)</summary>
+          <summary>🛠️ Детали сборки (\`${VERSION_NAME}\` · #${GITHUB_RUN_NUMBER}), отладочный APK (\`${DEBUG_SIZE}\`) и список коммитов</summary>
 
           - **Версия:** \`${VERSION_NAME}\`
           - **Сборка CI:** \`#${GITHUB_RUN_NUMBER}\` · коммит \`${SHORT_SHA}\`
           - **SHA-256 (\`Relsokhod-release.apk\`):** \`${RELEASE_SHA}\`
           - **SHA-256 (\`Relsokhod-debug.apk\`):** \`${DEBUG_SHA}\` (\`Relsokhod-debug.apk\` — для разработки и отладки)
+
+          ${COMMITS_TITLE}
+          ${RECENT_CHANGES}
 
           </details>
           EOF

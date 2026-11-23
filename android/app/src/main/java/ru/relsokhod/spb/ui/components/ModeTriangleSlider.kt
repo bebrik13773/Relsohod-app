@@ -68,14 +68,24 @@ object TriangleBalanceMath {
         )
     }
 
-    fun trianglePointToBalance(px: Float, py: Float): ModeBalance {
+    fun barycentricWeights(px: Float, py: Float): Triple<Float, Float, Float> {
         val a = VERTEX_TRAM
         val b = VERTEX_TRANSIT
         val c = VERTEX_WALK
         val detT = (b.y - c.y) * (a.x - c.x) + (c.x - b.x) * (a.y - c.y)
-        var wA = ((b.y - c.y) * (px - c.x) + (c.x - b.x) * (py - c.y)) / detT
-        var wB = ((c.y - a.y) * (px - c.x) + (a.x - c.x) * (py - c.y)) / detT
-        var wC = 1f - wA - wB
+        val wA = ((b.y - c.y) * (px - c.x) + (c.x - b.x) * (py - c.y)) / detT
+        val wB = ((c.y - a.y) * (px - c.x) + (a.x - c.x) * (py - c.y)) / detT
+        val wC = 1f - wA - wB
+        return Triple(wA, wB, wC)
+    }
+
+    fun isPointInTriangle(px: Float, py: Float, edgeTolerance: Float = 0.025f): Boolean {
+        val (wA, wB, wC) = barycentricWeights(px, py)
+        return wA >= -edgeTolerance && wB >= -edgeTolerance && wC >= -edgeTolerance
+    }
+
+    fun trianglePointToBalance(px: Float, py: Float): ModeBalance {
+        var (wA, wB, wC) = barycentricWeights(px, py)
 
         // Project onto probability simplex (w >= 0, sum = 1)
         val sorted = listOf(wA, wB, wC).sortedDescending()
@@ -184,7 +194,7 @@ fun ModeTriangleSlider(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Surface(
-                shape = RoundedCornerShape(14.dp),
+                shape = RoundedCornerShape(18.dp),
                 color = MaterialTheme.colorScheme.primaryContainer,
                 modifier = Modifier.weight(1f)
             ) {
@@ -219,8 +229,8 @@ fun ModeTriangleSlider(
             }
 
             Surface(
-                shape = RoundedCornerShape(14.dp),
-                color = MaterialTheme.colorScheme.surface,
+                shape = RoundedCornerShape(18.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 modifier = Modifier.weight(1f)
             ) {
                 Column(
@@ -244,8 +254,8 @@ fun ModeTriangleSlider(
             }
 
             Surface(
-                shape = RoundedCornerShape(14.dp),
-                color = MaterialTheme.colorScheme.surface,
+                shape = RoundedCornerShape(18.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
                 modifier = Modifier.weight(1f)
             ) {
                 Column(
@@ -271,8 +281,8 @@ fun ModeTriangleSlider(
 
         // Interactive barycentric triangle surface
         Surface(
-            shape = RoundedCornerShape(20.dp),
-            color = MaterialTheme.colorScheme.surface,
+            shape = RoundedCornerShape(26.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(
@@ -291,15 +301,18 @@ fun ModeTriangleSlider(
                             .pointerInput(Unit) {
                                 awaitEachGesture {
                                     val down = awaitFirstDown(requireUnconsumed = false)
+                                    val w = size.width.toFloat().coerceAtLeast(1f)
+                                    val h = size.height.toFloat().coerceAtLeast(1f)
+                                    val nx = down.position.x / w
+                                    val ny = down.position.y / h
+                                    // Ignore taps outside the triangle shape so corners don't accidentally move the balance
+                                    if (!TriangleBalanceMath.isPointInTriangle(nx, ny)) {
+                                        return@awaitEachGesture
+                                    }
                                     down.consume()
                                     isDragging = true
                                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    val w = size.width.toFloat().coerceAtLeast(1f)
-                                    val h = size.height.toFloat().coerceAtLeast(1f)
-                                    var latest = TriangleBalanceMath.trianglePointToBalance(
-                                        down.position.x / w,
-                                        down.position.y / h
-                                    )
+                                    var latest = TriangleBalanceMath.trianglePointToBalance(nx, ny)
                                     dragBalance = latest
                                     val activeId = down.id
                                     while (true) {
@@ -418,6 +431,7 @@ fun ModeTriangleSlider(
                                 dragBalance = null
                                 onChange(preset.value)
                             },
+                            shape = RoundedCornerShape(50),
                             label = { Text(preset.label, fontSize = 11.sp) }
                         )
                     }

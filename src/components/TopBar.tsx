@@ -45,8 +45,8 @@ export function TopBar({
     <header
       className="sticky top-0 z-30 border-b backdrop-blur-md transition-colors"
       style={{
-        backgroundColor: 'color-mix(in srgb, var(--bg-surface) 92%, transparent)',
-        borderColor: 'var(--border-hairline)',
+        backgroundColor: 'color-mix(in srgb, var(--md-surface-container-low) 92%, transparent)',
+        borderColor: 'var(--md-outline-variant)',
       }}
     >
       <div className="mx-auto flex h-14 max-w-[1600px] items-center justify-between gap-3 px-4 lg:gap-8 lg:px-6">
@@ -120,10 +120,10 @@ export function TopBar({
           <div
             role="group"
             aria-label="Тема оформления"
-            className="hidden items-center gap-1 rounded-2xl p-1 shrink-0 md:flex"
+            className="hidden items-center gap-1 rounded-full p-1 shrink-0 md:flex"
             style={{
-              backgroundColor: 'var(--bg-elevated)',
-              border: '1px solid var(--border-hairline)',
+              backgroundColor: 'var(--md-surface-container-high)',
+              border: '1px solid var(--md-outline-variant)',
             }}
           >
             {THEME_OPTIONS.map((opt) => {
@@ -137,7 +137,7 @@ export function TopBar({
                     onChangeTheme(opt.id);
                   }}
                   aria-pressed={active}
-                  className="m3-tactile cursor-pointer rounded-xl px-3 py-1 text-xs font-semibold whitespace-nowrap shrink-0"
+                  className="m3-tactile cursor-pointer rounded-full px-3 py-1 text-xs font-semibold whitespace-nowrap shrink-0"
                   style={{
                     backgroundColor: active ? 'var(--md-primary-container)' : 'transparent',
                     color: active ? 'var(--md-on-primary-container)' : 'var(--text-muted)',
@@ -157,7 +157,7 @@ export function TopBar({
             style={{
               backgroundColor: 'var(--md-primary-container)',
               color: 'var(--md-on-primary-container)',
-              borderColor: 'var(--border-hairline)',
+              borderColor: 'var(--md-outline-variant)',
             }}
           >
             {theme === 'dark' ? (
@@ -177,11 +177,11 @@ export function TopBar({
               onOpenSettings();
             }}
             aria-label="Настройки приложения"
-            className="m3-tactile flex h-[38px] w-[38px] cursor-pointer items-center justify-center rounded-full border shrink-0"
+            className="m3-tactile flex h-[40px] w-[40px] cursor-pointer items-center justify-center rounded-full border shrink-0"
             style={{
-              backgroundColor: 'var(--bg-elevated)',
+              backgroundColor: 'var(--md-surface-container-high)',
               color: 'var(--text-primary)',
-              borderColor: 'var(--border-hairline)',
+              borderColor: 'var(--md-outline-variant)',
             }}
           >
             <Settings className="h-4 w-4" />

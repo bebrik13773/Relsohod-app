@@ -18,10 +18,16 @@
   --accent-soft: rgba(15, 94, 140, 0.12);
   --md-primary-container: #d8ecf8;
   --md-on-primary-container: #073552;
-  --md-surface-container: #ffffff;
-  --md-surface-container-high: #eef2f6;
+  --md-secondary-container: color-mix(in srgb, var(--accent-primary) 12%, #f1f5f9);
+  --md-on-secondary-container: #12293b;
+  --md-surface-container-lowest: #ffffff;
+  --md-surface-container-low: color-mix(in srgb, var(--accent-primary) 3%, #ffffff);
+  --md-surface-container: color-mix(in srgb, var(--accent-primary) 5%, #f9fbfd);
+  --md-surface-container-high: color-mix(in srgb, var(--accent-primary) 8%, #eef2f6);
+  --md-surface-container-highest: color-mix(in srgb, var(--accent-primary) 11%, #e5ebf2);
+  --md-outline-variant: color-mix(in srgb, var(--accent-primary) 16%, rgba(15, 23, 42, 0.08));
   --md-elevation-1: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
-  --md-elevation-2: 0 4px 14px rgba(15, 23, 42, 0.1), 0 2px 6px rgba(15, 23, 42, 0.06);
+  --md-elevation-2: 0 6px 18px rgba(15, 23, 42, 0.1), 0 2px 6px rgba(15, 23, 42, 0.06);
   --map-water: #cfe5f5;
   --map-land: #f2f5f8;
   --map-park: #d9edd9;
@@ -31,43 +37,47 @@
 
 /* Material You Dynamic Accent Seeds (Light Mode) */
 [data-theme="light"][data-accent="sage"] {
-  --bg-canvas: #f4f7f5;
-  --bg-elevated: #e8f0eb;
+  --bg-canvas: #f3f7f4;
+  --bg-elevated: #e7f0ea;
   --accent-primary: #1b6d4f;
   --accent-primary-hover: #14553d;
   --accent-soft: rgba(27, 109, 79, 0.12);
   --md-primary-container: #d2eee1;
   --md-on-primary-container: #0a3b28;
+  --md-on-secondary-container: #113526;
 }
 
 [data-theme="light"][data-accent="terracotta"] {
-  --bg-canvas: #faf6f4;
-  --bg-elevated: #f3eae6;
+  --bg-canvas: #faf6f3;
+  --bg-elevated: #f3e9e3;
   --accent-primary: #a84a2a;
   --accent-primary-hover: #89391e;
   --accent-soft: rgba(168, 74, 42, 0.12);
   --md-primary-container: #f9ddd2;
   --md-on-primary-container: #561d0a;
+  --md-on-secondary-container: #4d2214;
 }
 
 [data-theme="light"][data-accent="indigo"] {
-  --bg-canvas: #f5f6fb;
-  --bg-elevated: #eaecf6;
+  --bg-canvas: #f4f5fb;
+  --bg-elevated: #e9ebf7;
   --accent-primary: #4b48a8;
   --accent-primary-hover: #3b388c;
   --accent-soft: rgba(75, 72, 168, 0.12);
   --md-primary-container: #e0e0fa;
   --md-on-primary-container: #1f1c63;
+  --md-on-secondary-container: #27255a;
 }
 
 [data-theme="light"][data-accent="amber"] {
-  --bg-canvas: #f9f7f2;
-  --bg-elevated: #f1ece1;
+  --bg-canvas: #f9f6f0;
+  --bg-elevated: #f1ebe0;
   --accent-primary: #9a5b13;
   --accent-primary-hover: #7c470b;
   --accent-soft: rgba(154, 91, 19, 0.12);
   --md-primary-container: #f8e3c4;
   --md-on-primary-container: #4c2900;
+  --md-on-secondary-container: #452908;
 }
 
 [data-theme="tram"] {
@@ -86,10 +96,16 @@
   --accent-soft: rgba(124, 29, 38, 0.12);
   --md-primary-container: #f2d9db;
   --md-on-primary-container: #4a0c12;
-  --md-surface-container: #fbf7ef;
+  --md-secondary-container: #f4e6d2;
+  --md-on-secondary-container: #3d2807;
+  --md-surface-container-lowest: #fffcf6;
+  --md-surface-container-low: #fbf6ec;
+  --md-surface-container: #f8f1e4;
   --md-surface-container-high: #efe6d5;
+  --md-surface-container-highest: #e6dac5;
+  --md-outline-variant: rgba(124, 29, 38, 0.16);
   --md-elevation-1: 0 1px 3px rgba(34, 25, 23, 0.08);
-  --md-elevation-2: 0 4px 14px rgba(34, 25, 23, 0.12);
+  --md-elevation-2: 0 6px 16px rgba(34, 25, 23, 0.12);
   --map-water: #cfdce3;
   --map-land: #ebe3d3;
   --map-park: #d8e2ce;
@@ -114,8 +130,14 @@
   --accent-soft: rgba(56, 189, 248, 0.16);
   --md-primary-container: #123c58;
   --md-on-primary-container: #bae6fd;
-  --md-surface-container: #161d29;
-  --md-surface-container-high: #1e2736;
+  --md-secondary-container: color-mix(in srgb, var(--accent-primary) 18%, #1e2736);
+  --md-on-secondary-container: #e2e8f0;
+  --md-surface-container-lowest: #0d121a;
+  --md-surface-container-low: color-mix(in srgb, var(--accent-primary) 4%, #141b26);
+  --md-surface-container: color-mix(in srgb, var(--accent-primary) 6%, #17202d);
+  --md-surface-container-high: color-mix(in srgb, var(--accent-primary) 9%, #1f2938);
+  --md-surface-container-highest: color-mix(in srgb, var(--accent-primary) 13%, #263244);
+  --md-outline-variant: color-mix(in srgb, var(--accent-primary) 22%, rgba(241, 245, 249, 0.1));
   --md-elevation-1: 0 1px 3px rgba(0, 0, 0, 0.35);
   --md-elevation-2: 0 6px 16px rgba(0, 0, 0, 0.45);
   --map-water: #132236;
@@ -132,6 +154,7 @@
   --accent-soft: rgba(92, 214, 165, 0.16);
   --md-primary-container: #144332;
   --md-on-primary-container: #b5f2d8;
+  --md-on-secondary-container: #d8faeb;
 }
 
 [data-theme="dark"][data-accent="terracotta"] {
@@ -140,6 +163,7 @@
   --accent-soft: rgba(242, 155, 125, 0.16);
   --md-primary-container: #562315;
   --md-on-primary-container: #ffd8cb;
+  --md-on-secondary-container: #ffe6dd;
 }
 
 [data-theme="dark"][data-accent="indigo"] {
@@ -148,6 +172,7 @@
   --accent-soft: rgba(165, 168, 255, 0.16);
   --md-primary-container: #272663;
   --md-on-primary-container: #dfe0ff;
+  --md-on-secondary-container: #ececff;
 }
 
 [data-theme="dark"][data-accent="amber"] {
@@ -156,6 +181,7 @@
   --accent-soft: rgba(244, 184, 96, 0.16);
   --md-primary-container: #4c3208;
   --md-on-primary-container: #ffe2b3;
+  --md-on-secondary-container: #ffedd0;
 }
 
 @layer base {
@@ -189,17 +215,27 @@
     transform 160ms cubic-bezier(0.2, 0, 0, 1),
     background-color 180ms ease,
     box-shadow 180ms ease,
-    border-color 180ms ease;
+    border-color 180ms ease,
+    filter 160ms ease;
 }
 
-.m3-tactile:active {
+.m3-tactile:hover:not(:disabled) {
+  filter: brightness(0.985);
+}
+
+.m3-tactile:active:not(:disabled) {
   transform: scale(0.97);
 }
 
 .m3-card {
-  background-color: var(--md-surface-container);
-  border: 1px solid var(--border-hairline);
+  background-color: var(--md-surface-container-low);
+  border: 1px solid var(--md-outline-variant);
   box-shadow: var(--md-elevation-1);
+}
+
+.m3-tonal-card {
+  background-color: var(--md-surface-container-high);
+  border: 1px solid var(--md-outline-variant);
 }
 
 .m3-fab {

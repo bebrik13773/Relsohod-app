@@ -172,7 +172,7 @@ export function PlannerParamsView({
       </div>
 
       {/* Block 1: Start & Destination Address Picker (Material You Tonal Surface) */}
-      <div className="m3-card flex flex-col gap-4 rounded-3xl p-4 sm:p-5">
+      <div className="m3-card flex flex-col gap-4 rounded-[28px] p-4 sm:p-5">
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between gap-2">
             <label
@@ -192,7 +192,7 @@ export function PlannerParamsView({
                 disabled={geoStatus.state === 'loading'}
                 className="m3-tactile inline-flex min-h-[36px] cursor-pointer items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold whitespace-nowrap shrink-0"
                 style={{
-                  backgroundColor: 'var(--bg-elevated)',
+                  backgroundColor: 'var(--md-surface-container-high)',
                   color: 'var(--text-primary)',
                 }}
               >
@@ -211,7 +211,7 @@ export function PlannerParamsView({
                   backgroundColor:
                     mapPickMode === 'start'
                       ? 'var(--md-primary-container)'
-                      : 'var(--bg-elevated)',
+                      : 'var(--md-surface-container-high)',
                   color:
                     mapPickMode === 'start'
                       ? 'var(--md-on-primary-container)'
@@ -235,7 +235,7 @@ export function PlannerParamsView({
             style={{
               backgroundColor: 'var(--bg-input)',
               color: 'var(--text-primary)',
-              borderColor: 'var(--border-hairline)',
+              borderColor: 'var(--md-outline-variant)',
             }}
           >
             {tramStops.map((stop) => (
@@ -276,12 +276,12 @@ export function PlannerParamsView({
       </div>
 
       {/* Block 2: Triangular Mode Balance + Mood, Weather & Duration + Schedule */}
-      <div className="m3-card flex flex-col gap-5 rounded-3xl p-4 sm:p-5">
+      <div className="m3-card flex flex-col gap-5 rounded-[28px] p-4 sm:p-5">
         <ModeTriangleSlider value={modeBalance} onChange={onChangeModeBalance} />
 
         <div
           className="flex flex-col gap-2.5 border-t pt-4"
-          style={{ borderColor: 'var(--border-hairline)' }}
+          style={{ borderColor: 'var(--md-outline-variant)' }}
         >
           <span className="text-xs font-bold" style={{ color: 'var(--text-secondary)' }}>
             Настроение маршрута
@@ -298,15 +298,15 @@ export function PlannerParamsView({
                     onChangeThemeFilter(item.id);
                   }}
                   aria-pressed={active}
-                  className="m3-tactile min-h-[38px] cursor-pointer rounded-2xl border px-3.5 py-1.5 text-xs font-semibold whitespace-nowrap shrink-0"
+                  className="m3-tactile min-h-[38px] cursor-pointer rounded-full border px-3.5 py-1.5 text-xs font-semibold whitespace-nowrap shrink-0"
                   style={{
                     backgroundColor: active
-                      ? 'var(--md-primary-container)'
-                      : 'var(--bg-input)',
+                      ? 'var(--md-secondary-container)'
+                      : 'var(--md-surface-container)',
                     color: active
-                      ? 'var(--md-on-primary-container)'
+                      ? 'var(--md-on-secondary-container)'
                       : 'var(--text-secondary)',
-                    borderColor: active ? 'transparent' : 'var(--border-hairline)',
+                    borderColor: active ? 'transparent' : 'var(--md-outline-variant)',
                   }}
                 >
                   {item.label}
@@ -319,14 +319,14 @@ export function PlannerParamsView({
         {/* Idea 5: Weather picker */}
         <div
           className="flex flex-col gap-2 border-t pt-4"
-          style={{ borderColor: 'var(--border-hairline)' }}
+          style={{ borderColor: 'var(--md-outline-variant)' }}
         >
           <span className="text-xs font-bold" style={{ color: 'var(--text-secondary)' }}>
             Погода и пересадки
           </span>
           <div
-            className="grid grid-cols-3 gap-1 rounded-2xl p-1"
-            style={{ backgroundColor: 'var(--bg-elevated)' }}
+            className="grid grid-cols-3 gap-1 rounded-full p-1"
+            style={{ backgroundColor: 'var(--md-surface-container-high)' }}
           >
             {WEATHER_OPTIONS.map((w) => {
               const Icon = w.icon;
@@ -340,7 +340,7 @@ export function PlannerParamsView({
                     onChangeWeatherMode(w.id);
                   }}
                   aria-pressed={active}
-                  className="m3-tactile inline-flex min-h-[36px] cursor-pointer items-center justify-center gap-1.5 rounded-xl px-2 py-1 text-xs font-semibold whitespace-nowrap"
+                  className="m3-tactile inline-flex min-h-[36px] cursor-pointer items-center justify-center gap-1.5 rounded-full px-2 py-1 text-xs font-semibold whitespace-nowrap"
                   style={{
                     backgroundColor: active ? 'var(--md-primary-container)' : 'transparent',
                     color: active ? 'var(--md-on-primary-container)' : 'var(--text-muted)',
@@ -356,16 +356,16 @@ export function PlannerParamsView({
 
         <div
           className="grid grid-cols-1 gap-4 border-t pt-4"
-          style={{ borderColor: 'var(--border-hairline)' }}
+          style={{ borderColor: 'var(--md-outline-variant)' }}
         >
           <div className="flex flex-col gap-2">
             <span className="text-xs font-bold" style={{ color: 'var(--text-secondary)' }}>
               Время в пути
             </span>
             <div
-              className="grid grid-cols-4 gap-1 rounded-2xl p-1"
+              className="grid grid-cols-4 gap-1 rounded-full p-1"
               style={{
-                backgroundColor: 'var(--bg-elevated)',
+                backgroundColor: 'var(--md-surface-container-high)',
               }}
             >
               {DURATION_OPTIONS.map((opt) => {
@@ -379,7 +379,7 @@ export function PlannerParamsView({
                       onChangeDurationPreset(opt.id);
                     }}
                     aria-pressed={active}
-                    className="m3-tactile min-h-[36px] cursor-pointer rounded-xl px-1.5 py-1 text-xs font-semibold whitespace-nowrap"
+                    className="m3-tactile min-h-[36px] cursor-pointer rounded-full px-1.5 py-1 text-xs font-semibold whitespace-nowrap"
                     style={{
                       backgroundColor: active
                         ? 'var(--md-primary-container)'
@@ -452,7 +452,7 @@ export function PlannerParamsView({
       </div>
 
       {/* Block 3: Options (Loop, Rare Fleet, Fallback, Network, Accent Seed) */}
-      <div className="m3-card flex flex-col gap-3.5 rounded-3xl p-4 sm:p-5">
+      <div className="m3-card flex flex-col gap-3.5 rounded-[28px] p-4 sm:p-5">
         {/* Idea 4: Loop Route */}
         <label className="flex cursor-pointer items-start gap-3 text-xs">
           <input
@@ -483,7 +483,7 @@ export function PlannerParamsView({
         {/* Idea 6: Special / Rare Fleet Hunt */}
         <label
           className="flex cursor-pointer items-start gap-3 border-t pt-3.5 text-xs"
-          style={{ borderColor: 'var(--border-hairline)' }}
+          style={{ borderColor: 'var(--md-outline-variant)' }}
         >
           <input
             type="checkbox"
@@ -510,7 +510,7 @@ export function PlannerParamsView({
 
         <label
           className="flex cursor-pointer items-start gap-3 border-t pt-3.5 text-xs"
-          style={{ borderColor: 'var(--border-hairline)' }}
+          style={{ borderColor: 'var(--md-outline-variant)' }}
         >
           <input
             type="checkbox"
@@ -534,7 +534,7 @@ export function PlannerParamsView({
 
         <label
           className="flex cursor-pointer items-center gap-3 border-t pt-3.5 text-xs"
-          style={{ borderColor: 'var(--border-hairline)' }}
+          style={{ borderColor: 'var(--md-outline-variant)' }}
         >
           <input
             type="checkbox"
@@ -560,7 +560,7 @@ export function PlannerParamsView({
           triggerHaptic('medium');
           onGenerate();
         }}
-        className="m3-fab flex min-h-[54px] w-full cursor-pointer items-center justify-center gap-2.5 rounded-2xl px-5 py-3.5 text-sm font-bold"
+        className="m3-fab flex min-h-[56px] w-full cursor-pointer items-center justify-center gap-2.5 rounded-full px-6 py-3.5 text-sm font-bold"
         style={{
           backgroundColor: 'var(--accent-primary)',
           color: 'var(--accent-on-primary)',

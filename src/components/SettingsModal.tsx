@@ -1,13 +1,20 @@
-import { ChangeEvent, useEffect, useRef, useState } from 'react';
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
+  Bug,
   Camera,
+  Check,
   CheckCircle2,
+  Copy,
   Download,
+  ExternalLink,
   FolderOpen,
   GraduationCap,
   HelpCircle,
+  Lightbulb,
+  Mail,
   MapPin,
+  Smartphone,
   Sparkles,
   Upload,
   X,
@@ -16,6 +23,14 @@ import { AccentSeed, AppTheme, CityId } from '../types/tram';
 import { CITIES } from '../data/cities';
 import { triggerHaptic } from '../utils/haptics';
 import { buildBackupFilename } from '../utils/backup';
+import { CURRENT_APP_VERSION } from '../utils/changelog';
+import {
+  ANDROID_RELEASES_PAGE_URL,
+  ANDROID_RELEASE_APK_URL,
+  FEEDBACK_EMAIL,
+  FeedbackKind,
+  buildFeedbackMailtoUrl,
+} from '../utils/feedback';
 import { MaterialYouAccentPicker } from './MaterialYouAccentPicker';
 
 interface SettingsModalProps {
@@ -74,14 +89,32 @@ export function SettingsModal({
     message: string;
   }>({ kind: 'idle', message: '' });
   const [isImporting, setIsImporting] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [feedbackKind, setFeedbackKind] = useState<FeedbackKind>('bug');
+  const [feedbackMessage, setFeedbackMessage] = useState('');
+  const [emailCopied, setEmailCopied] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (isOpen) {
       setBackupFeedback({ kind: 'idle', message: '' });
       setIsImporting(false);
+      setEmailCopied(false);
     }
   }, [isOpen]);
+
+  const mailtoUrl = useMemo(() => {
+    const viewport =
+      typeof window !== 'undefined' ? `${window.innerWidth}x${window.innerHeight}` : '';
+    return buildFeedbackMailtoUrl({
+      kind: feedbackKind,
+      message: feedbackMessage,
+      appVersion: CURRENT_APP_VERSION,
+      cityLabel: CITIES[city].name,
+      platformLabel: 'Веб-версия',
+      environmentDetails: viewport,
+    });
+  }, [feedbackKind, feedbackMessage, city]);
 
   if (!isOpen) return null;
 
@@ -111,15 +144,15 @@ export function SettingsModal({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
     >
       <div
-        className="m3-card flex max-h-[88dvh] w-full max-w-md flex-col overflow-hidden rounded-3xl"
+        className="m3-card flex max-h-[88dvh] w-full max-w-md flex-col overflow-hidden rounded-[28px]"
         style={{
-          backgroundColor: 'var(--bg-surface)',
+          backgroundColor: 'var(--md-surface-container-low)',
           color: 'var(--text-primary)',
         }}
       >
         <div
           className="flex items-center justify-between border-b px-5 py-4"
-          style={{ borderColor: 'var(--border-hairline)' }}
+          style={{ borderColor: 'var(--md-outline-variant)' }}
         >
           <h2 className="font-display text-lg font-extrabold">Настройки</h2>
           <button
@@ -129,14 +162,74 @@ export function SettingsModal({
               triggerHaptic('light');
               onClose();
             }}
-            className="m3-tactile flex h-9 w-9 cursor-pointer items-center justify-center rounded-full"
-            style={{ backgroundColor: 'var(--bg-elevated)' }}
+            className="m3-tactile flex h-10 w-10 cursor-pointer items-center justify-center rounded-full"
+            style={{ backgroundColor: 'var(--md-surface-container-high)' }}
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
         <div className="flex flex-1 flex-col gap-5 overflow-y-auto p-5">
+          {/* Android Native App Download Banner */}
+          <div
+            className="flex flex-col gap-3 rounded-[24px] border p-4"
+            style={{
+              backgroundColor: 'var(--md-primary-container)',
+              color: 'var(--md-on-primary-container)',
+              borderColor: 'var(--md-outline-variant)',
+            }}
+          >
+            <div className="flex items-start gap-3">
+              <div
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl"
+                style={{
+                  backgroundColor: 'var(--accent-primary)',
+                  color: 'var(--accent-on-primary)',
+                }}
+              >
+                <Smartphone className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="font-display text-sm font-extrabold">
+                  Скачать нативный «Рельсоход» на Android
+                </div>
+                <p className="mt-0.5 text-xs leading-relaxed opacity-90">
+                  Основное приложение для прогулок: быстрее карта, офлайн-работа, автообновление и перенос данных через .relsohod.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <a
+                href={ANDROID_RELEASE_APK_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => triggerHaptic('medium')}
+                className="m3-tactile inline-flex min-h-[40px] flex-1 items-center justify-center gap-2 rounded-full px-4 py-2 text-xs font-bold whitespace-nowrap"
+                style={{
+                  backgroundColor: 'var(--accent-primary)',
+                  color: 'var(--accent-on-primary)',
+                }}
+              >
+                <Download className="h-4 w-4 shrink-0" />
+                Скачать APK
+              </a>
+              <a
+                href={ANDROID_RELEASES_PAGE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="m3-tactile inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-full border px-3.5 py-2 text-xs font-semibold whitespace-nowrap"
+                style={{
+                  backgroundColor: 'var(--md-surface-container-low)',
+                  color: 'var(--text-primary)',
+                  borderColor: 'var(--md-outline-variant)',
+                }}
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+                Релиз
+              </a>
+            </div>
+          </div>
+
           {/* City Switcher */}
           <div className="flex flex-col gap-2">
             <span
@@ -354,11 +447,152 @@ export function SettingsModal({
             )}
           </div>
 
-          {/* Changelog & Replay Onboarding */}
+          {/* Feedback, Help, Changelog & Replay Onboarding */}
           <div
-            className="flex flex-col gap-2 border-t pt-4"
-            style={{ borderColor: 'var(--border-hairline)' }}
+            className="flex flex-col gap-2.5 border-t pt-4"
+            style={{ borderColor: 'var(--md-outline-variant)' }}
           >
+            <button
+              type="button"
+              aria-expanded={feedbackOpen}
+              onClick={() => {
+                triggerHaptic('light');
+                setFeedbackOpen((prev) => !prev);
+              }}
+              className="m3-tactile flex min-h-[44px] w-full cursor-pointer items-center justify-center gap-2 rounded-full px-4 py-2 text-xs font-bold"
+              style={{
+                backgroundColor: 'var(--md-secondary-container)',
+                color: 'var(--md-on-secondary-container)',
+              }}
+            >
+              <Mail className="h-4 w-4" />
+              Сообщить об ошибке или предложить идею
+            </button>
+
+            {feedbackOpen && (
+              <div
+                className="flex flex-col gap-3 rounded-[22px] border p-3.5"
+                style={{
+                  backgroundColor: 'var(--md-surface-container-high)',
+                  borderColor: 'var(--md-outline-variant)',
+                }}
+              >
+                <div
+                  role="group"
+                  aria-label="Тип обращения"
+                  className="grid grid-cols-2 gap-1.5 rounded-full p-1"
+                  style={{ backgroundColor: 'var(--md-surface-container-low)' }}
+                >
+                  <button
+                    type="button"
+                    aria-pressed={feedbackKind === 'bug'}
+                    onClick={() => {
+                      triggerHaptic('light');
+                      setFeedbackKind('bug');
+                    }}
+                    className="m3-tactile inline-flex min-h-[36px] cursor-pointer items-center justify-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold"
+                    style={{
+                      backgroundColor:
+                        feedbackKind === 'bug' ? 'var(--md-primary-container)' : 'transparent',
+                      color:
+                        feedbackKind === 'bug'
+                          ? 'var(--md-on-primary-container)'
+                          : 'var(--text-secondary)',
+                    }}
+                  >
+                    <Bug className="h-3.5 w-3.5" />
+                    Ошибка
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={feedbackKind === 'suggestion'}
+                    onClick={() => {
+                      triggerHaptic('light');
+                      setFeedbackKind('suggestion');
+                    }}
+                    className="m3-tactile inline-flex min-h-[36px] cursor-pointer items-center justify-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold"
+                    style={{
+                      backgroundColor:
+                        feedbackKind === 'suggestion'
+                          ? 'var(--md-primary-container)'
+                          : 'transparent',
+                      color:
+                        feedbackKind === 'suggestion'
+                          ? 'var(--md-on-primary-container)'
+                          : 'var(--text-secondary)',
+                    }}
+                  >
+                    <Lightbulb className="h-3.5 w-3.5" />
+                    Предложение
+                  </button>
+                </div>
+
+                <textarea
+                  rows={3}
+                  value={feedbackMessage}
+                  onChange={(e) => setFeedbackMessage(e.target.value)}
+                  placeholder={
+                    feedbackKind === 'bug'
+                      ? 'Что произошло? (необязательно — можно дописать уже в письме)'
+                      : 'Какую идею добавить в Рельсоход?'
+                  }
+                  aria-label="Текст сообщения об ошибке или предложения"
+                  className="w-full resize-none rounded-2xl border px-3.5 py-2.5 text-xs leading-relaxed focus-visible:outline-2"
+                  style={{
+                    backgroundColor: 'var(--md-surface-container-low)',
+                    color: 'var(--text-primary)',
+                    borderColor: 'var(--md-outline-variant)',
+                  }}
+                />
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <a
+                    href={mailtoUrl}
+                    onClick={() => triggerHaptic('medium')}
+                    className="m3-tactile inline-flex min-h-[42px] flex-1 items-center justify-center gap-2 rounded-full px-4 py-2 text-xs font-bold whitespace-nowrap"
+                    style={{
+                      backgroundColor: 'var(--accent-primary)',
+                      color: 'var(--accent-on-primary)',
+                    }}
+                  >
+                    <Mail className="h-4 w-4 shrink-0" />
+                    Написать на {FEEDBACK_EMAIL}
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      triggerHaptic('light');
+                      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                        navigator.clipboard.writeText(FEEDBACK_EMAIL).then(() => {
+                          setEmailCopied(true);
+                          setTimeout(() => setEmailCopied(false), 2000);
+                        }).catch(() => {});
+                      }
+                    }}
+                    aria-label={`Скопировать адрес ${FEEDBACK_EMAIL}`}
+                    className="m3-tactile inline-flex min-h-[42px] cursor-pointer items-center justify-center gap-1.5 rounded-full border px-3.5 py-2 text-xs font-semibold whitespace-nowrap"
+                    style={{
+                      backgroundColor: 'var(--md-surface-container-low)',
+                      color: 'var(--text-primary)',
+                      borderColor: 'var(--md-outline-variant)',
+                    }}
+                  >
+                    {emailCopied ? (
+                      <>
+                        <Check className="h-3.5 w-3.5 text-emerald-600" />
+                        Скопировано
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-3.5 w-3.5" />
+                        Email
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+
             <button
               type="button"
               onClick={() => {
@@ -366,11 +600,11 @@ export function SettingsModal({
                 onClose();
                 onOpenHelp();
               }}
-              className="m3-tactile flex min-h-[42px] w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border px-4 py-2 text-xs font-semibold"
+              className="m3-tactile flex min-h-[42px] w-full cursor-pointer items-center justify-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold"
               style={{
-                backgroundColor: 'var(--bg-elevated)',
+                backgroundColor: 'var(--md-surface-container-high)',
                 color: 'var(--text-primary)',
-                borderColor: 'var(--border-hairline)',
+                borderColor: 'var(--md-outline-variant)',
               }}
             >
               <HelpCircle className="h-4 w-4" />
@@ -384,11 +618,11 @@ export function SettingsModal({
                 onClose();
                 onOpenChangelog();
               }}
-              className="m3-tactile flex min-h-[42px] w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border px-4 py-2 text-xs font-semibold"
+              className="m3-tactile flex min-h-[42px] w-full cursor-pointer items-center justify-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold"
               style={{
-                backgroundColor: 'var(--bg-elevated)',
+                backgroundColor: 'var(--md-surface-container-high)',
                 color: 'var(--text-primary)',
-                borderColor: 'var(--border-hairline)',
+                borderColor: 'var(--md-outline-variant)',
               }}
             >
               <Sparkles className="h-4 w-4" />
@@ -402,11 +636,11 @@ export function SettingsModal({
                 onClose();
                 onRestartOnboarding();
               }}
-              className="m3-tactile flex min-h-[42px] w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border px-4 py-2 text-xs font-semibold"
+              className="m3-tactile flex min-h-[42px] w-full cursor-pointer items-center justify-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold"
               style={{
-                backgroundColor: 'var(--bg-elevated)',
+                backgroundColor: 'var(--md-surface-container-high)',
                 color: 'var(--text-primary)',
-                borderColor: 'var(--border-hairline)',
+                borderColor: 'var(--md-outline-variant)',
               }}
             >
               <GraduationCap className="h-4 w-4" />

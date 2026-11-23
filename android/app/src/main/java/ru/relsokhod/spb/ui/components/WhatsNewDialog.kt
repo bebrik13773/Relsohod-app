@@ -45,6 +45,8 @@ fun WhatsNewDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(28.dp),
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         icon = {
             Icon(
                 imageVector = Icons.Rounded.AutoAwesome,
@@ -61,7 +63,7 @@ fun WhatsNewDialog(
                 )
                 Spacer(modifier = Modifier.size(4.dp))
                 Text(
-                    text = versionSubtitle,
+                    text = "$versionSubtitle · Последнее обновление",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.primary
@@ -85,8 +87,8 @@ fun WhatsNewDialog(
                 } else {
                     blocks.forEach { block ->
                         Surface(
-                            shape = RoundedCornerShape(14.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                            shape = RoundedCornerShape(18.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(
@@ -122,6 +124,7 @@ fun WhatsNewDialog(
         confirmButton = {
             Button(
                 onClick = onDismiss,
+                shape = RoundedCornerShape(50),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(if (isPostUpdate) "Отлично, поехали!" else "Закрыть")

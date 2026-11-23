@@ -3,10 +3,12 @@ import {
   AlertTriangle,
   CheckCircle2,
   Compass,
+  Download,
   FolderOpen,
   LocateFixed,
   MapPin,
   Navigation2,
+  Smartphone,
   Sparkles,
   TramFront,
   Upload,
@@ -14,6 +16,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { CityId } from '../types/tram';
 import { CITIES, CityDetectionResult } from '../data/cities';
+import { ANDROID_RELEASES_PAGE_URL, ANDROID_RELEASE_APK_URL } from '../utils/feedback';
 import { triggerHaptic } from '../utils/haptics';
 import { BrandLogo } from './BrandLogo';
 
@@ -91,9 +94,9 @@ export function OnboardingModal({
         initial={{ opacity: 0, scale: 0.96, y: 12 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ duration: 0.24, ease: [0.2, 0, 0, 1] }}
-        className="m3-card flex max-h-[90dvh] w-full max-w-lg flex-col overflow-hidden rounded-3xl"
+        className="m3-card flex max-h-[90dvh] w-full max-w-lg flex-col overflow-hidden rounded-[28px]"
         style={{
-          backgroundColor: 'var(--bg-surface)',
+          backgroundColor: 'var(--md-surface-container-low)',
           color: 'var(--text-primary)',
         }}
       >
@@ -433,6 +436,65 @@ export function OnboardingModal({
                     );
                   })}
                 </div>
+
+                {/* Native Android App recommendation on final onboarding step */}
+                <div
+                  className="flex flex-col gap-3 rounded-[24px] border p-4"
+                  style={{
+                    backgroundColor: 'var(--md-secondary-container)',
+                    color: 'var(--md-on-secondary-container)',
+                    borderColor: 'var(--md-outline-variant)',
+                  }}
+                >
+                  <div className="flex items-start gap-3">
+                    <div
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl"
+                      style={{
+                        backgroundColor: 'var(--md-primary-container)',
+                        color: 'var(--md-on-primary-container)',
+                      }}
+                    >
+                      <Smartphone className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-display text-sm font-extrabold">
+                        На телефоне удобнее в Android-приложении
+                      </div>
+                      <p className="mt-0.5 text-xs leading-relaxed opacity-90">
+                        Веб-версия отлично подходит для быстрого знакомства и ПК. А если вы планируете гулять со смартфона — скачайте нативный клиент с быстрой картой, офлайн-работой и автообновлением.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <a
+                      href={ANDROID_RELEASE_APK_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => triggerHaptic('medium')}
+                      className="m3-tactile inline-flex min-h-[40px] flex-1 items-center justify-center gap-2 rounded-full px-4 py-2 text-xs font-bold whitespace-nowrap"
+                      style={{
+                        backgroundColor: 'var(--accent-primary)',
+                        color: 'var(--accent-on-primary)',
+                      }}
+                    >
+                      <Download className="h-4 w-4 shrink-0" />
+                      Скачать Android APK
+                    </a>
+                    <a
+                      href={ANDROID_RELEASES_PAGE_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="m3-tactile inline-flex min-h-[40px] items-center justify-center rounded-full border px-3.5 py-2 text-xs font-semibold whitespace-nowrap"
+                      style={{
+                        backgroundColor: 'var(--md-surface-container-low)',
+                        color: 'var(--text-primary)',
+                        borderColor: 'var(--md-outline-variant)',
+                      }}
+                    >
+                      Страница релиза
+                    </a>
+                  </div>
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
@@ -450,7 +512,7 @@ export function OnboardingModal({
                 triggerHaptic('light');
                 onComplete();
               }}
-              className="m3-tactile min-h-[42px] cursor-pointer rounded-2xl px-3 py-2 text-xs font-semibold"
+              className="m3-tactile min-h-[42px] cursor-pointer rounded-full px-4 py-2 text-xs font-semibold"
               style={{ color: 'var(--text-muted)' }}
             >
               Пропустить
@@ -463,9 +525,9 @@ export function OnboardingModal({
                   triggerHaptic('light');
                   setStep(0);
                 }}
-                className="m3-tactile min-h-[42px] cursor-pointer rounded-2xl px-4 py-2 text-xs font-semibold"
+                className="m3-tactile min-h-[42px] cursor-pointer rounded-full px-4 py-2 text-xs font-semibold"
                 style={{
-                  backgroundColor: 'var(--bg-elevated)',
+                  backgroundColor: 'var(--md-surface-container-high)',
                   color: 'var(--text-primary)',
                 }}
               >
@@ -477,7 +539,7 @@ export function OnboardingModal({
                   triggerHaptic('light');
                   setStep(2);
                 }}
-                className="m3-tactile min-h-[42px] cursor-pointer rounded-2xl px-3 py-2 text-xs font-semibold"
+                className="m3-tactile min-h-[42px] cursor-pointer rounded-full px-3 py-2 text-xs font-semibold"
                 style={{ color: 'var(--text-muted)' }}
               >
                 Пропустить
@@ -490,9 +552,9 @@ export function OnboardingModal({
                 triggerHaptic('light');
                 setStep((s) => (s - 1) as 0 | 1 | 2 | 3);
               }}
-              className="m3-tactile min-h-[42px] cursor-pointer rounded-2xl px-4 py-2 text-xs font-semibold"
+              className="m3-tactile min-h-[42px] cursor-pointer rounded-full px-4 py-2 text-xs font-semibold"
               style={{
-                backgroundColor: 'var(--bg-elevated)',
+                backgroundColor: 'var(--md-surface-container-high)',
                 color: 'var(--text-primary)',
               }}
             >
@@ -507,7 +569,7 @@ export function OnboardingModal({
                 triggerHaptic('medium');
                 setStep((s) => (s + 1) as 0 | 1 | 2 | 3);
               }}
-              className="m3-tactile m3-fab inline-flex min-h-[44px] cursor-pointer items-center gap-2 rounded-2xl px-5 py-2.5 text-sm font-bold"
+              className="m3-tactile m3-fab inline-flex min-h-[44px] cursor-pointer items-center gap-2 rounded-full px-6 py-2.5 text-sm font-bold"
               style={{
                 backgroundColor: 'var(--accent-primary)',
                 color: 'var(--accent-on-primary)',
@@ -522,7 +584,7 @@ export function OnboardingModal({
                 triggerHaptic('success');
                 onComplete();
               }}
-              className="m3-tactile m3-fab inline-flex min-h-[44px] cursor-pointer items-center gap-2 rounded-2xl px-5 py-2.5 text-sm font-bold"
+              className="m3-tactile m3-fab inline-flex min-h-[44px] cursor-pointer items-center gap-2 rounded-full px-6 py-2.5 text-sm font-bold"
               style={{
                 backgroundColor: 'var(--accent-primary)',
                 color: 'var(--accent-on-primary)',

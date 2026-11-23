@@ -13,7 +13,7 @@ interface ChangelogModalProps {
 export function ChangelogModal({
   isOpen,
   release,
-  previousVersion,
+  previousVersion: _previousVersion,
   onAcknowledge,
 }: ChangelogModalProps) {
   useEffect(() => {
@@ -37,9 +37,9 @@ export function ChangelogModal({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm"
     >
       <div
-        className="m3-card flex max-h-[88dvh] w-full max-w-md flex-col overflow-hidden rounded-3xl"
+        className="m3-card flex max-h-[88dvh] w-full max-w-md flex-col overflow-hidden rounded-[28px]"
         style={{
-          backgroundColor: 'var(--bg-surface)',
+          backgroundColor: 'var(--md-surface-container-low)',
           color: 'var(--text-primary)',
         }}
       >
@@ -56,11 +56,7 @@ export function ChangelogModal({
               <Sparkles className="h-3.5 w-3.5 shrink-0" />
               <span>Версия {release.version}</span>
               <span aria-hidden="true">·</span>
-              <span>
-                {previousVersion && previousVersion !== release.version
-                  ? `с ${previousVersion}`
-                  : release.subtitle}
-              </span>
+              <span>{release.subtitle}</span>
             </div>
             <h2
               id="changelog-modal-title"
@@ -125,7 +121,7 @@ export function ChangelogModal({
               triggerHaptic('success');
               onAcknowledge();
             }}
-            className="m3-tactile min-h-[44px] w-full cursor-pointer rounded-2xl px-4 py-2.5 text-sm font-bold"
+            className="m3-tactile m3-fab min-h-[44px] w-full cursor-pointer rounded-full px-4 py-2.5 text-sm font-bold"
             style={{
               backgroundColor: 'var(--accent-primary)',
               color: 'var(--accent-on-primary)',

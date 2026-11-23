@@ -165,6 +165,41 @@ export const TRIANGLE_VERTICES = {
   walk: { x: 0.89, y: 0.87 },
 } as const;
 
+/**
+ * Returns raw barycentric weights (without simplex clamping) for point (px, py)
+ * relative to TRIANGLE_VERTICES.
+ */
+export function getTriangleBarycentricWeights(px: number, py: number): {
+  wTram: number;
+  wTransit: number;
+  wWalk: number;
+} {
+  const { tram: A, transit: B, walk: C } = TRIANGLE_VERTICES;
+  const detT = (B.y - C.y) * (A.x - C.x) + (C.x - B.x) * (A.y - C.y);
+  const wTram = ((B.y - C.y) * (px - C.x) + (C.x - B.x) * (py - C.y)) / detT;
+  const wTransit = ((C.y - A.y) * (px - C.x) + (A.x - C.x) * (py - C.y)) / detT;
+  const wWalk = 1 - wTram - wTransit;
+  return { wTram, wTransit, wWalk };
+}
+
+/**
+ * Checks whether normalized point (px, py) lies inside the mode triangle
+ * (with small edge tolerance so border/vertex taps feel natural while clicks
+ * in the outer corners of the bounding box are ignored).
+ */
+export function isPointInModeTriangle(
+  px: number,
+  py: number,
+  edgeTolerance = 0.025
+): boolean {
+  const { wTram, wTransit, wWalk } = getTriangleBarycentricWeights(px, py);
+  return (
+    wTram >= -edgeTolerance &&
+    wTransit >= -edgeTolerance &&
+    wWalk >= -edgeTolerance
+  );
+}
+
 export function balanceToTrianglePoint(balance: ModeBalance): Point2D {
   const n = normalizeModeBalance(balance);
   return {
@@ -184,11 +219,7 @@ export function balanceToTrianglePoint(balance: ModeBalance): Point2D {
  * inside the equilateral triangle.
  */
 export function trianglePointToBalance(px: number, py: number): ModeBalance {
-  const { tram: A, transit: B, walk: C } = TRIANGLE_VERTICES;
-  const detT = (B.y - C.y) * (A.x - C.x) + (C.x - B.x) * (A.y - C.y);
-  let wA = ((B.y - C.y) * (px - C.x) + (C.x - B.x) * (py - C.y)) / detT;
-  let wB = ((C.y - A.y) * (px - C.x) + (A.x - C.x) * (py - C.y)) / detT;
-  let wC = 1 - wA - wB;
+  let { wTram: wA, wTransit: wB, wWalk: wC } = getTriangleBarycentricWeights(px, py);
 
   // Project onto simplex (wA, wB, wC >= 0, sum = 1) when dragged outside an edge
   const sorted = [
