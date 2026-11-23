@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { RefreshCw, ListOrdered } from 'lucide-react';
-import { MotionConfig } from 'motion/react';
+import { AnimatePresence, MotionConfig } from 'motion/react';
 import { CITIES, CityDetectionResult, detectCityFromCoords } from './data/cities';
 import {
   AccentSeed,
@@ -72,6 +72,7 @@ import { OfflineIndicator } from './components/OfflineIndicator';
 import { OnboardingModal } from './components/OnboardingModal';
 import { CityMismatchBanner } from './components/CityMismatchBanner';
 import { SettingsModal } from './components/SettingsModal';
+import { HelpModal } from './components/HelpModal';
 import { ChangelogModal } from './components/ChangelogModal';
 import { LiveTripCompanion } from './components/LiveTripCompanion';
 import { RoutePostcardModal } from './components/RoutePostcardModal';
@@ -131,6 +132,7 @@ export default function App() {
     });
   });
   const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
+  const [helpOpen, setHelpOpen] = useState<boolean>(false);
   const [liveTripOpen, setLiveTripOpen] = useState<boolean>(false);
   const [postcardOpen, setPostcardOpen] = useState<boolean>(false);
 
@@ -1348,8 +1350,11 @@ export default function App() {
           onExportBackup={handleExportBackup}
           onImportBackupFile={handleImportBackupFile}
           onOpenChangelog={() => setChangelogOpen(true)}
+          onOpenHelp={() => setHelpOpen(true)}
           onRestartOnboarding={() => setOnboardingOpen(true)}
         />
+
+        <HelpModal isOpen={helpOpen} onClose={() => setHelpOpen(false)} />
 
         <ChangelogModal
           isOpen={changelogOpen && !onboardingOpen}
@@ -1372,13 +1377,16 @@ export default function App() {
           />
         )}
 
-        {postcardOpen && activeTrip && (
-          <RoutePostcardModal
-            trip={activeTrip}
-            city={city}
-            onClose={() => setPostcardOpen(false)}
-          />
-        )}
+        <AnimatePresence>
+          {postcardOpen && activeTrip && (
+            <RoutePostcardModal
+              key="route-postcard-modal"
+              trip={activeTrip}
+              city={city}
+              onClose={() => setPostcardOpen(false)}
+            />
+          )}
+        </AnimatePresence>
 
         <StartupSplash visible={showSplash} onFinish={() => setShowSplash(false)} />
       </div>

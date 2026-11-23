@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Check, Copy, Download, Share2, X } from 'lucide-react';
+import { motion } from 'motion/react';
 import { CityId, GeneratedTrip } from '../types/tram';
 import { CITIES } from '../data/cities';
 import { buildYandexMapsRouteUrl } from '../utils/yandexMaps';
@@ -19,6 +20,16 @@ export function RoutePostcardModal({ trip, city, onClose }: RoutePostcardModalPr
   const cityName = CITIES[city].name;
   const startName = trip.startStop.name.split('(')[0].trim();
   const endName = trip.endStop.name.split('(')[0].trim();
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -148,13 +159,26 @@ export function RoutePostcardModal({ trip, city, onClose }: RoutePostcardModalPr
   };
 
   return (
-    <div
+    <motion.div
       role="dialog"
       aria-modal="true"
       aria-label="Открытка маршрута"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2, ease: 'easeOut' }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm"
     >
-      <div
+      <motion.div
+        initial={{ opacity: 0, scale: 0.92, y: 12 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 8 }}
+        transition={{ type: 'spring', stiffness: 360, damping: 28, mass: 0.85 }}
         className="m3-card flex w-full max-w-lg flex-col gap-4 rounded-3xl p-5"
         style={{
           backgroundColor: 'var(--bg-surface)',
@@ -218,7 +242,7 @@ export function RoutePostcardModal({ trip, city, onClose }: RoutePostcardModalPr
             Поделиться
           </button>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }

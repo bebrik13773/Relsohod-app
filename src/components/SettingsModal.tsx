@@ -6,6 +6,7 @@ import {
   Download,
   FolderOpen,
   GraduationCap,
+  HelpCircle,
   MapPin,
   Sparkles,
   Upload,
@@ -33,6 +34,7 @@ interface SettingsModalProps {
     file: File
   ) => Promise<{ ok: true; message: string } | { ok: false; error: string }>;
   onOpenChangelog: () => void;
+  onOpenHelp: () => void;
   onRestartOnboarding: () => void;
 }
 
@@ -64,6 +66,7 @@ export function SettingsModal({
   onExportBackup,
   onImportBackupFile,
   onOpenChangelog,
+  onOpenHelp,
   onRestartOnboarding,
 }: SettingsModalProps) {
   const [backupFeedback, setBackupFeedback] = useState<{
@@ -356,6 +359,24 @@ export function SettingsModal({
             className="flex flex-col gap-2 border-t pt-4"
             style={{ borderColor: 'var(--border-hairline)' }}
           >
+            <button
+              type="button"
+              onClick={() => {
+                triggerHaptic('light');
+                onClose();
+                onOpenHelp();
+              }}
+              className="m3-tactile flex min-h-[42px] w-full cursor-pointer items-center justify-center gap-2 rounded-2xl border px-4 py-2 text-xs font-semibold"
+              style={{
+                backgroundColor: 'var(--bg-elevated)',
+                color: 'var(--text-primary)',
+                borderColor: 'var(--border-hairline)',
+              }}
+            >
+              <HelpCircle className="h-4 w-4" />
+              Справка и частые вопросы (FAQ)
+            </button>
+
             <button
               type="button"
               onClick={() => {
