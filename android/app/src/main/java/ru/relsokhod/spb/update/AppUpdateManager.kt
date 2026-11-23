@@ -11,6 +11,7 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.provider.Settings
 import androidx.core.content.FileProvider
+import androidx.core.content.pm.PackageInfoCompat
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
@@ -23,7 +24,9 @@ import java.net.HttpURLConnection
 import java.net.URI
 import java.net.URL
 import java.security.MessageDigest
+import java.security.cert.CertificateFactory
 import java.util.Locale
+import java.util.zip.ZipFile
 import kotlin.coroutines.coroutineContext
 
 data class AppVersion(
@@ -85,6 +88,8 @@ sealed interface UpdateDownloadState {
 enum class SignatureCompatibility {
     COMPATIBLE,
     DIFFERENT_SIGNATURE,
+    PACKAGE_MISMATCH,
+    DOWNGRADE_CONFLICT,
     UNKNOWN
 }
 
@@ -519,27 +524,56 @@ object AppUpdateManager {
         }.getOrDefault("")
     }
 
+    @Suppress("DEPRECATION")
     fun checkSignatureCompatibility(context: Context, apkFile: File): SignatureCompatibility {
         if (!apkFile.exists()) return SignatureCompatibility.UNKNOWN
-        val installedHashes = getPackageSignatureHashes(context.packageManager, context.packageName, isArchive = false)
-        val archiveHashes = getPackageSignatureHashes(context.packageManager, apkFile.absolutePath, isArchive = true)
-        if (installedHashes.isEmpty() || archiveHashes.isEmpty()) return SignatureCompatibility.UNKNOWN
-        return if (installedHashes.any { it in archiveHashes }) {
+        val pm = context.packageManager
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            PackageManager.GET_SIGNING_CERTIFICATES or PackageManager.GET_SIGNATURES
+        } else {
+            PackageManager.GET_SIGNATURES
+        }
+        val archiveInfo = getPackageInfoCompat(pm, apkFile.absolutePath, flags, isArchive = true)
+            ?: return SignatureCompatibility.UNKNOWN
+        val installedInfo = getPackageInfoCompat(pm, context.packageName, flags, isArchive = false)
+            ?: return SignatureCompatibility.UNKNOWN
+
+        if (!archiveInfo.packageName.isNullOrBlank() && archiveInfo.packageName != context.packageName) {
+            return SignatureCompatibility.PACKAGE_MISMATCH
+        }
+
+        val installedHashes = extractSignatureHashes(installedInfo)
+        val archiveHashes = extractSignatureHashes(archiveInfo).ifEmpty {
+            extractArchiveCertificatesFromZip(apkFile)
+        }
+        if (installedHashes.isNotEmpty() && archiveHashes.isNotEmpty()) {
+            if (installedHashes.none { it in archiveHashes }) {
+                return SignatureCompatibility.DIFFERENT_SIGNATURE
+            }
+        }
+
+        val installedVersionCode = PackageInfoCompat.getLongVersionCode(installedInfo)
+        val archiveVersionCode = PackageInfoCompat.getLongVersionCode(archiveInfo)
+        if (archiveVersionCode in 1L until installedVersionCode) {
+            return SignatureCompatibility.DOWNGRADE_CONFLICT
+        }
+
+        return if (installedHashes.isNotEmpty() && archiveHashes.isNotEmpty()) {
             SignatureCompatibility.COMPATIBLE
         } else {
-            SignatureCompatibility.DIFFERENT_SIGNATURE
+            SignatureCompatibility.UNKNOWN
         }
     }
 
     @Suppress("DEPRECATION")
-    private fun getPackageSignatureHashes(pm: PackageManager, target: String, isArchive: Boolean): Set<String> {
+    private fun getPackageInfoCompat(
+        pm: PackageManager,
+        target: String,
+        flags: Int,
+        isArchive: Boolean
+    ): PackageInfo? {
         return runCatching {
-            val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                PackageManager.GET_SIGNING_CERTIFICATES
-            } else {
-                PackageManager.GET_SIGNATURES
-            }
-            val pkgInfo: PackageInfo? = if (isArchive) {
+            if (isArchive) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     pm.getPackageArchiveInfo(target, PackageManager.PackageInfoFlags.of(flags.toLong()))
                 } else {
@@ -552,20 +586,63 @@ object AppUpdateManager {
                     pm.getPackageInfo(target, flags)
                 }
             }
-            if (pkgInfo == null) return emptySet()
+        }.getOrNull()
+    }
 
-            val signatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                pkgInfo.signingInfo?.let { info ->
-                    if (info.hasMultipleSigners()) info.apkContentsSigners else info.signingCertificateHistory
-                }
-            } else {
-                pkgInfo.signatures
-            } ?: return emptySet()
-
+    @Suppress("DEPRECATION")
+    private fun extractSignatureHashes(pkgInfo: PackageInfo): Set<String> {
+        return runCatching {
             val digest = MessageDigest.getInstance("SHA-256")
-            signatures.map { sig ->
-                digest.digest(sig.toByteArray()).joinToString("") { "%02x".format(it) }
-            }.toSet()
+            val result = linkedSetOf<String>()
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                pkgInfo.signingInfo?.let { info ->
+                    val certs = if (info.hasMultipleSigners()) {
+                        info.apkContentsSigners
+                    } else {
+                        info.signingCertificateHistory
+                    }
+                    certs?.forEach { sig ->
+                        result.add(digest.digest(sig.toByteArray()).joinToString("") { "%02x".format(it) })
+                    }
+                }
+            }
+
+            if (result.isEmpty()) {
+                pkgInfo.signatures?.forEach { sig ->
+                    result.add(digest.digest(sig.toByteArray()).joinToString("") { "%02x".format(it) })
+                }
+            }
+
+            result
+        }.getOrDefault(emptySet())
+    }
+
+    private fun extractArchiveCertificatesFromZip(apkFile: File): Set<String> {
+        return runCatching {
+            val digest = MessageDigest.getInstance("SHA-256")
+            val certFactory = CertificateFactory.getInstance("X.509")
+            val result = linkedSetOf<String>()
+            ZipFile(apkFile).use { zip ->
+                val entries = zip.entries()
+                while (entries.hasMoreElements()) {
+                    val entry = entries.nextElement()
+                    val upper = entry.name.uppercase(Locale.US)
+                    if (!entry.isDirectory &&
+                        upper.startsWith("META-INF/") &&
+                        (upper.endsWith(".RSA") || upper.endsWith(".DSA") || upper.endsWith(".EC"))
+                    ) {
+                        zip.getInputStream(entry).use { input ->
+                            certFactory.generateCertificates(input).forEach { cert ->
+                                result.add(
+                                    digest.digest(cert.encoded).joinToString("") { "%02x".format(it) }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            result
         }.getOrDefault(emptySet())
     }
 

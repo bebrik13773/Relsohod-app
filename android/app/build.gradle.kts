@@ -16,7 +16,7 @@ android {
             ?.takeIf { it.isNotBlank() && it.contains("/") }
             ?: "bebrik13773/Reslohid"
         val ciRunNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 0
-        val baseVersionCode = 5
+        val baseVersionCode = 100
         versionCode = if (ciRunNumber > 0) baseVersionCode + ciRunNumber else baseVersionCode
         versionName = "2.3.0-native"
 
@@ -27,6 +27,17 @@ android {
     }
 
     signingConfigs {
+        getByName("debug") {
+            val debugKeystore = rootProject.file("debug.keystore")
+            if (debugKeystore.exists()) {
+                storeFile = debugKeystore
+                storePassword = System.getenv("ANDROID_DEBUG_KEYSTORE_PASSWORD") ?: "android"
+                keyAlias = System.getenv("ANDROID_DEBUG_KEY_ALIAS") ?: "androiddebugkey"
+                keyPassword = System.getenv("ANDROID_DEBUG_KEY_PASSWORD") ?: "android"
+            }
+            enableV1Signing = true
+            enableV2Signing = true
+        }
         create("release") {
             val keystorePath = System.getenv("ANDROID_KEYSTORE_PATH")
             if (!keystorePath.isNullOrBlank() && file(keystorePath).exists()) {
@@ -35,6 +46,8 @@ android {
                 keyAlias = System.getenv("ANDROID_KEY_ALIAS") ?: "relsokhod"
                 keyPassword = System.getenv("ANDROID_KEY_PASSWORD") ?: "relsokhod"
             }
+            enableV1Signing = true
+            enableV2Signing = true
         }
     }
 
@@ -54,6 +67,7 @@ android {
         debug {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 

@@ -192,7 +192,19 @@ fun AppUpdateBanner(
                 }
 
                 is UpdateDownloadState.ReadyToInstall -> {
-                    if (downloadState.signatureCompatibility == SignatureCompatibility.DIFFERENT_SIGNATURE) {
+                    val compat = downloadState.signatureCompatibility
+                    if (compat == SignatureCompatibility.DIFFERENT_SIGNATURE ||
+                        compat == SignatureCompatibility.PACKAGE_MISMATCH ||
+                        compat == SignatureCompatibility.DOWNGRADE_CONFLICT
+                    ) {
+                        val reasonText = when (compat) {
+                            SignatureCompatibility.PACKAGE_MISMATCH ->
+                                "Скачанный APK имеет другой ID пакета (release vs debug) и не может встать поверх текущей версии. Сохраните APK в Загрузки и установите после удаления старой сборки (не забудьте экспорт .relsohod в Настройках)."
+                            SignatureCompatibility.DOWNGRADE_CONFLICT ->
+                                "Установленная сборка имеет более высокий build-номер, чем скачанный APK. Если хотите перейти на ветку релизов этого репозитория, сохраните резервную копию .relsohod и переустановите APK один раз."
+                            else ->
+                                "Текущая установленная сборка подписана другим ключом, поэтому Android покажет «Обновление конфликтует с другим пакетом». Сохраните APK в Загрузки и удалите старую версию один раз (маршруты можно сохранить через .relsohod в Настройках) — все следующие релизы будут ставиться поверх без удаления."
+                        }
                         Surface(
                             shape = RoundedCornerShape(12.dp),
                             color = Color(0xFFF59E0B).copy(alpha = 0.16f),
@@ -210,26 +222,18 @@ fun AppUpdateBanner(
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Text(
-                                    text = "Текущая старая сборка была подписана прежним временным ключом. Сохраните APK в Загрузки и удалите старую версию — все будущие релизы с единым ключом будут ставиться поверх без удаления.",
+                                    text = reasonText,
                                     fontSize = 11.sp,
                                     lineHeight = 15.sp,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                             }
                         }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        Button(
+                            onClick = { onExportAndUninstall(downloadState.apkFile, release) },
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Button(
-                                onClick = { onExportAndUninstall(downloadState.apkFile, release) },
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Text("В Загрузки и удалить старую", fontSize = 11.sp)
-                            }
-                            OutlinedButton(onClick = { onInstallApk(downloadState.apkFile) }) {
-                                Text("Установить", fontSize = 11.sp)
-                            }
+                            Text("Сохранить APK в Загрузки и удалить старую", fontSize = 11.sp)
                         }
                     } else {
                         Button(

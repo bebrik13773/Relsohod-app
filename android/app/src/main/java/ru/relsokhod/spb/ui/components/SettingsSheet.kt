@@ -426,9 +426,21 @@ fun SettingsSheet(
                                     }
 
                                     is UpdateDownloadState.ReadyToInstall -> {
-                                        if (updateDownloadState.signatureCompatibility == SignatureCompatibility.DIFFERENT_SIGNATURE) {
+                                        val compat = updateDownloadState.signatureCompatibility
+                                        if (compat == SignatureCompatibility.DIFFERENT_SIGNATURE ||
+                                            compat == SignatureCompatibility.PACKAGE_MISMATCH ||
+                                            compat == SignatureCompatibility.DOWNGRADE_CONFLICT
+                                        ) {
+                                            val conflictHint = when (compat) {
+                                                SignatureCompatibility.PACKAGE_MISMATCH ->
+                                                    "Скачанный APK относится к другому варианту пакета (release/debug). Сохраните копию .relsohod ниже, сохраните APK в Загрузки и удалите текущую сборку."
+                                                SignatureCompatibility.DOWNGRADE_CONFLICT ->
+                                                    "Установленная сборка имеет более высокий build-номер. Сохраните .relsohod, выгрузите APK в Загрузки и переустановите один раз."
+                                                else ->
+                                                    "Старая сборка подписана другим ключом — прямая установка выдаст «Обновление конфликтует с другим пакетом». Сохраните .relsohod (ниже), выгрузите APK в Загрузки и удалите старую версию один раз; дальнейшие обновления будут ставиться поверх."
+                                            }
                                             Text(
-                                                text = "Подпись текущей сборки отличается от нового постоянного ключа. Сохраните APK в Загрузки и удалите старую версию один раз.",
+                                                text = conflictHint,
                                                 fontSize = 11.sp,
                                                 color = Color(0xFFB45309)
                                             )
@@ -437,12 +449,6 @@ fun SettingsSheet(
                                                 modifier = Modifier.fillMaxWidth()
                                             ) {
                                                 Text("Сохранить в Загрузки и удалить старую", fontSize = 12.sp)
-                                            }
-                                            OutlinedButton(
-                                                onClick = { onInstallUpdateApk(updateDownloadState.apkFile) },
-                                                modifier = Modifier.fillMaxWidth()
-                                            ) {
-                                                Text("Попробовать установить напрямую", fontSize = 12.sp)
                                             }
                                         } else {
                                             Button(

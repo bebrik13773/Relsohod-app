@@ -478,14 +478,32 @@ private fun RelsokhodNativeApp(
                     AppUpdateManager.checkSignatureCompatibility(appContext, apkFile)
                 }
                 updateDownloadState = UpdateDownloadState.ReadyToInstall(apkFile, release, sigCompat)
-                if (sigCompat == SignatureCompatibility.DIFFERENT_SIGNATURE) {
-                    Toast.makeText(
-                        activity,
-                        "Нужна однократная переустановка из-за смены ключа подписи",
-                        Toast.LENGTH_LONG
-                    ).show()
-                } else {
-                    triggerApkInstall(apkFile)
+                when (sigCompat) {
+                    SignatureCompatibility.DIFFERENT_SIGNATURE -> {
+                        Toast.makeText(
+                            activity,
+                            "Старая версия подписана другим ключом — сохраните APK в Загрузки и удалите её один раз",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                    SignatureCompatibility.PACKAGE_MISMATCH -> {
+                        Toast.makeText(
+                            activity,
+                            "Скачанный APK относится к другому варианту пакета (debug/release)",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                    SignatureCompatibility.DOWNGRADE_CONFLICT -> {
+                        Toast.makeText(
+                            activity,
+                            "Версия кода скачанного APK ниже уже установленной сборки",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                    SignatureCompatibility.COMPATIBLE,
+                    SignatureCompatibility.UNKNOWN -> {
+                        triggerApkInstall(apkFile)
+                    }
                 }
             }.onFailure { err ->
                 updateDownloadState = UpdateDownloadState.Failed(

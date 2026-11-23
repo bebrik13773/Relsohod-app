@@ -51,17 +51,17 @@ jobs:
         working-directory: android
         run: ./gradlew testDebugUnitTest --stacktrace
 
-      - name: Build Debug APK
-        working-directory: android
-        run: ./gradlew assembleDebug --stacktrace
-
-      - name: Restore cached signing keystore
+      - name: Restore cached signing keystores
         uses: actions/cache@v4
         with:
-          path: android/release.keystore
-          key: relsokhod-release-keystore-v1
+          path: |
+            android/release.keystore
+            android/debug.keystore
+          key: relsokhod-signing-keystores-v2
+          restore-keys: |
+            relsokhod-release-keystore-
 
-      - name: Prepare signing keystore for Release APK
+      - name: Prepare signing keystores for Debug & Release APKs
         working-directory: android
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -69,6 +69,18 @@ jobs:
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
+          if [ ! -f debug.keystore ]; then
+            keytool -genkeypair -v \
+              -keystore debug.keystore \
+              -alias androiddebugkey \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -storepass android \
+              -keypass android \
+              -dname "CN=Android Debug, O=Android, C=US"
+          fi
+
           if [ -n "$KEYSTORE_B64" ]; then
             echo "$KEYSTORE_B64" | base64 --decode > release.keystore
             echo "ANDROID_KEYSTORE_PATH=$(pwd)/release.keystore" >> $GITHUB_ENV
@@ -76,7 +88,7 @@ jobs:
             echo "ANDROID_KEY_ALIAS=$KEY_ALIAS" >> $GITHUB_ENV
             echo "ANDROID_KEY_PASSWORD=$KEY_PASS" >> $GITHUB_ENV
           elif [ -f release.keystore ]; then
-            echo "Reusing cached signing keystore so APK upgrades preserve app data and signature."
+            echo "Reusing cached release keystore so APK upgrades preserve app data and signature."
             echo "ANDROID_KEYSTORE_PATH=$(pwd)/release.keystore" >> $GITHUB_ENV
             echo "ANDROID_KEYSTORE_PASSWORD=relsokhod123" >> $GITHUB_ENV
             echo "ANDROID_KEY_ALIAS=relsokhod" >> $GITHUB_ENV
@@ -96,6 +108,10 @@ jobs:
             echo "ANDROID_KEY_ALIAS=relsokhod" >> $GITHUB_ENV
             echo "ANDROID_KEY_PASSWORD=relsokhod123" >> $GITHUB_ENV
           fi
+
+      - name: Build Debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --stacktrace
 
       - name: Build Signed Release APK
         working-directory: android
