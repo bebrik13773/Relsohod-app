@@ -6,6 +6,7 @@ import {
   SavedRoute,
   TripHistoryEntry,
 } from '../types/tram';
+import { APP_VERSION_STORAGE_KEY } from './changelog';
 
 const SAVED_ROUTES_KEY = 'spb_tram_saved_routes_v1';
 const THEME_STORAGE_KEY = 'spb_tram_theme_v1';
@@ -15,7 +16,6 @@ const ONBOARDING_DONE_KEY = 'relsokhod_onboarding_done_v1';
 const PLANNER_STATE_KEY = 'relsokhod_planner_state_v1';
 const TRIP_HISTORY_KEY = 'relsokhod_trip_history_v1';
 const PHOTO_REMINDER_MINS_KEY = 'relsokhod_photo_reminder_mins_v1';
-const APP_VERSION_STORAGE_KEY = 'relsokhod_app_version_v1';
 
 export function loadSavedRoutes(): SavedRoute[] {
   try {

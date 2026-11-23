@@ -10,6 +10,19 @@ export interface ChangelogRelease {
 }
 
 export const CURRENT_APP_VERSION = '2.3.0';
+export const APP_VERSION_STORAGE_KEY = 'relsokhod_app_version_v1';
+
+export interface StorageLike {
+  getItem(key: string): string | null;
+}
+
+export interface AppVersionCheckResult {
+  changed: boolean;
+  shouldShowChangelog: boolean;
+  currentVersion: string;
+  storedVersion: string | null;
+  release: ChangelogRelease;
+}
 
 export const LATEST_CHANGELOG: ChangelogRelease = {
   version: CURRENT_APP_VERSION,
@@ -96,4 +109,59 @@ export function shouldShowChangelogOnLaunch(params: {
   }
   if (isAutostart) return false;
   return onboardingDone;
+}
+
+export function checkAppVersionAgainstStorage(options?: {
+  storage?: StorageLike | null;
+  storageKey?: string;
+  currentVersion?: string;
+  onboardingDone?: boolean;
+  isAutostart?: boolean;
+}): AppVersionCheckResult {
+  const currentVersion = options?.currentVersion ?? CURRENT_APP_VERSION;
+  const storageKey = options?.storageKey ?? APP_VERSION_STORAGE_KEY;
+  const onboardingDone = options?.onboardingDone ?? true;
+  const isAutostart = options?.isAutostart ?? false;
+
+  let storage: StorageLike | null = options?.storage ?? null;
+  if (storage === null && options?.storage === undefined) {
+    try {
+      storage = typeof window !== 'undefined' ? window.localStorage : null;
+    } catch {
+      storage = null;
+    }
+  }
+
+  if (!storage) {
+    return {
+      changed: false,
+      shouldShowChangelog: false,
+      currentVersion,
+      storedVersion: null,
+      release: LATEST_CHANGELOG,
+    };
+  }
+
+  let storedVersion: string | null = null;
+  try {
+    storedVersion = storage.getItem(storageKey);
+  } catch {
+    storedVersion = null;
+  }
+
+  const changed = storedVersion !== currentVersion;
+  const shouldShowChangelog = shouldShowChangelogOnLaunch({
+    storedVersion,
+    currentVersion,
+    onboardingDone,
+    isAutostart,
+  });
+
+  return {
+    changed,
+    shouldShowChangelog,
+    currentVersion,
+    storedVersion,
+    release: LATEST_CHANGELOG,
+  };
 }

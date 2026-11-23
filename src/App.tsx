@@ -47,8 +47,9 @@ import {
 } from './utils/storage';
 import {
   CURRENT_APP_VERSION,
+  ChangelogRelease,
   LATEST_CHANGELOG,
-  shouldShowChangelogOnLaunch,
+  checkAppVersionAgainstStorage,
 } from './utils/changelog';
 import {
   MAX_BACKUP_BYTES,
@@ -121,16 +122,26 @@ export default function App() {
     loadLastSeenAppVersion()
   );
   const [onboardingOpen, setOnboardingOpen] = useState<boolean>(() => !loadOnboardingDone());
-  const [changelogOpen, setChangelogOpen] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
+  const [changelogRelease, setChangelogRelease] = useState<ChangelogRelease>(LATEST_CHANGELOG);
+  const [changelogOpen, setChangelogOpen] = useState<boolean>(false);
+
+  const checkAppVersion = useCallback(() => {
+    if (typeof window === 'undefined') return;
     const isAutostart = new URLSearchParams(window.location.search).get('autostart') === '1';
-    return shouldShowChangelogOnLaunch({
-      storedVersion: loadLastSeenAppVersion(),
-      currentVersion: CURRENT_APP_VERSION,
+    const result = checkAppVersionAgainstStorage({
       onboardingDone: loadOnboardingDone(),
       isAutostart,
     });
-  });
+    setPreviousSeenVersion(result.storedVersion);
+    setChangelogRelease(result.release);
+    if (result.shouldShowChangelog) {
+      setChangelogOpen(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    checkAppVersion();
+  }, [checkAppVersion]);
   const [settingsOpen, setSettingsOpen] = useState<boolean>(false);
   const [helpOpen, setHelpOpen] = useState<boolean>(false);
   const [liveTripOpen, setLiveTripOpen] = useState<boolean>(false);
@@ -1358,7 +1369,7 @@ export default function App() {
 
         <ChangelogModal
           isOpen={changelogOpen && !onboardingOpen}
-          release={LATEST_CHANGELOG}
+          release={changelogRelease}
           previousVersion={previousSeenVersion}
           onAcknowledge={() => {
             persistLastSeenAppVersion(CURRENT_APP_VERSION);

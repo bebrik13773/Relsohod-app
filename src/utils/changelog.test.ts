@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
+  APP_VERSION_STORAGE_KEY,
   CURRENT_APP_VERSION,
   LATEST_CHANGELOG,
+  checkAppVersionAgainstStorage,
   parseChangelogSections,
   shouldShowChangelogOnLaunch,
 } from './changelog';
@@ -77,6 +79,48 @@ test('shouldShowChangelogOnLaunch triggers when localStorage version changed', (
     }),
     false
   );
+});
+
+test('checkAppVersionAgainstStorage compares currentVersion with localStorage safely', () => {
+  const outdatedStorage = {
+    getItem: (key: string) => (key === APP_VERSION_STORAGE_KEY ? '2.2.0' : null),
+  };
+  const upgradeResult = checkAppVersionAgainstStorage({
+    storage: outdatedStorage,
+    onboardingDone: true,
+    isAutostart: true,
+  });
+  assert.equal(upgradeResult.changed, true);
+  assert.equal(upgradeResult.shouldShowChangelog, true);
+  assert.equal(upgradeResult.storedVersion, '2.2.0');
+  assert.equal(upgradeResult.currentVersion, CURRENT_APP_VERSION);
+  assert.deepEqual(upgradeResult.release, LATEST_CHANGELOG);
+
+  const upToDateStorage = {
+    getItem: (key: string) => (key === APP_VERSION_STORAGE_KEY ? CURRENT_APP_VERSION : null),
+  };
+  const sameResult = checkAppVersionAgainstStorage({
+    storage: upToDateStorage,
+    onboardingDone: true,
+  });
+  assert.equal(sameResult.changed, false);
+  assert.equal(sameResult.shouldShowChangelog, false);
+
+  const brokenStorage = {
+    getItem: () => {
+      throw new Error('SecurityError');
+    },
+  };
+  const brokenResult = checkAppVersionAgainstStorage({
+    storage: brokenStorage,
+    onboardingDone: false,
+  });
+  assert.equal(brokenResult.changed, true);
+  assert.equal(brokenResult.shouldShowChangelog, false);
+
+  const noStorageResult = checkAppVersionAgainstStorage({ storage: null });
+  assert.equal(noStorageResult.changed, false);
+  assert.equal(noStorageResult.shouldShowChangelog, false);
 });
 
 test('parseChangelogSections extracts categories and bullet points', () => {

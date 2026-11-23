@@ -79,7 +79,8 @@ export default defineConfig(() => {
           ],
         },
         devOptions: {
-          enabled: true,
+          // Dev SW registration uses import.meta.hot.send(), which throws when HMR is disabled.
+          enabled: process.env.DISABLE_HMR !== 'true',
           type: 'module',
         },
       }),
