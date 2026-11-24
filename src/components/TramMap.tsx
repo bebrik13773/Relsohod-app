@@ -381,9 +381,11 @@ function GoogleMapInner(props: TramMapProps & { onFallbackNeeded: () => void }) 
                 }}
               >
                 {seg.kind === 'tram'
-                  ? seg.route?.type === 'metro' || seg.route?.type === 'trolleybus'
-                    ? seg.route.number
-                    : `№${seg.route?.number}`
+                  ? seg.route
+                    ? seg.route.type === 'metro' || seg.route.type === 'trolleybus'
+                      ? seg.route.number
+                      : `№${seg.route.number}`
+                    : 'Линия'
                   : seg.kind === 'walk'
                     ? 'Пешком'
                     : 'Стыковка'}

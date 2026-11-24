@@ -172,7 +172,7 @@ export function SpbSchematicMap({
   const handleWheel = (e: React.WheelEvent) => {
     e.preventDefault();
     const delta = e.deltaY < 0 ? 0.14 : -0.14;
-    setZoom((z) => Math.min(2.8, Math.max(0.85, Number((z + delta).toFixed(2)))));
+    setZoom((z) => Math.min(2.8, Math.max(0.55, Number((z + delta).toFixed(2)))));
   };
 
   const handlePointerDown = (e: React.PointerEvent) => {
@@ -222,6 +222,7 @@ export function SpbSchematicMap({
       {/* Interactive SVG Geographic Canvas */}
       <svg
         viewBox={`0 0 ${SVG_W} ${SVG_H}`}
+        preserveAspectRatio="xMidYMid slice"
         className="h-full w-full cursor-grab active:cursor-grabbing"
         role="img"
         aria-label={
@@ -633,7 +634,7 @@ export function SpbSchematicMap({
         <button
           type="button"
           aria-label="Отдалить карту"
-          onClick={() => setZoom((z) => Math.max(0.85, Number((z - 0.25).toFixed(2))))}
+          onClick={() => setZoom((z) => Math.max(0.55, Number((z - 0.25).toFixed(2))))}
           className="cursor-pointer border-t p-2.5 transition-colors hover:opacity-80"
           style={{ color: 'var(--text-primary)', borderColor: 'var(--border-hairline)' }}
         >
@@ -656,7 +657,7 @@ export function SpbSchematicMap({
       {/* Selected Landmark Preview Card */}
       {activeLandmark && (
         <div
-          className="absolute bottom-3 left-3 z-10 w-72 overflow-hidden rounded-xl border shadow-lg sm:w-80"
+          className="absolute bottom-14 left-3 z-30 w-72 max-w-[calc(100vw-4.5rem)] overflow-hidden rounded-xl border shadow-lg sm:w-80"
           style={{
             backgroundColor: 'var(--bg-surface)',
             borderColor: 'var(--border-hairline)',

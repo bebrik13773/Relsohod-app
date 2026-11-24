@@ -1028,6 +1028,8 @@ private fun RelsokhodNativeApp(
                             RouteTab(
                                 cityConfig = currentCityConfig,
                                 params = currentParams,
+                                themeMode = themeMode,
+                                accentSeed = accentSeed,
                                 outcome = outcome,
                                 selectedAlternativeIdx = selectedAlternativeIdx,
                                 onSelectAlternative = { selectedAlternativeIdx = it },

@@ -87,16 +87,18 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import ru.relsokhod.spb.model.AccentSeed
 import ru.relsokhod.spb.model.CityConfig
 import ru.relsokhod.spb.model.GeneratedTrip
 import ru.relsokhod.spb.model.GenerationOutcome
 import ru.relsokhod.spb.model.LandmarkCategory
 import ru.relsokhod.spb.model.SearchParamsState
 import ru.relsokhod.spb.model.SegmentKind
+import ru.relsokhod.spb.model.ThemeMode
 import ru.relsokhod.spb.model.TramStop
 import ru.relsokhod.spb.model.TripPhotoMemory
 import ru.relsokhod.spb.router.TramRouter
-import ru.relsokhod.spb.ui.components.TramMapCanvas
+import ru.relsokhod.spb.ui.components.WebTramMap
 import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
@@ -105,7 +107,7 @@ import java.util.Locale
 import kotlin.math.roundToInt
 
 private enum class RouteSubView(val label: String) {
-    MAP("Схема"),
+    MAP("Карта"),
     STEPS("Шаги"),
     PLACES("Места")
 }
@@ -115,6 +117,8 @@ private enum class RouteSubView(val label: String) {
 fun RouteTab(
     cityConfig: CityConfig,
     params: SearchParamsState,
+    themeMode: ThemeMode,
+    accentSeed: AccentSeed,
     outcome: GenerationOutcome?,
     selectedAlternativeIdx: Int = 0,
     onSelectAlternative: (Int) -> Unit = {},
@@ -180,12 +184,17 @@ fun RouteTab(
 
         when (subView) {
             RouteSubView.MAP -> {
-                TramMapCanvas(
+                WebTramMap(
                     city = cityConfig.id,
+                    themeMode = themeMode,
+                    accentSeed = accentSeed,
                     stops = visibleStops,
                     routes = visibleRoutes,
                     trip = activeTrip,
                     showAllNetwork = params.showAllNetwork,
+                    includePlanned2027 = params.includePlanned2027,
+                    startStopId = params.startStopId,
+                    destinationStopId = params.destinationStopId,
                     mapPickMode = mapPickMode,
                     onPickStop = onPickStopOnMap,
                     modifier = Modifier.fillMaxSize()

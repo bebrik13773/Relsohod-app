@@ -79,6 +79,8 @@ import { ChangelogModal } from './components/ChangelogModal';
 import { LiveTripCompanion } from './components/LiveTripCompanion';
 import { RoutePostcardModal } from './components/RoutePostcardModal';
 import { StartupSplash } from './components/StartupSplash';
+import { EmbedMapView } from './components/EmbedMapView';
+import { isMapOnlySearch } from './utils/mapEmbed';
 
 function getInitialScheduleSlot(): { dayOfWeek: number; timeMinutes: number } {
   const now = new Date();
@@ -92,6 +94,21 @@ function getInitialScheduleSlot(): { dayOfWeek: number; timeMinutes: number } {
 type MobileRouteSubView = 'map' | 'steps' | 'places';
 
 export default function App() {
+  const isMapOnly =
+    typeof window !== 'undefined' && isMapOnlySearch(window.location.search);
+
+  if (isMapOnly) {
+    return (
+      <MotionConfig reducedMotion="user">
+        <EmbedMapView />
+      </MotionConfig>
+    );
+  }
+
+  return <MainRelsokhodApp />;
+}
+
+function MainRelsokhodApp() {
   const savedPlanner = useMemo(() => loadPlannerState(), []);
   const initialSlot = useMemo(() => getInitialScheduleSlot(), []);
 

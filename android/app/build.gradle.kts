@@ -20,8 +20,13 @@ android {
         versionCode = if (ciRunNumber > 0) baseVersionCode + ciRunNumber else baseVersionCode
         versionName = "2.4.0-native"
 
+        val webMapBaseUrl = System.getenv("RELSOKHOD_WEB_MAP_URL")
+            ?.takeIf { it.isNotBlank() }
+            ?: "https://ais-pre-qdj5pm4lwe3g2rvqrqgfz6-449024027488.europe-west3.run.app"
+
         buildConfigField("String", "GITHUB_REPO", "\"$githubRepo\"")
         buildConfigField("int", "CI_RUN_NUMBER", "$ciRunNumber")
+        buildConfigField("String", "WEB_MAP_BASE_URL", "\"$webMapBaseUrl\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
