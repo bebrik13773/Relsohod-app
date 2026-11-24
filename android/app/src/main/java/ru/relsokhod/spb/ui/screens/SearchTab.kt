@@ -20,13 +20,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.AcUnit
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.CloudQueue
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Map
 import androidx.compose.material.icons.rounded.MyLocation
 import androidx.compose.material.icons.rounded.Repeat
+import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Shuffle
 import androidx.compose.material.icons.rounded.WbSunny
@@ -36,13 +37,16 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -63,6 +67,7 @@ import ru.relsokhod.spb.model.CityId
 import ru.relsokhod.spb.model.DurationPreset
 import ru.relsokhod.spb.model.RouteThemeFilter
 import ru.relsokhod.spb.model.SearchParamsState
+import ru.relsokhod.spb.model.TimePlanningMode
 import ru.relsokhod.spb.model.TramStop
 import ru.relsokhod.spb.model.WeatherMode
 import ru.relsokhod.spb.router.TramRouter
@@ -73,6 +78,24 @@ private val TIME_SLOTS = listOf(
     12 * 60, 13 * 60, 14 * 60, 15 * 60, 16 * 60, 17 * 60, 18 * 60,
     19 * 60, 20 * 60, 21 * 60, 22 * 60, 23 * 60
 )
+
+private val DEADLINE_SLOTS = listOf(
+    10 * 60, 10 * 60 + 30, 11 * 60, 11 * 60 + 30, 12 * 60, 12 * 60 + 30,
+    13 * 60, 13 * 60 + 30, 14 * 60, 14 * 60 + 30, 15 * 60, 15 * 60 + 30,
+    16 * 60, 16 * 60 + 30, 17 * 60, 17 * 60 + 30, 18 * 60, 18 * 60 + 30,
+    19 * 60, 19 * 60 + 30, 20 * 60, 20 * 60 + 30, 21 * 60, 21 * 60 + 30,
+    22 * 60, 22 * 60 + 30, 23 * 60, 23 * 60 + 30
+)
+
+private fun formatStopLabel(stop: TramStop): String {
+    val prefix = when (stop.stopKind) {
+        "metro" -> "М · "
+        "trolleybus" -> "Тр · "
+        else -> ""
+    }
+    val suffix = if (stop.planned2027) " [до лета 2027]" else ""
+    return "$prefix${stop.name}$suffix"
+}
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -88,20 +111,30 @@ fun SearchTab(
     onGenerate: () -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
-    val tramStops = remember(cityConfig.stops) { cityConfig.stops.filter { !it.isolatedFromMainTram } }
-    val destStops = remember(cityConfig.stops, params.startStopId) {
-        cityConfig.stops.filter { it.id != params.startStopId }
+    val visibleStops = remember(cityConfig.stops, params.includePlanned2027) {
+        if (params.includePlanned2027) cityConfig.stops
+        else cityConfig.stops.filter { !it.planned2027 }
     }
-    val stopMap = remember(cityConfig.stops) { cityConfig.stops.associateBy { it.id } }
+    val selectableStartStops = remember(visibleStops) {
+        visibleStops.filter { !it.isolatedFromMainTram }
+    }
+    val destStops = remember(visibleStops, params.startStopId) {
+        visibleStops.filter { it.id != params.startStopId }
+    }
+    val stopMap = remember(visibleStops) { visibleStops.associateBy { it.id } }
 
     var startPickerOpen by remember { mutableStateOf(false) }
     var destPickerOpen by remember { mutableStateOf(false) }
     var dayMenuExpanded by remember { mutableStateOf(false) }
     var timeMenuExpanded by remember { mutableStateOf(false) }
+    var deadlineMenuExpanded by remember { mutableStateOf(false) }
     var addressNotFound by remember { mutableStateOf(false) }
 
-    val startStop = stopMap[params.startStopId] ?: tramStops.firstOrNull()
+    val startStop = stopMap[params.startStopId] ?: selectableStartStops.firstOrNull()
     val destStop = params.destinationStopId?.let { stopMap[it] }
+    val deadlineBudget = remember(params.timeMinutes, params.deadlineMinutes) {
+        TramRouter.computeDeadlineBudgetMinutes(params.timeMinutes, params.deadlineMinutes)
+    }
 
     Column(
         modifier = Modifier
@@ -111,7 +144,7 @@ fun SearchTab(
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         Text(
-            text = "Куда поехать на трамвае",
+            text = "Куда погулять и проехать",
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.ExtraBold
         )
@@ -152,7 +185,7 @@ fun SearchTab(
                     shape = RoundedCornerShape(14.dp)
                 ) {
                     Text(
-                        text = startStop?.let { "${it.name} — ${it.district}" } ?: "Выбрать остановку",
+                        text = startStop?.let { "${formatStopLabel(it)} — ${it.district}" } ?: "Выбрать станцию или остановку",
                         modifier = Modifier.weight(1f),
                         maxLines = 1,
                         fontSize = 13.sp
@@ -176,7 +209,7 @@ fun SearchTab(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Конечный адрес или остановка", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text("Куда добраться или дойти", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         if (params.destinationStopId != null || params.destinationAddressLabel.isNotBlank()) {
                             TextButton(
@@ -217,8 +250,8 @@ fun SearchTab(
                         },
                         placeholder = {
                             Text(
-                                text = if (cityConfig.id == CityId.OMSK) "Например: Цирк, Вокзал..."
-                                else "Например: Сенная, Чижик...",
+                                text = if (cityConfig.id == CityId.OMSK) "Например: Цирк, Вокзал, Нефтяников..."
+                                else "Например: Сенная, Гостиный двор, Чижик...",
                                 fontSize = 12.sp
                             )
                         },
@@ -230,7 +263,7 @@ fun SearchTab(
                         onClick = {
                             val q = params.destinationAddressQuery.trim().lowercase()
                             if (q.isEmpty()) return@FilledTonalButton
-                            val stopMatch = cityConfig.stops.firstOrNull {
+                            val stopMatch = visibleStops.firstOrNull {
                                 it.id != params.startStopId &&
                                     (it.name.lowercase().contains(q) || it.district.lowercase().contains(q))
                             }
@@ -240,7 +273,7 @@ fun SearchTab(
                                 }
                             } else null
                             val resolved: TramStop? = stopMatch ?: lmMatch?.let { lm ->
-                                TramRouter.findNearestStops(lm.lat, lm.lng, cityConfig.stops, 1, true).firstOrNull()?.first
+                                TramRouter.findNearestStops(lm.lat, lm.lng, visibleStops, 1, true).firstOrNull()?.first
                             }
                             if (resolved != null) {
                                 addressNotFound = false
@@ -262,7 +295,7 @@ fun SearchTab(
 
                 if (addressNotFound) {
                     Text(
-                        text = "Точка не найдена — выберите остановку из списка ниже.",
+                        text = "Точка не найдена — выберите станцию или остановку из списка ниже.",
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.error
                     )
@@ -274,7 +307,7 @@ fun SearchTab(
                     shape = RoundedCornerShape(14.dp)
                 ) {
                     Text(
-                        text = destStop?.let { "${it.name} — ${it.district}" } ?: "Случайная точка в городе",
+                        text = destStop?.let { "${formatStopLabel(it)} — ${it.district}" } ?: "Случайная точка в городе",
                         modifier = Modifier.weight(1f),
                         maxLines = 1,
                         fontSize = 13.sp
@@ -284,7 +317,7 @@ fun SearchTab(
             }
         }
 
-        // Mood + Weather + Duration + Schedule card
+        // Mood + Weather + Duration/Deadline + Schedule card
         Surface(
             shape = RoundedCornerShape(22.dp),
             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
@@ -351,22 +384,88 @@ fun SearchTab(
 
                 HorizontalDivider()
 
-                Text("Время в пути", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    DurationPreset.entries.forEach { dp ->
-                        FilterChip(
-                            selected = params.durationPreset == dp,
-                            onClick = { onUpdateParams(params.copy(durationPreset = dp)) },
-                            label = { Text(dp.label, fontSize = 11.sp) },
-                            modifier = Modifier.weight(1f)
-                        )
+                Text("Формат времени", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    TimePlanningMode.entries.forEachIndexed { idx, mode ->
+                        SegmentedButton(
+                            selected = params.timeMode == mode,
+                            onClick = {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                onUpdateParams(params.copy(timeMode = mode))
+                            },
+                            shape = SegmentedButtonDefaults.itemShape(
+                                index = idx,
+                                count = TimePlanningMode.entries.size
+                            )
+                        ) {
+                            Text(mode.label, fontSize = 12.sp, maxLines = 1)
+                        }
                     }
                 }
 
-                Text("График (день и время)", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                if (params.timeMode == TimePlanningMode.DURATION) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        DurationPreset.entries.forEach { dp ->
+                            FilterChip(
+                                selected = params.durationPreset == dp,
+                                onClick = { onUpdateParams(params.copy(durationPreset = dp)) },
+                                label = { Text(dp.label, fontSize = 11.sp) },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("К какому часу нужно прибыть", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            OutlinedButton(
+                                onClick = { deadlineMenuExpanded = true },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(14.dp)
+                            ) {
+                                Icon(Icons.Rounded.Schedule, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.size(6.dp))
+                                Text(
+                                    text = "Прибыть к ${TramRouter.formatMinutesToClock(params.deadlineMinutes)}",
+                                    modifier = Modifier.weight(1f),
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Icon(Icons.Rounded.ExpandMore, contentDescription = null)
+                            }
+                            DropdownMenu(
+                                expanded = deadlineMenuExpanded,
+                                onDismissRequest = { deadlineMenuExpanded = false }
+                            ) {
+                                DEADLINE_SLOTS.forEach { slot ->
+                                    DropdownMenuItem(
+                                        text = { Text(TramRouter.formatMinutesToClock(slot)) },
+                                        onClick = {
+                                            deadlineMenuExpanded = false
+                                            onUpdateParams(params.copy(deadlineMinutes = slot))
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = "Свободного времени до ${TramRouter.formatMinutesToClock(params.deadlineMinutes)}: ~$deadlineBudget мин — подберём маршрут и прогулку с запасом на дорогу.",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.padding(10.dp)
+                            )
+                        }
+                    }
+                }
+
+                Text("График старта (день и время)", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -436,27 +535,47 @@ fun SearchTab(
                         )
                     },
                     title = "Круговая прогулка (старт = финиш)",
-                    subtitle = "Кольцевой маршрут вернёт вас на исходную остановку другим путём."
+                    subtitle = "Кольцевой маршрут вернёт вас на исходную точку другим путём."
+                )
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 8.dp))
+                ToggleRow(
+                    checked = params.includePlanned2027,
+                    onCheckedChange = { checked ->
+                        val curStartValid = checked || cityConfig.stops.firstOrNull { it.id == params.startStopId }?.planned2027 != true
+                        val fallbackStart = cityConfig.stops.firstOrNull { !it.planned2027 && !it.isolatedFromMainTram }?.id
+                            ?: cityConfig.defaultStartStopId
+                        val curDestValid = checked || cityConfig.stops.firstOrNull { it.id == params.destinationStopId }?.planned2027 != true
+                        onUpdateParams(
+                            params.copy(
+                                includePlanned2027 = checked,
+                                startStopId = if (curStartValid) params.startStopId else fallbackStart,
+                                destinationStopId = if (curDestValid) params.destinationStopId else null,
+                                destinationAddressLabel = if (curDestValid) params.destinationAddressLabel else ""
+                            )
+                        )
+                    },
+                    title = "Линии и продления до лета 2027",
+                    subtitle = "Трамвай № 22 в Славянку (СПб), кольцевые 2К и 8К (Омск)."
                 )
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 8.dp))
                 ToggleRow(
                     checked = params.preferSpecialFleet,
                     onCheckedChange = { onUpdateParams(params.copy(preferSpecialFleet = it)) },
                     title = "Редкий борт",
-                    subtitle = "Приоритет ретро-вагонам, кольцевым маршрутам и «Чижикам»."
+                    subtitle = "Приоритет ретро-вагонам, кольцевым линиям и «Чижикам»."
                 )
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 8.dp))
                 ToggleRow(
                     checked = params.allowFallbackTransit,
                     onCheckedChange = { onUpdateParams(params.copy(allowFallbackTransit = it)) },
-                    title = "Резервный транспорт при необходимости",
-                    subtitle = "Подключится только там, где нет трамвая и пешком далеко."
+                    title = "Резервный и городской транспорт",
+                    subtitle = "Подключит метро, троллейбусы или автобусы, если в треугольнике задана доля транспорта или нет трамвая."
                 )
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 8.dp))
                 ToggleRow(
                     checked = params.showAllNetwork,
                     onCheckedChange = { onUpdateParams(params.copy(showAllNetwork = it)) },
-                    title = "Показывать всю сеть трамваев ${cityConfig.shortName} на схеме",
+                    title = "Показывать всю сеть (${cityConfig.shortName}) на схеме",
                     subtitle = null
                 )
             }
@@ -488,10 +607,14 @@ fun SearchTab(
             Spacer(modifier = Modifier.size(8.dp))
             Text(
                 text = when {
-                    isGenerating -> "Подбираем маршрут..."
-                    params.loopMode -> "Построить круговой маршрут"
-                    params.destinationStopId != null -> "Построить трамвайный маршрут"
-                    else -> "Подобрать случайный маршрут"
+                    isGenerating -> "Подбираем 3 варианта..."
+                    params.loopMode -> "Построить 3 круговых варианта"
+                    params.destinationStopId != null && params.timeMode == TimePlanningMode.DEADLINE ->
+                        "3 варианта к ${TramRouter.formatMinutesToClock(params.deadlineMinutes)}"
+                    params.destinationStopId != null -> "Построить 3 варианта до точки"
+                    params.timeMode == TimePlanningMode.DEADLINE ->
+                        "Занять время до ${TramRouter.formatMinutesToClock(params.deadlineMinutes)}"
+                    else -> "Подобрать 3 варианта прогулки"
                 },
                 fontWeight = FontWeight.Bold
             )
@@ -502,8 +625,8 @@ fun SearchTab(
 
     if (startPickerOpen) {
         StopPickerDialog(
-            title = "Остановка отправления",
-            stops = tramStops,
+            title = "Станция или остановка старта",
+            stops = selectableStartStops,
             allowRandom = false,
             onSelectRandom = {},
             onSelectStop = { stop ->
@@ -516,7 +639,7 @@ fun SearchTab(
 
     if (destPickerOpen) {
         StopPickerDialog(
-            title = "Конечная остановка",
+            title = "Конечная точка",
             stops = destStops,
             allowRandom = true,
             onSelectRandom = {
@@ -568,7 +691,7 @@ private fun StopPickerDialog(
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
-                    placeholder = { Text("Поиск по остановке или району...", fontSize = 12.sp) },
+                    placeholder = { Text("Поиск по станции, остановке или району...", fontSize = 12.sp) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp)
@@ -604,8 +727,12 @@ private fun StopPickerDialog(
                                 .clickable { onSelectStop(stop) }
                                 .padding(vertical = 10.dp, horizontal = 6.dp)
                         ) {
+                            val titleLine = buildString {
+                                append(formatStopLabel(stop))
+                                if (stop.isolatedFromMainTram) append(" (резерв. транспорт)")
+                            }
                             Text(
-                                text = if (stop.isolatedFromMainTram) "${stop.name} (резерв. транспорт)" else stop.name,
+                                text = titleLine,
                                 fontWeight = FontWeight.SemiBold,
                                 fontSize = 13.sp
                             )

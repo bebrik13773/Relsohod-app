@@ -9,6 +9,7 @@ import {
   RouteSegment,
   RouteThemeFilter,
   SavedRoute,
+  TimePlanningMode,
   TramRoute,
   TramStop,
   WeatherMode,
@@ -31,6 +32,38 @@ export function formatMinutesToClock(totalMinutes: number): string {
   const h = Math.floor(normalized / 60);
   const m = normalized % 60;
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+export function computeDeadlineBudgetMinutes(
+  startMinutes: number,
+  deadlineMinutes: number
+): number {
+  let diff = deadlineMinutes - startMinutes;
+  if (diff <= 0) {
+    diff += 1440;
+  }
+  return Math.max(20, Math.min(480, diff));
+}
+
+export function isCityTransitRoute(route?: TramRoute): boolean {
+  return route?.type === 'metro' || route?.type === 'trolleybus';
+}
+
+export function getRouteTypeShortLabel(route: TramRoute): string {
+  switch (route.type) {
+    case 'metro':
+      return `Метро ${route.number}`;
+    case 'trolleybus':
+      return `Троллейбус № ${route.number.replace(/^Тр-/, '')}`;
+    case 'retro':
+      return `Ретро-трамвай ${route.number}`;
+    case 'chizhik':
+      return `«Чижик» № ${route.number}`;
+    case 'circular':
+      return `Кольцевой трамвай № ${route.number}`;
+    default:
+      return `Трамвай № ${route.number}`;
+  }
 }
 
 export function isRouteActiveAt(route: TramRoute, dayOfWeek: number, timeMinutes: number): boolean {
@@ -101,10 +134,10 @@ export interface AdjacencyOptions {
 
 /**
  * Builds directed multimodal graph:
- * - Active tram lines respecting day & after-midnight carryover
- * - Short hub transfers + optional scenic city walking corridors (up to maxWalkKm)
+ * - Active rail/trolleybus lines respecting schedule & after-midnight carryover
+ * - Hub transfers + sparse scenic walking corridors (top-8 closest per stop within maxWalkKm)
  * - Isolated fallback transit bridges (when allowFallbackTransit=true)
- * - City-wide bus/metro/trolleybus connectors between distant hubs (when allowCityTransit=true)
+ * - Optional city-wide bus connectors between distant hubs (when allowCityTransit=true)
  */
 export function buildAdjacencyGraph(
   stops: TramStop[],
@@ -125,8 +158,7 @@ export function buildAdjacencyGraph(
   const stopMap = buildStopMap(stops);
   const activeRoutes = routes.filter((r) => isRouteActiveAt(r, dayOfWeek, timeMinutes));
 
-  // Track direct tram connections so transit bridges target non-trivial jumps
-  const directTramPairs = new Set<string>();
+  const directLinePairs = new Set<string>();
 
   for (const route of activeRoutes) {
     const seq = route.stopIds;
@@ -143,8 +175,8 @@ export function buildAdjacencyGraph(
           durationMinutes: route.minutesPerHop,
           distanceKm: dist,
         });
-        directTramPairs.add(`${fromId}|${toId}`);
-        directTramPairs.add(`${toId}|${fromId}`);
+        directLinePairs.add(`${fromId}|${toId}`);
+        directLinePairs.add(`${toId}|${fromId}`);
       }
     } else {
       for (let i = 0; i < seq.length - 1; i++) {
@@ -166,61 +198,75 @@ export function buildAdjacencyGraph(
           durationMinutes: route.minutesPerHop,
           distanceKm: dist,
         });
-        directTramPairs.add(`${a}|${b}`);
-        directTramPairs.add(`${b}|${a}`);
+        directLinePairs.add(`${a}|${b}`);
+        directLinePairs.add(`${b}|${a}`);
       }
     }
   }
 
-  // Pedestrian transfers + scenic walking connections (scalable by walk preference)
+  // Pedestrian transfers (sameHub) + sparse closest scenic walk links within maxWalkKm
   const maxWalkKm = options?.maxWalkKm ?? 0.65;
-  for (let i = 0; i < stops.length; i++) {
-    for (let j = i + 1; j < stops.length; j++) {
-      const a = stops[i];
-      const b = stops[j];
-      if (a.isolatedFromMainTram || b.isolatedFromMainTram) continue;
+  const mainStops = stops.filter((s) => !s.isolatedFromMainTram);
+  const addedWalkPairs = new Set<string>();
 
-      const sameHub = Boolean(a.hubId && b.hubId && a.hubId === b.hubId);
+  const pushWalkPair = (a: TramStop, b: TramStop, distKm: number) => {
+    const key = a.id < b.id ? `${a.id}|${b.id}` : `${b.id}|${a.id}`;
+    if (addedWalkPairs.has(key)) return;
+    addedWalkPairs.add(key);
+    const walkMins = Math.max(3, Math.round(distKm * 12.5));
+    edgesByStop[a.id].push({
+      toStopId: b.id,
+      kind: 'walk',
+      durationMinutes: walkMins,
+      distanceKm: distKm,
+    });
+    edgesByStop[b.id].push({
+      toStopId: a.id,
+      kind: 'walk',
+      durationMinutes: walkMins,
+      distanceKm: distKm,
+    });
+  };
+
+  for (let i = 0; i < mainStops.length; i++) {
+    const a = mainStops[i];
+    const nearby: Array<{ stop: TramStop; distKm: number }> = [];
+    for (let j = 0; j < mainStops.length; j++) {
+      if (i === j) continue;
+      const b = mainStops[j];
       const distKm = haversineKm(a, b);
-      if (sameHub || distKm <= maxWalkKm) {
-        const walkMins = Math.max(3, Math.round(distKm * 12.5));
-        edgesByStop[a.id].push({
-          toStopId: b.id,
-          kind: 'walk',
-          durationMinutes: walkMins,
-          distanceKm: distKm,
-        });
-        edgesByStop[b.id].push({
-          toStopId: a.id,
-          kind: 'walk',
-          durationMinutes: walkMins,
-          distanceKm: distKm,
-        });
+      const sameHub = Boolean(a.hubId && b.hubId && a.hubId === b.hubId);
+      if (sameHub) {
+        pushWalkPair(a, b, distKm);
+      } else if (distKm <= maxWalkKm) {
+        nearby.push({ stop: b, distKm });
       }
+    }
+    nearby.sort((u, v) => u.distKm - v.distKm);
+    for (const item of nearby.slice(0, 8)) {
+      pushWalkPair(a, item.stop, item.distKm);
     }
   }
 
-  // City-wide non-tram transit (metro / bus / trolleybus) connecting distinct hubs/districts
+  // City-wide non-rail bus/shuttle connectors when user sets substantial transit preference
   if (options?.allowCityTransit) {
-    const mainStops = stops.filter((s) => !s.isolatedFromMainTram);
     const transitLabel =
       options.city === 'omsk'
         ? 'Автобус / троллейбус (городская связка)'
-        : 'Метро / автобус (межрайонная связка)';
+        : 'Автобус / скоростная связка по городу';
 
     for (const a of mainStops) {
       const candidates: Array<{ stop: TramStop; distKm: number }> = [];
       for (const b of mainStops) {
         if (a.id === b.id || a.district === b.district) continue;
-        if (directTramPairs.has(`${a.id}|${b.id}`)) continue;
+        if (directLinePairs.has(`${a.id}|${b.id}`)) continue;
         const distKm = haversineKm(a, b);
-        if (distKm >= 2.2 && distKm <= 9.5) {
+        if (distKm >= 2.4 && distKm <= 9.5) {
           candidates.push({ stop: b, distKm });
         }
       }
-      // Keep up to 3 balanced cross-district transit links per stop (avoiding graph explosion)
       candidates.sort((u, v) => Math.abs(u.distKm - 4.5) - Math.abs(v.distKm - 4.5));
-      for (const { stop: b, distKm } of candidates.slice(0, 3)) {
+      for (const { stop: b, distKm } of candidates.slice(0, 2)) {
         const transitMins = Math.max(7, Math.round(distKm * 2.4 + 4));
         edgesByStop[a.id].push({
           toStopId: b.id,
@@ -233,15 +279,14 @@ export function buildAdjacencyGraph(
     }
   }
 
-  // Fallback transit bridges ONLY connect isolated tram-less stops when enabled
+  // Fallback transit bridges ONLY connect isolated stops when enabled
   if (allowFallbackTransit) {
-    const mainStops = stops.filter((s) => !s.isolatedFromMainTram);
     for (const isolated of stops.filter((s) => s.isolatedFromMainTram)) {
       const closest = findNearestStops(isolated.lat, isolated.lng, mainStops, 2, false);
       for (const { stop: bridge, distanceKm } of closest) {
         const transitMins = Math.max(8, Math.round(distanceKm * 2.8 + 5));
         const modeLabel =
-          distanceKm > 5 ? 'Автобус / пригородный экспресс' : 'Автобус / метро (стыковка)';
+          distanceKm > 5 ? 'Автобус / пригородный экспресс' : 'Автобус / стыковка';
         edgesByStop[bridge.id].push({
           toStopId: isolated.id,
           kind: 'fallback_transit',
@@ -274,7 +319,7 @@ interface RawStep {
 }
 
 /**
- * Merges consecutive hops on the same tram line or consecutive walk stretches into clean segments.
+ * Merges consecutive hops on the same route or consecutive walk stretches into clean segments.
  */
 function collapseRawStepsToSegments(
   steps: RawStep[],
@@ -314,17 +359,25 @@ function collapseRawStepsToSegments(
           ? 'Пешая прогулка между остановками и районами'
           : 'Пешая пересадка между остановками';
     } else {
-      const isCircular = step.route?.type === 'circular';
-      const directionNote =
-        step.kind === 'tram'
-          ? isCircular
-            ? 'По кольцевому маршруту (по часовой стрелке)'
-            : `В направлении: ${step.route?.title}`
-          : step.kind === 'walk'
-            ? step.durationMinutes >= 12
-              ? 'Пешая прогулка по городу'
-              : 'Пешая пересадка между остановками'
-            : `${step.fallbackModeName ?? 'Городской транспорт'}`;
+      let directionNote = '';
+      if (step.kind === 'tram' && step.route) {
+        if (step.route.type === 'metro') {
+          directionNote = `Метро · ${step.route.title}`;
+        } else if (step.route.type === 'trolleybus') {
+          directionNote = `Троллейбус · ${step.route.title}`;
+        } else if (step.route.type === 'circular') {
+          directionNote = 'По кольцевому маршруту';
+        } else {
+          directionNote = `В направлении: ${step.route.title}`;
+        }
+      } else if (step.kind === 'walk') {
+        directionNote =
+          step.durationMinutes >= 12
+            ? 'Пешая прогулка по городу'
+            : 'Пешая пересадка между остановками';
+      } else {
+        directionNote = step.fallbackModeName ?? 'Городской транспорт';
+      }
 
       segments.push({
         id: `seg-${segments.length + 1}-${step.route?.id ?? step.kind}`,
@@ -378,6 +431,9 @@ export interface GenerateTripParams {
   destinationStopId?: string | null;
   theme: RouteThemeFilter;
   durationPreset: DurationPreset;
+  timeMode?: TimePlanningMode;
+  deadlineMinutes?: number;
+  includePlanned2027?: boolean;
   dayOfWeek: number;
   timeMinutes: number;
   allowFallbackTransit: boolean;
@@ -385,11 +441,19 @@ export interface GenerateTripParams {
   loopMode?: boolean;
   weatherMode?: WeatherMode;
   preferSpecialFleet?: boolean;
+  generateAlternatives?: boolean;
   seed?: number;
 }
 
+interface PathFindOptions {
+  avoidRouteIds?: Set<string>;
+  preferVariety?: boolean;
+  preferTransitRoutes?: boolean;
+}
+
 /**
- * Multi-modal shortest path (Dijkstra) adapting edge weights to the triangular ModeBalance.
+ * Multi-modal shortest path (Dijkstra) adapting edge weights to the triangular ModeBalance
+ * and optional route-diversity penalties for generating distinct alternatives.
  */
 function findPathToDestination(
   startStopId: string,
@@ -397,7 +461,8 @@ function findPathToDestination(
   edgesByStop: Record<string, GraphEdge[]>,
   theme: RouteThemeFilter,
   balance: ModeBalance,
-  allowFallbackTransit: boolean
+  allowFallbackTransit: boolean,
+  options?: PathFindOptions
 ): RawStep[] | null {
   interface NodeState {
     stopId: string;
@@ -412,11 +477,10 @@ function findPathToDestination(
   ];
   bestCost[`${startStopId}::init`] = 0;
 
-  // Weight multipliers driven by the triangular regulator
   const tramMult = 1.45 - balance.tram * 0.75; // 0.70 (max tram) .. 1.45 (no tram)
   const walkMult = 1.85 - balance.walk * 1.35; // 0.50 (max walk) .. 1.85 (no walk)
   const walkPenalty = Math.max(0, (1 - balance.walk * 1.7) * 8);
-  const cityTransitActive = allowFallbackTransit || balance.transit >= 0.14;
+  const cityTransitActive = allowFallbackTransit || balance.transit >= 0.20;
   const transitMult = 1.65 - balance.transit * 0.95;
 
   while (queue.length > 0) {
@@ -437,9 +501,25 @@ function findPathToDestination(
       const routeId = edge.route?.id ?? null;
 
       if (edge.kind === 'tram') {
-        edgeCost *= tramMult;
+        const isTransitVehicle = isCityTransitRoute(edge.route);
+        if (isTransitVehicle) {
+          if (options?.preferTransitRoutes) {
+            edgeCost *= 0.85;
+          } else {
+            // Balance metro/trolleybus nicely against tram preference
+            const transitFactor = Math.max(0.75, 1.45 - balance.transit * 0.85);
+            edgeCost *= transitFactor;
+          }
+        } else {
+          edgeCost *= tramMult;
+        }
+
+        if (routeId && options?.avoidRouteIds?.has(routeId)) {
+          edgeCost = edgeCost * 3.4 + 18;
+        }
+
         if (curr.lastRouteId && curr.lastRouteId !== routeId) {
-          edgeCost += 6.5;
+          edgeCost += options?.preferVariety ? 2.5 : 6.5;
         }
         if (theme !== 'any' && edge.route?.themes.includes(theme)) {
           edgeCost *= 0.80;
@@ -491,9 +571,17 @@ function computeTripModeShares(steps: RawStep[]): ModeBalance {
   let transitMins = 0;
   let walkMins = 0;
   for (const s of steps) {
-    if (s.kind === 'tram') tramMins += s.durationMinutes;
-    else if (s.kind === 'walk') walkMins += s.durationMinutes;
-    else transitMins += s.durationMinutes;
+    if (s.kind === 'tram') {
+      if (isCityTransitRoute(s.route)) {
+        transitMins += s.durationMinutes;
+      } else {
+        tramMins += s.durationMinutes;
+      }
+    } else if (s.kind === 'walk') {
+      walkMins += s.durationMinutes;
+    } else {
+      transitMins += s.durationMinutes;
+    }
   }
   const total = tramMins + transitMins + walkMins;
   if (total <= 0) return { tram: 1, transit: 0, walk: 0 };
@@ -504,130 +592,81 @@ function computeTripModeShares(steps: RawStep[]): ModeBalance {
   };
 }
 
-export function generateTramAdventure(params: GenerateTripParams): GenerationOutcome {
+interface CandidateWalk {
+  steps: RawStep[];
+  score: number;
+  duration: number;
+  walkRatio: number;
+  distinctLines: number;
+  signature: string;
+}
+
+function getStepsSignature(steps: RawStep[]): string {
+  const segKeys: string[] = [];
+  for (const s of steps) {
+    const key = s.kind === 'tram' ? (s.route?.id ?? 'tram') : s.kind;
+    if (segKeys[segKeys.length - 1] !== key) {
+      segKeys.push(key);
+    }
+  }
+  const endId = steps[steps.length - 1]?.toStopId ?? '';
+  return `${segKeys.join('>')}|${endId}`;
+}
+
+function runAdventureRollouts(params: {
+  startStop: TramStop;
+  stops: TramStop[];
+  stopMap: Record<string, TramStop>;
+  edgesByStop: Record<string, GraphEdge[]>;
+  minMins: number;
+  maxMins: number;
+  theme: RouteThemeFilter;
+  balance: ModeBalance;
+  allowCityTransit: boolean;
+  allowFallbackTransit: boolean;
+  effectiveIsolatedFallback: boolean;
+  loopMode: boolean;
+  weatherMode: WeatherMode;
+  preferSpecialFleet: boolean;
+  rand: () => number;
+  attempts?: number;
+}): CandidateWalk[] {
   const {
-    city,
-    stops,
-    routes,
-    landmarks,
-    startStopId,
-    destinationStopId,
+    startStop,
+    stopMap,
+    edgesByStop,
+    minMins,
+    maxMins,
     theme,
-    durationPreset,
-    dayOfWeek,
-    timeMinutes,
+    balance,
+    allowCityTransit,
     allowFallbackTransit,
-    modeBalance: rawBalance,
-    loopMode = false,
-    weatherMode = 'clear',
-    preferSpecialFleet = false,
-    seed,
+    effectiveIsolatedFallback,
+    loopMode,
+    weatherMode,
+    preferSpecialFleet,
+    rand,
+    attempts = 150,
   } = params;
 
-  const balance = normalizeModeBalance(rawBalance ?? DEFAULT_MODE_BALANCE);
-  const stopMap = buildStopMap(stops);
-  const startStop = stopMap[startStopId];
-  if (!startStop) {
-    return { status: 'no_service', reason: 'Выбранная стартовая остановка не найдена.' };
-  }
-
-  // Scale walking reach & city-wide transit connectors smoothly from the triangular slider
-  const maxWalkKm = balance.walk >= 0.35 ? 2.6 : balance.walk >= 0.16 ? 1.55 : 0.72;
-  const allowCityTransit = balance.transit >= 0.14 || allowFallbackTransit;
-  const effectiveIsolatedFallback = allowFallbackTransit || balance.transit >= 0.28;
-
-  const { edgesByStop, activeRoutes } = buildAdjacencyGraph(
-    stops,
-    routes,
-    dayOfWeek,
-    timeMinutes,
-    effectiveIsolatedFallback,
-    { city, maxWalkKm, allowCityTransit }
-  );
-
-  // If trams don't run at this hour, still allow predominantly walking trips (>= 65% walk)
-  if (activeRoutes.length === 0 && balance.walk < 0.65) {
-    return {
-      status: 'no_service',
-      reason: `В выбранное время (${formatMinutesToClock(timeMinutes)}) трамваи уже завершили движение. Выберите дневное время или сдвиньте треугольник к «Пешком».`,
-    };
-  }
-
-  // Case 1: Explicit A -> B destination routing
-  if (destinationStopId && destinationStopId !== startStopId && !loopMode) {
-    const destStop = stopMap[destinationStopId];
-    if (!destStop) {
-      return { status: 'no_service', reason: 'Конечная остановка не найдена.' };
-    }
-
-    const steps = findPathToDestination(
-      startStopId,
-      destinationStopId,
-      edgesByStop,
-      theme,
-      balance,
-      allowFallbackTransit
-    );
-    if (!steps) {
-      const closestMain = findNearestStops(destStop.lat, destStop.lng, stops, 1, false)[0]?.stop ?? null;
-      return {
-        status: 'needs_fallback',
-        reason: `До точки «${destStop.name}» нельзя добраться только на трамвае и пешком. Включите резервный транспорт или сдвиньте треугольник в сторону «Транспорт».`,
-        nearestTramStop: closestMain,
-      };
-    }
-
-    const segments = collapseRawStepsToSegments(steps, stopMap);
-    return {
-      status: 'ok',
-      trip: assembleTrip(segments, landmarks, stopMap, dayOfWeek, timeMinutes, seed, {
-        city,
-        isLoop: false,
-        weatherMode,
-        modeBalance: balance,
-      }),
-    };
-  }
-
-  // Case 2: Smart Multi-Modal Adventure / Loop Planner
-  const rand = createPrng(seed);
-  const [minMins, maxMins] = getDurationRange(durationPreset);
-
-  const startEdges = edgesByStop[startStopId] || [];
-  if (startEdges.length === 0) {
-    return {
-      status: 'no_service',
-      reason: `От остановки «${startStop.name}» в ${formatMinutesToClock(timeMinutes)} (${DAY_NAMES_SHORT[dayOfWeek]}) нет работающих рейсов. Попробуйте другую остановку или дневное время.`,
-    };
-  }
-
-  interface CandidateWalk {
-    steps: RawStep[];
-    score: number;
-    duration: number;
-  }
-
   const candidates: CandidateWalk[] = [];
-  const maxHops = durationPreset === 'short' ? 9 : durationPreset === 'medium' ? 16 : 24;
+  const maxHops = maxMins <= 45 ? 10 : maxMins <= 95 ? 17 : 26;
 
-  for (let attempt = 0; attempt < 160; attempt++) {
+  for (let attempt = 0; attempt < attempts; attempt++) {
     const steps: RawStep[] = [];
-    const visitedStops: Record<string, number> = { [startStopId]: 1 };
+    const visitedStops: Record<string, number> = { [startStop.id]: 1 };
     const usedRouteIds = new Set<string>();
-    let currId = startStopId;
+    let currId = startStop.id;
     let currRouteId: string | null = null;
     let totalDuration = 0;
     let transfers = 0;
-    let tramMins = 0;
-    let transitMins = 0;
-    let walkMins = 0;
 
-    // Slight exploration temperature diversity across rollouts
+    // Slight rollout strategy diversity:
+    // 0: standard balance, 1: multi-line variety, 2: extra walking, 3: explore metro/trolleybus+tram mix
     const exploreMode = attempt % 4;
 
     for (let hop = 0; hop < maxHops; hop++) {
       const allNeighbors = edgesByStop[currId] || [];
-      // Allow fallback_transit edges when city transit is active (excluding isolated stops if disabled)
       const neighbors = allNeighbors.filter((e) => {
         if (e.kind !== 'fallback_transit') return true;
         if (!allowCityTransit && !effectiveIsolatedFallback) return false;
@@ -645,18 +684,16 @@ export function generateTramAdventure(params: GenerateTripParams): GenerationOut
         const nextStop = stopMap[edge.toStopId];
         const visitCount = visitedStops[edge.toStopId] ?? 0;
 
-        // Hard suppress immediate U-turn bounce-back
         if (steps.length > 0 && edge.toStopId === steps[steps.length - 1].fromStopId) {
           w *= 0.004;
         }
-        // Prevent bouncing back to any of the last 3 stops unless closing the loop
         const recentStops = steps.slice(-3).map((s) => s.fromStopId);
         const completingCircularLoop =
           edge.route?.type === 'circular' &&
-          edge.toStopId === startStopId &&
+          edge.toStopId === startStop.id &&
           steps.length >= 4;
         const completingWalkLoop =
-          loopMode && edge.toStopId === startStopId && steps.length >= 4;
+          loopMode && edge.toStopId === startStop.id && steps.length >= 4;
 
         if (completingWalkLoop) {
           w *= 18;
@@ -664,7 +701,6 @@ export function generateTramAdventure(params: GenerateTripParams): GenerationOut
           w *= recentStops.includes(edge.toStopId) ? 0.008 : 0.04;
         }
 
-        // Spatial momentum: early/mid trip explores outward, avoiding cramped zig-zags
         const nextDistFromStart = nextStop ? haversineKm(startStop, nextStop) : currDistFromStart;
         if (!loopMode || totalDuration < minMins * 0.55) {
           if (nextDistFromStart > currDistFromStart + 0.15) {
@@ -676,30 +712,39 @@ export function generateTramAdventure(params: GenerateTripParams): GenerationOut
           }
         }
 
-        // Dynamic deficit-guided weights based on the triangular ModeBalance!
         const tramDeficit = Math.max(0.05, balance.tram - currShares.tram + 0.35);
         const walkDeficit = Math.max(0.04, balance.walk - currShares.walk + 0.25);
-        const transitDeficit = Math.max(0.02, balance.transit - currShares.transit + 0.20);
+        const transitDeficit = Math.max(0.02, balance.transit - currShares.transit + 0.22);
 
         if (edge.kind === 'tram') {
-          w *= (0.4 + balance.tram * 2.8) * (1 + tramDeficit);
+          const isTransitVeh = isCityTransitRoute(edge.route);
+          if (isTransitVeh) {
+            const transitBoost = exploreMode === 3 ? 1.8 : 1.0;
+            w *= (0.28 + balance.transit * 2.8) * (1 + transitDeficit) * transitBoost;
+          } else {
+            w *= (0.4 + balance.tram * 2.8) * (1 + tramDeficit);
+          }
 
           if (currRouteId && edge.route?.id === currRouteId) {
-            // Stay on a tram line for 2-5 hops so segments feel natural, not frantic
-            w *= exploreMode === 1 ? 2.6 : 4.2;
+            w *= exploreMode === 1 ? 2.3 : 4.1;
           } else if (currRouteId && edge.route?.id !== currRouteId) {
-            // Avoid returning to an already-ridden tram route later in the same trip
             if (edge.route && usedRouteIds.has(edge.route.id)) {
               w *= 0.12;
             } else {
-              w *= transfers >= 3 ? 0.30 : 1.05;
+              w *= transfers >= 4 ? 0.32 : exploreMode === 1 ? 1.45 : 1.05;
             }
           }
 
           if (theme !== 'any' && edge.route?.themes.includes(theme)) {
             w *= 3.8;
           }
-          if (preferSpecialFleet && edge.route && edge.route.type !== 'regular') {
+          if (
+            preferSpecialFleet &&
+            edge.route &&
+            (edge.route.type === 'retro' ||
+              edge.route.type === 'chizhik' ||
+              edge.route.type === 'circular')
+          ) {
             w *= 4.6;
           }
           if (weatherMode === 'rain' || weatherMode === 'frost') {
@@ -713,16 +758,15 @@ export function generateTramAdventure(params: GenerateTripParams): GenerationOut
             w *= 1.35;
           }
         } else if (edge.kind === 'walk') {
-          // Avoid chaining 3+ tiny walks endlessly unless high walk preference
           const prevWasWalk = steps.length > 0 && steps[steps.length - 1].kind === 'walk';
+          const walkMultMode = exploreMode === 2 ? 1.45 : 1.0;
           const walkBase =
             balance.walk < 0.12
               ? 0.22
-              : (0.4 + balance.walk * 4.4) * (1 + walkDeficit * 2.2);
+              : (0.4 + balance.walk * 4.4) * (1 + walkDeficit * 2.2) * walkMultMode;
           w *= walkBase;
 
-          // Scenic walks (0.65..2.4 km) rewarded when user actually wants walking
-          if (edge.distanceKm >= 0.65 && balance.walk >= 0.25) {
+          if (edge.distanceKm >= 0.65 && (balance.walk >= 0.22 || exploreMode === 2)) {
             w *= 2.4;
           }
           if (prevWasWalk && balance.walk < 0.55) {
@@ -732,13 +776,12 @@ export function generateTramAdventure(params: GenerateTripParams): GenerationOut
             w *= balance.walk >= 0.5 ? 0.65 : 0.25;
           }
         } else {
-          // City bus/metro/trolleybus connector
           const prevWasTransit =
             steps.length > 0 && steps[steps.length - 1].kind === 'fallback_transit';
           const transitBase =
-            balance.transit < 0.14
-              ? 0.05
-              : (0.3 + balance.transit * 4.2) * (1 + transitDeficit * 2.2);
+            balance.transit < 0.18
+              ? 0.04
+              : (0.35 + balance.transit * 4.4) * (1 + transitDeficit * 2.3);
           w *= transitBase;
           if (prevWasTransit && balance.transit < 0.6) {
             w *= 0.2;
@@ -776,33 +819,25 @@ export function generateTramAdventure(params: GenerateTripParams): GenerationOut
       });
 
       totalDuration += chosen.durationMinutes;
-      if (chosen.kind === 'tram') {
-        tramMins += chosen.durationMinutes;
-        if (chosen.route?.id) {
-          currRouteId = chosen.route.id;
-          usedRouteIds.add(chosen.route.id);
-        }
-      } else if (chosen.kind === 'walk') {
-        walkMins += chosen.durationMinutes;
-      } else {
-        transitMins += chosen.durationMinutes;
+      if (chosen.kind === 'tram' && chosen.route?.id) {
+        currRouteId = chosen.route.id;
+        usedRouteIds.add(chosen.route.id);
       }
 
       currId = chosen.toStopId;
       visitedStops[currId] = (visitedStops[currId] ?? 0) + 1;
 
-      if (loopMode && currId === startStopId && steps.length >= 4) {
+      if (loopMode && currId === startStop.id && steps.length >= 4) {
         break;
       }
       if (totalDuration >= maxMins) break;
       if (!loopMode && totalDuration >= minMins && rand() < 0.26 && steps.length >= 3) break;
     }
 
-    // Close loop back to startStopId if loopMode requested
-    if (loopMode && steps.length >= 2 && steps[steps.length - 1].toStopId !== startStopId) {
+    if (loopMode && steps.length >= 2 && steps[steps.length - 1].toStopId !== startStop.id) {
       const returnSteps = findPathToDestination(
         steps[steps.length - 1].toStopId,
-        startStopId,
+        startStop.id,
         edgesByStop,
         theme,
         balance,
@@ -816,9 +851,6 @@ export function generateTramAdventure(params: GenerateTripParams): GenerationOut
           for (const rs of filtered) {
             steps.push(rs);
             totalDuration += rs.durationMinutes;
-            if (rs.kind === 'tram') tramMins += rs.durationMinutes;
-            else if (rs.kind === 'walk') walkMins += rs.durationMinutes;
-            else transitMins += rs.durationMinutes;
           }
         }
       }
@@ -826,7 +858,6 @@ export function generateTramAdventure(params: GenerateTripParams): GenerationOut
 
     if (steps.length < 2) continue;
 
-    // Trim trailing tiny walk unless user explicitly wants mostly walking
     while (
       steps.length > 2 &&
       steps[steps.length - 1].kind === 'walk' &&
@@ -834,7 +865,6 @@ export function generateTramAdventure(params: GenerateTripParams): GenerationOut
     ) {
       const removed = steps.pop()!;
       totalDuration -= removed.durationMinutes;
-      walkMins -= removed.durationMinutes;
     }
 
     const segments = collapseRawStepsToSegments(steps, stopMap);
@@ -857,7 +887,6 @@ export function generateTramAdventure(params: GenerateTripParams): GenerationOut
       (s) => theme === 'any' || s.route?.themes.includes(theme)
     ).length;
 
-    // Total geographic reach (crow-flies diameter) prevents cramped circles
     const maxSpreadKm = segments.reduce(
       (acc, seg) => Math.max(acc, haversineKm(startStop, seg.toStop)),
       0
@@ -870,14 +899,12 @@ export function generateTramAdventure(params: GenerateTripParams): GenerationOut
       themeMatches * 14 +
       Math.min(8, maxSpreadKm) * 5;
 
-    // Bonus for hitting target walking/transit expectations explicitly
     if (balance.walk >= 0.28 && walkSegs.length >= 1) {
       score += 36;
     }
-    if (balance.transit >= 0.25 && transitSegs.length >= 1) {
+    if (balance.transit >= 0.25 && (transitSegs.length >= 1 || actualShares.transit >= 0.2)) {
       score += 36;
     }
-    // Penalize fragmented 1-stop tram hops or repeated lines
     const singleHopTrams = tramSegs.filter((s) => s.stopsCount <= 1).length;
     score -= singleHopTrams * 8;
     if (tramSegs.length > distinctTramRoutes) {
@@ -885,12 +912,14 @@ export function generateTramAdventure(params: GenerateTripParams): GenerationOut
     }
 
     if (loopMode) {
-      const closedLoop = segments[segments.length - 1].toStop.id === startStopId;
+      const closedLoop = segments[segments.length - 1].toStop.id === startStop.id;
       if (closedLoop) score += 190;
       if (distinctTramRoutes >= 2) score += 45;
     }
     if (preferSpecialFleet) {
-      const specialCount = tramSegs.filter((s) => s.route && s.route.type !== 'regular').length;
+      const specialCount = tramSegs.filter(
+        (s) => s.route && (s.route.type === 'retro' || s.route.type === 'chizhik')
+      ).length;
       score += specialCount * 35;
     }
     if (totalDuration >= minMins && totalDuration <= maxMins) {
@@ -899,29 +928,412 @@ export function generateTramAdventure(params: GenerateTripParams): GenerationOut
       score -= Math.abs(totalDuration - (minMins + maxMins) / 2) * 0.65;
     }
 
-    candidates.push({ steps, score, duration: totalDuration });
+    candidates.push({
+      steps,
+      score,
+      duration: totalDuration,
+      walkRatio: actualShares.walk,
+      distinctLines: distinctTramRoutes,
+      signature: getStepsSignature(steps),
+    });
   }
+
+  candidates.sort((a, b) => b.score - a.score);
+  return candidates;
+}
+
+export function generateTramAdventure(params: GenerateTripParams): GenerationOutcome {
+  const {
+    city,
+    stops: rawStops,
+    routes: rawRoutes,
+    landmarks,
+    startStopId,
+    destinationStopId,
+    theme,
+    durationPreset,
+    timeMode = 'duration',
+    deadlineMinutes,
+    includePlanned2027 = true,
+    dayOfWeek,
+    timeMinutes,
+    allowFallbackTransit,
+    modeBalance: rawBalance,
+    loopMode = false,
+    weatherMode = 'clear',
+    preferSpecialFleet = false,
+    generateAlternatives = true,
+    seed,
+  } = params;
+
+  const stops = includePlanned2027
+    ? rawStops
+    : rawStops.filter((s) => !s.planned2027);
+  const visibleStopIds = new Set(stops.map((s) => s.id));
+  const routes = includePlanned2027
+    ? rawRoutes
+    : rawRoutes.filter((r) => !r.planned2027 && r.stopIds.every((id) => visibleStopIds.has(id)));
+
+  const balance = normalizeModeBalance(rawBalance ?? DEFAULT_MODE_BALANCE);
+  const stopMap = buildStopMap(stops);
+  const startStop = stopMap[startStopId];
+  if (!startStop) {
+    return {
+      status: 'no_service',
+      reason: 'Выбранная стартовая остановка не найдена (возможно, она относится к линии 2027 года).',
+    };
+  }
+
+  const targetDeadlineMinutes =
+    timeMode === 'deadline' && typeof deadlineMinutes === 'number'
+      ? ((Math.round(deadlineMinutes) % 1440) + 1440) % 1440
+      : undefined;
+
+  const deadlineBudget =
+    targetDeadlineMinutes !== undefined
+      ? computeDeadlineBudgetMinutes(timeMinutes, targetDeadlineMinutes)
+      : undefined;
+
+  // Wider walking corridor when user prefers walking or has ample free time before a deadline
+  const maxWalkKm =
+    balance.walk >= 0.35 || (deadlineBudget !== undefined && deadlineBudget >= 110)
+      ? 2.8
+      : balance.walk >= 0.16
+        ? 1.65
+        : 0.72;
+  const allowCityTransit = balance.transit >= 0.20;
+  const effectiveIsolatedFallback = allowFallbackTransit || balance.transit >= 0.28;
+
+  const { edgesByStop, activeRoutes } = buildAdjacencyGraph(
+    stops,
+    routes,
+    dayOfWeek,
+    timeMinutes,
+    effectiveIsolatedFallback,
+    { city, maxWalkKm, allowCityTransit }
+  );
+
+  if (activeRoutes.length === 0 && balance.walk < 0.65) {
+    return {
+      status: 'no_service',
+      reason: `В выбранное время (${formatMinutesToClock(timeMinutes)}) транспорт завершил движение. Выберите дневное время или сдвиньте треугольник к «Пешком».`,
+    };
+  }
+
+  // Case 1: Explicit A -> B destination routing (with up to 3 distinct alternatives!)
+  if (destinationStopId && destinationStopId !== startStopId && !loopMode) {
+    const destStop = stopMap[destinationStopId];
+    if (!destStop) {
+      return { status: 'no_service', reason: 'Конечная остановка не найдена.' };
+    }
+
+    const baseSteps = findPathToDestination(
+      startStopId,
+      destinationStopId,
+      edgesByStop,
+      theme,
+      balance,
+      allowFallbackTransit
+    );
+    if (!baseSteps) {
+      const closestMain =
+        findNearestStops(destStop.lat, destStop.lng, stops, 1, false)[0]?.stop ?? null;
+      return {
+        status: 'needs_fallback',
+        reason: `До точки «${destStop.name}» нельзя добраться только на рельсах и пешком. Включите резервный транспорт или сдвиньте треугольник в сторону «Транспорт».`,
+        nearestTramStop: closestMain,
+      };
+    }
+
+    const buildBaseTrip = (
+      steps: RawStep[],
+      variantTitle: string,
+      variantBadge: string
+    ): GeneratedTrip => {
+      const segs = collapseRawStepsToSegments(steps, stopMap);
+      return assembleTrip(segs, landmarks, stopMap, dayOfWeek, timeMinutes, seed, {
+        city,
+        isLoop: false,
+        weatherMode,
+        modeBalance: balance,
+        variantTitle,
+        variantBadge,
+        targetDeadlineMinutes,
+      });
+    };
+
+    const altTrips: GeneratedTrip[] = [];
+    const seenSignatures = new Set<string>();
+
+    const pushAlternative = (
+      steps: RawStep[] | null,
+      variantTitle: string,
+      variantBadge: string
+    ) => {
+      if (!steps || steps.length === 0) return;
+      const sig = getStepsSignature(steps);
+      if (seenSignatures.has(sig)) return;
+      seenSignatures.add(sig);
+      altTrips.push(buildBaseTrip(steps, variantTitle, variantBadge));
+    };
+
+    const baseTrip = buildBaseTrip(
+      baseSteps,
+      'Оптимальный путь',
+      'Прямой'
+    );
+
+    if (generateAlternatives) {
+      // Variant A: Early exit at adjacent stop (0.85..3.4 km from dest) + scenic walk
+      if (!destStop.isolatedFromMainTram) {
+        const adjacentStops = stops
+          .filter(
+            (s) =>
+              !s.isolatedFromMainTram &&
+              s.id !== destStop.id &&
+              s.id !== startStop.id
+          )
+          .map((s) => ({ stop: s, distKm: haversineKm(s, destStop) }))
+          .filter((item) => item.distKm >= 0.85 && item.distKm <= 3.4)
+          .sort((a, b) => Math.abs(a.distKm - 1.75) - Math.abs(b.distKm - 1.75));
+
+        for (const cand of adjacentStops.slice(0, 6)) {
+          const toNeighbor = findPathToDestination(
+            startStopId,
+            cand.stop.id,
+            edgesByStop,
+            theme,
+            { ...balance, walk: Math.min(balance.walk, 0.25) },
+            allowFallbackTransit,
+            { preferVariety: true }
+          );
+          if (toNeighbor && toNeighbor.length >= 1) {
+            const walkMins = Math.max(9, Math.round(cand.distKm * 13));
+            const combined: RawStep[] = [
+              ...toNeighbor,
+              {
+                fromStopId: cand.stop.id,
+                toStopId: destStop.id,
+                kind: 'walk',
+                durationMinutes: walkMins,
+                distanceKm: cand.distKm,
+              },
+            ];
+            if (getStepsSignature(combined) !== getStepsSignature(baseSteps)) {
+              pushAlternative(
+                combined,
+                'Выход на соседней + пешком',
+                `+${Math.round(cand.distKm * 10) / 10} км пешком`
+              );
+              break;
+            }
+          }
+        }
+      }
+
+      // Variant B: Different lines / no boredom (avoid lines used in direct trip)
+      const baseRouteIds = new Set(
+        baseSteps.map((s) => s.route?.id).filter((id): id is string => Boolean(id))
+      );
+      if (baseRouteIds.size > 0) {
+        const variedSteps = findPathToDestination(
+          startStopId,
+          destinationStopId,
+          edgesByStop,
+          theme,
+          { tram: 0.45, transit: Math.max(0.3, balance.transit), walk: 0.25 },
+          allowFallbackTransit,
+          { avoidRouteIds: baseRouteIds, preferVariety: true }
+        );
+        if (variedSteps) {
+          pushAlternative(variedSteps, 'Разными линиями', 'Без скуки');
+        }
+      }
+
+      // Variant C: Scenic deadline-filler or direct baseline
+      if (
+        deadlineBudget !== undefined &&
+        baseTrip.totalDurationMinutes < deadlineBudget * 0.65 &&
+        !destStop.isolatedFromMainTram
+      ) {
+        const detourMax = Math.max(25, deadlineBudget - baseTrip.totalDurationMinutes - 14);
+        const detourMin = Math.max(18, Math.round(detourMax * 0.55));
+        const rand = createPrng(seed ?? 42);
+        const detours = runAdventureRollouts({
+          startStop,
+          stops,
+          stopMap,
+          edgesByStop,
+          minMins: detourMin,
+          maxMins: detourMax,
+          theme,
+          balance,
+          allowCityTransit,
+          allowFallbackTransit,
+          effectiveIsolatedFallback,
+          loopMode: false,
+          weatherMode,
+          preferSpecialFleet,
+          rand,
+          attempts: 45,
+        });
+        for (const d of detours.slice(0, 6)) {
+          const tailStopId = d.steps[d.steps.length - 1].toStopId;
+          if (tailStopId === destinationStopId) continue;
+          const tailToDest = findPathToDestination(
+            tailStopId,
+            destinationStopId,
+            edgesByStop,
+            theme,
+            balance,
+            allowFallbackTransit
+          );
+          if (tailToDest && tailToDest.length > 0) {
+            const fullSteps = [...d.steps, ...tailToDest];
+            const totalEst = fullSteps.reduce((acc, s) => acc + s.durationMinutes, 0) + 10;
+            if (totalEst <= deadlineBudget - 4) {
+              pushAlternative(
+                fullSteps,
+                `Большая прогулка к ${formatMinutesToClock(targetDeadlineMinutes!)}`,
+                'По времени'
+              );
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    // Ensure baseline optimal path is included among alternatives
+    if (!seenSignatures.has(getStepsSignature(baseSteps))) {
+      seenSignatures.add(getStepsSignature(baseSteps));
+      altTrips.unshift(baseTrip);
+    } else if (altTrips.length === 0) {
+      altTrips.push(baseTrip);
+    }
+
+    // If user asked for deadline filler and we picked detour first, make sure optimal stays in list (up to 3 total)
+    const trimmedAlts = altTrips.slice(0, 3).map((t) => ({ ...t, alternatives: undefined }));
+    const primary = trimmedAlts[0];
+
+    return {
+      status: 'ok',
+      trip: {
+        ...primary,
+        alternatives: trimmedAlts,
+      },
+    };
+  }
+
+  // Case 2: Smart Multi-Modal Adventure / Deadline / Loop Planner
+  const rand = createPrng(seed);
+  let [minMins, maxMins] = getDurationRange(durationPreset);
+  if (deadlineBudget !== undefined) {
+    const buffer = Math.min(20, Math.max(6, Math.round(deadlineBudget * 0.1)));
+    maxMins = Math.max(24, deadlineBudget - buffer);
+    minMins = Math.max(16, Math.round(deadlineBudget * 0.66));
+  }
+
+  const startEdges = edgesByStop[startStopId] || [];
+  if (startEdges.length === 0) {
+    return {
+      status: 'no_service',
+      reason: `От остановки «${startStop.name}» в ${formatMinutesToClock(timeMinutes)} (${DAY_NAMES_SHORT[dayOfWeek]}) нет работающих рейсов. Попробуйте другую остановку или дневное время.`,
+    };
+  }
+
+  const candidates = runAdventureRollouts({
+    startStop,
+    stops,
+    stopMap,
+    edgesByStop,
+    minMins,
+    maxMins,
+    theme,
+    balance,
+    allowCityTransit,
+    allowFallbackTransit,
+    effectiveIsolatedFallback,
+    loopMode,
+    weatherMode,
+    preferSpecialFleet,
+    rand,
+    attempts: 150,
+  });
 
   if (candidates.length === 0) {
     return {
       status: 'no_service',
-      reason: 'Не удалось построить маршрут из этой точки в выбранное время. Попробуйте сменить остановку или фильтр времени.',
+      reason:
+        'Не удалось построить маршрут из этой точки в выбранное время. Попробуйте сменить остановку или фильтр времени.',
     };
   }
 
-  candidates.sort((a, b) => b.score - a.score);
   const topPool = candidates.slice(0, Math.min(3, candidates.length));
-  const picked = topPool[Math.floor(rand() * topPool.length)];
-  const segments = collapseRawStepsToSegments(picked.steps, stopMap);
+  const pickedPrimary = topPool[Math.floor(rand() * topPool.length)];
+
+  const selectedCandidates: Array<{ cand: CandidateWalk; title: string; badge: string }> = [
+    {
+      cand: pickedPrimary,
+      title:
+        targetDeadlineMinutes !== undefined
+          ? `К ${formatMinutesToClock(targetDeadlineMinutes)}`
+          : 'Баланс по параметрам',
+      badge: 'Рекомендуемый',
+    },
+  ];
+  const usedSignatures = new Set([pickedPrimary.signature]);
+
+  if (generateAlternatives) {
+    // 2nd flavor: Walking-forward option
+    const walkCandidate = [...candidates]
+      .filter((c) => !usedSignatures.has(c.signature))
+      .sort((a, b) => b.walkRatio - a.walkRatio || b.score - a.score)[0];
+    if (walkCandidate) {
+      usedSignatures.add(walkCandidate.signature);
+      selectedCandidates.push({
+        cand: walkCandidate,
+        title: 'Больше пешком',
+        badge: 'Прогулочный',
+      });
+    }
+
+    // 3rd flavor: Maximum line/district diversity
+    const diverseCandidate = [...candidates]
+      .filter((c) => !usedSignatures.has(c.signature))
+      .sort((a, b) => b.distinctLines - a.distinctLines || b.score - a.score)[0];
+    if (diverseCandidate) {
+      usedSignatures.add(diverseCandidate.signature);
+      selectedCandidates.push({
+        cand: diverseCandidate,
+        title: 'Разными линиями',
+        badge: 'Разнообразие',
+      });
+    }
+  }
+
+  const builtAlternatives = selectedCandidates.slice(0, 3).map(({ cand, title, badge }) => {
+    const segs = collapseRawStepsToSegments(cand.steps, stopMap);
+    return assembleTrip(segs, landmarks, stopMap, dayOfWeek, timeMinutes, seed, {
+      city,
+      isLoop: loopMode && segs[segs.length - 1].toStop.id === startStopId,
+      weatherMode,
+      modeBalance: balance,
+      variantTitle: title,
+      variantBadge: badge,
+      targetDeadlineMinutes,
+    });
+  });
+
+  const cleanAlts = builtAlternatives.map((t) => ({ ...t, alternatives: undefined }));
+  const primaryTrip = cleanAlts[0];
 
   return {
     status: 'ok',
-    trip: assembleTrip(segments, landmarks, stopMap, dayOfWeek, timeMinutes, seed, {
-      city,
-      isLoop: loopMode && segments[segments.length - 1].toStop.id === startStopId,
-      weatherMode,
-      modeBalance: balance,
-    }),
+    trip: {
+      ...primaryTrip,
+      alternatives: cleanAlts,
+    },
   };
 }
 
@@ -931,20 +1343,28 @@ export function extendTripLastSegment(params: {
   routes: TramRoute[];
   landmarks: Landmark[];
   allowFallbackTransit: boolean;
+  includePlanned2027?: boolean;
   weatherMode?: WeatherMode;
   preferSpecialFleet?: boolean;
   seed?: number;
 }): GeneratedTrip | null {
   const {
     trip,
-    stops,
-    routes,
+    stops: rawStops,
+    routes: rawRoutes,
     landmarks,
     allowFallbackTransit,
+    includePlanned2027 = true,
     weatherMode = 'clear',
     preferSpecialFleet = false,
     seed,
   } = params;
+
+  const stops = includePlanned2027 ? rawStops : rawStops.filter((s) => !s.planned2027);
+  const visibleStopIds = new Set(stops.map((s) => s.id));
+  const routes = includePlanned2027
+    ? rawRoutes
+    : rawRoutes.filter((r) => !r.planned2027 && r.stopIds.every((id) => visibleStopIds.has(id)));
 
   const balance = normalizeModeBalance(trip.modeBalance ?? DEFAULT_MODE_BALANCE);
   const stopMap = buildStopMap(stops);
@@ -957,7 +1377,7 @@ export function extendTripLastSegment(params: {
     {
       city: trip.city,
       maxWalkKm: balance.walk >= 0.35 ? 2.2 : 1.1,
-      allowCityTransit: balance.transit >= 0.14 || allowFallbackTransit,
+      allowCityTransit: balance.transit >= 0.20,
     }
   );
 
@@ -976,7 +1396,7 @@ export function extendTripLastSegment(params: {
 
   for (let hop = 0; hop < targetHops; hop++) {
     const rawNeighbors = (edgesByStop[currId] || []).filter((e) =>
-      balance.transit >= 0.14 || allowFallbackTransit ? true : e.kind !== 'fallback_transit'
+      balance.transit >= 0.20 || allowFallbackTransit ? true : e.kind !== 'fallback_transit'
     );
     if (rawNeighbors.length === 0) break;
 
@@ -1035,17 +1455,28 @@ export function extendTripLastSegment(params: {
     isLoop: combinedSegments[combinedSegments.length - 1].toStop.id === combinedSegments[0].fromStop.id,
     weatherMode,
     modeBalance: balance,
+    variantTitle: trip.variantTitle,
+    variantBadge: trip.variantBadge,
+    targetDeadlineMinutes: trip.targetDeadlineMinutes,
   });
 }
 
 function assembleTrip(
   segments: RouteSegment[],
   allLandmarks: Landmark[],
-  _stopMap: Record<string, TramStop>,
+  stopMap: Record<string, TramStop>,
   dayOfWeek: number,
   timeMinutes: number,
   seed?: number,
-  meta?: { city?: CityId; isLoop?: boolean; weatherMode?: WeatherMode; modeBalance?: ModeBalance }
+  meta?: {
+    city?: CityId;
+    isLoop?: boolean;
+    weatherMode?: WeatherMode;
+    modeBalance?: ModeBalance;
+    variantTitle?: string;
+    variantBadge?: string;
+    targetDeadlineMinutes?: number;
+  }
 ): GeneratedTrip {
   const normalizedSegments: RouteSegment[] = segments.map((seg, idx) => ({
     ...seg,
@@ -1057,6 +1488,21 @@ function assembleTrip(
   const transferWaitMinutes = Math.max(0, tramSegments.length - 1) * 5;
   const totalDurationMinutes =
     normalizedSegments.reduce((acc, s) => acc + s.durationMinutes, 0) + transferWaitMinutes;
+
+  let walkKmRaw = 0;
+  for (const seg of normalizedSegments) {
+    if (seg.kind !== 'walk') continue;
+    if (seg.stopIds.length >= 2) {
+      for (let i = 0; i < seg.stopIds.length - 1; i++) {
+        const a = stopMap[seg.stopIds[i]];
+        const b = stopMap[seg.stopIds[i + 1]];
+        walkKmRaw += a && b ? haversineKm(a, b) : haversineKm(seg.fromStop, seg.toStop);
+      }
+    } else {
+      walkKmRaw += haversineKm(seg.fromStop, seg.toStop);
+    }
+  }
+  const walkDistanceKm = Math.round(walkKmRaw * 10) / 10;
 
   const stopIdsOnTrip = new Set<string>();
   const districtsSet = new Set<string>();
@@ -1079,6 +1525,9 @@ function assembleTrip(
     }
   }
 
+  const arrivalTimeMinutes =
+    ((Math.round(timeMinutes + totalDurationMinutes) % 1440) + 1440) % 1440;
+
   return {
     id: `trip-${seed ?? Date.now()}-${Math.floor((seed ?? Math.random()) * 1000)}`,
     city: meta?.city,
@@ -1097,6 +1546,11 @@ function assembleTrip(
     landmarks: matchedLandmarks,
     dayOfWeek,
     timeMinutes,
+    variantTitle: meta?.variantTitle,
+    variantBadge: meta?.variantBadge,
+    arrivalTimeMinutes,
+    targetDeadlineMinutes: meta?.targetDeadlineMinutes,
+    walkDistanceKm,
   };
 }
 

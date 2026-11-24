@@ -53,6 +53,15 @@ enum class DurationPreset(val id: String, val label: String) {
     }
 }
 
+enum class TimePlanningMode(val id: String, val label: String) {
+    DURATION("duration", "Длительность"),
+    DEADLINE("deadline", "Прибыть к часу");
+
+    companion object {
+        fun fromId(raw: String?): TimePlanningMode = entries.firstOrNull { it.id == raw } ?: DURATION
+    }
+}
+
 enum class RouteThemeFilter(val id: String, val label: String) {
     ANY("any", "Полный рандом"),
     HISTORIC("center", "Центр и история"),
@@ -84,8 +93,11 @@ data class TramStop(
     val district: String,
     val lat: Double,
     val lng: Double,
+    val stopKind: String? = null, // "tram" | "metro" | "trolleybus" | "hub"
     val hubId: String? = null,
-    val isolatedFromMainTram: Boolean = false
+    val isolatedFromMainTram: Boolean = false,
+    val planned2027: Boolean = false,
+    val plannedLabel: String? = null
 )
 
 data class RouteSchedule(
@@ -101,12 +113,14 @@ data class TramRoute(
     val number: String,
     val title: String,
     val colorHex: String,
-    val type: String, // "regular" | "circular" | "chizhik" | "retro"
+    val type: String, // "regular" | "circular" | "chizhik" | "retro" | "metro" | "trolleybus"
     val themes: List<String>,
     val schedule: RouteSchedule,
     val stopIds: List<String>,
     val minutesPerHop: Int,
-    val description: String
+    val description: String,
+    val planned2027: Boolean = false,
+    val plannedLabel: String? = null
 )
 
 data class Landmark(
@@ -191,7 +205,13 @@ data class GeneratedTrip(
     val districtsVisited: List<String>,
     val landmarks: List<Landmark>,
     val dayOfWeek: Int,
-    val timeMinutes: Int
+    val timeMinutes: Int,
+    val variantTitle: String? = null,
+    val variantBadge: String? = null,
+    val arrivalTimeMinutes: Int? = null,
+    val targetDeadlineMinutes: Int? = null,
+    val walkDistanceKm: Double? = null,
+    val alternatives: List<GeneratedTrip> = emptyList()
 )
 
 sealed class GenerationOutcome {
@@ -248,9 +268,12 @@ data class SearchParamsState(
     val destinationAddressLabel: String = "",
     val themeFilter: RouteThemeFilter = RouteThemeFilter.ANY,
     val durationPreset: DurationPreset = DurationPreset.MEDIUM,
+    val timeMode: TimePlanningMode = TimePlanningMode.DURATION,
+    val deadlineMinutes: Int = 18 * 60,
     val dayOfWeek: Int = 3,
     val timeMinutes: Int = 14 * 60,
     val allowFallbackTransit: Boolean = false,
+    val includePlanned2027: Boolean = true,
     val modeBalance: ModeBalance = ModeBalance(),
     val showAllNetwork: Boolean = true,
     val loopMode: Boolean = false,

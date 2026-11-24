@@ -174,7 +174,7 @@ fun SettingsSheet(
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(18.dp)
                         )
-                        Text("Город трамвайной сети", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text("Город транспортной сети", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                     }
                     Row(
                         modifier = Modifier.fillMaxWidth(),

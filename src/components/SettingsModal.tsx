@@ -237,7 +237,7 @@ export function SettingsModal({
               style={{ color: 'var(--text-secondary)' }}
             >
               <MapPin className="h-3.5 w-3.5" />
-              Город трамвайной сети
+              Город транспортной сети
             </span>
             <div className="grid grid-cols-2 gap-2">
               {(['spb', 'omsk'] as CityId[]).map((c) => {

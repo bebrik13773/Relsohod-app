@@ -170,20 +170,20 @@ fun OnboardingScreen(
             when (step) {
                 0 -> {
                     Text(
-                        text = "Трамвайное путешествие в один клик",
+                        text = "Прогулка и маршрут в один клик",
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.ExtraBold
                     )
                     Text(
-                        text = "Нативное приложение без WebView: стройте случайные и точные трамвайные цепочки с пересадками по реальному графику.",
+                        text = "Нативное приложение без WebView: стройте случайные и точные прогулки, сочетая трамваи, метро, троллейбусы и длинные пешие переходы по реальному графику.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
                     OnboardingFeatureCard(
                         icon = Icons.Rounded.Tram,
-                        title = "Актуальная сеть и расписание",
-                        body = "Реальные маршруты СПб и Омска, круговые линии, «Чижики» и интервалы движения."
+                        title = "Вся сеть и 3 варианта на выбор",
+                        body = "Линии СПб (трамваи + М1–М6) и Омска (трамваи + троллейбусы), проекты до лета 2027, режим «Прибыть к часу» и 3 готовых варианта пути."
                     )
                     OnboardingFeatureCard(
                         icon = Icons.Rounded.Navigation,
@@ -265,7 +265,7 @@ fun OnboardingScreen(
                         fontWeight = FontWeight.ExtraBold
                     )
                     Text(
-                        text = "Разрешите доступ к геолокации — приложение само выберет Санкт-Петербург или Омск и подберёт ближайшую трамвайную остановку.",
+                        text = "Разрешите доступ к геолокации — приложение само выберет Санкт-Петербург или Омск и подберёт ближайшую станцию или остановку.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -405,7 +405,7 @@ fun OnboardingScreen(
                                     Text(cfg.tagline, fontSize = 13.sp)
                                     Spacer(modifier = Modifier.height(6.dp))
                                     Text(
-                                        text = "${cfg.routes.size} линий · ${cfg.stops.size} остановок",
+                                        text = "${cfg.routes.size} линий · ${cfg.stops.size} станций и остановок",
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant

@@ -24,6 +24,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
@@ -74,7 +75,7 @@ private fun buildSmoothCatmullRomPath(points: List<Offset>, tension: Float = 0.2
 }
 
 /**
- * Offsets a polyline perpendicular to its direction so parallel tram routes on the same street
+ * Offsets a polyline perpendicular to its direction so parallel routes on the same street
  * display neatly side-by-side instead of tangling.
  */
 private fun offsetPolylinePoints(points: List<Offset>, offsetPx: Float): List<Offset> {
@@ -123,17 +124,28 @@ private fun computeRouteLaneOffsets(
     return out
 }
 
+private data class CachedBgRoutePath(
+    val path: Path,
+    val isPlanned2027: Boolean
+)
+
+private data class CachedStopNode(
+    val offset: Offset,
+    val isMetro: Boolean
+)
+
 private data class CachedTripSegmentPath(
     val path: Path,
     val color: Color,
     val isTram: Boolean,
-    val startPt: Offset
+    val startPt: Offset,
+    val isMetroStart: Boolean
 )
 
 private data class CachedMapGeometry(
     val riverPath: Path,
-    val backgroundPaths: List<Path>,
-    val stopOffsets: List<Offset>,
+    val backgroundPaths: List<CachedBgRoutePath>,
+    val stopNodes: List<CachedStopNode>,
     val tripSegments: List<CachedTripSegmentPath>,
     val startPt: Offset?,
     val endPt: Offset?
@@ -171,11 +183,11 @@ fun TramMapCanvas(
     val surfaceBg = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
     val waterColor = Color(0xFF7CB9E8).copy(alpha = 0.30f)
     val mutedRailColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.28f)
+    val plannedRailColor = Color(0xFFD97706).copy(alpha = 0.48f)
     val stopDotColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
     val primaryColor = MaterialTheme.colorScheme.primary
     val dashEffect = remember { PathEffect.dashPathEffect(floatArrayOf(12f, 10f), 0f) }
 
-    // Precompute base world geometry ONLY when data or canvas dimensions change — zero allocations during pan/zoom!
     val geometry = remember(city, stops, routes, trip, showAllNetwork, canvasSize, primaryColor) {
         if (canvasSize.width <= 0 || canvasSize.height <= 0) {
             null
@@ -218,13 +230,21 @@ fun TramMapCanvas(
                     val rawPts = route.stopIds.mapNotNull { stopMap[it] }.map { toBase(it.lat, it.lng) }
                     if (rawPts.size >= 2) {
                         val pts = offsetPolylinePoints(rawPts, laneOffsets[route.id] ?: 0f)
-                        buildSmoothCatmullRomPath(pts, 0.25f)
+                        CachedBgRoutePath(
+                            path = buildSmoothCatmullRomPath(pts, 0.25f),
+                            isPlanned2027 = route.planned2027
+                        )
                     } else null
                 }
             } else emptyList()
 
-            val stopDots = if (showAllNetwork) {
-                stops.map { toBase(it.lat, it.lng) }
+            val stopNodes = if (showAllNetwork) {
+                stops.map {
+                    CachedStopNode(
+                        offset = toBase(it.lat, it.lng),
+                        isMetro = it.stopKind == "metro"
+                    )
+                }
             } else emptyList()
 
             val cachedSegs = trip?.segments.orEmpty().mapNotNull { seg ->
@@ -245,14 +265,15 @@ fun TramMapCanvas(
                     path = buildSmoothCatmullRomPath(pts, 0.28f),
                     color = segColor,
                     isTram = seg.kind == SegmentKind.TRAM,
-                    startPt = pts.first()
+                    startPt = pts.first(),
+                    isMetroStart = seg.fromStop.stopKind == "metro" || seg.route?.type == "metro"
                 )
             }
 
             CachedMapGeometry(
                 riverPath = riverPath,
                 backgroundPaths = bgPaths,
-                stopOffsets = stopDots,
+                stopNodes = stopNodes,
                 tripSegments = cachedSegs,
                 startPt = trip?.let { toBase(it.startStop.lat, it.startStop.lng) },
                 endPt = trip?.let { toBase(it.endStop.lat, it.endStop.lng) }
@@ -324,12 +345,31 @@ fun TramMapCanvas(
                         cap = StrokeCap.Round,
                         join = StrokeJoin.Round
                     )
-                    for (bgPath in geo.backgroundPaths) {
-                        drawPath(path = bgPath, color = mutedRailColor, style = railStroke)
+                    val plannedStroke = Stroke(
+                        width = 3.6f * invScale,
+                        cap = StrokeCap.Round,
+                        join = StrokeJoin.Round,
+                        pathEffect = dashEffect
+                    )
+                    for (bg in geo.backgroundPaths) {
+                        drawPath(
+                            path = bg.path,
+                            color = if (bg.isPlanned2027) plannedRailColor else mutedRailColor,
+                            style = if (bg.isPlanned2027) plannedStroke else railStroke
+                        )
                     }
                     val dotRadius = 4f * invScale
-                    for (dot in geo.stopOffsets) {
-                        drawCircle(color = stopDotColor, radius = dotRadius, center = dot)
+                    val sqHalf = 4.2f * invScale
+                    for (node in geo.stopNodes) {
+                        if (node.isMetro) {
+                            drawRect(
+                                color = stopDotColor,
+                                topLeft = Offset(node.offset.x - sqHalf, node.offset.y - sqHalf),
+                                size = Size(sqHalf * 2f, sqHalf * 2f)
+                            )
+                        } else {
+                            drawCircle(color = stopDotColor, radius = dotRadius, center = node.offset)
+                        }
                     }
                 }
 
@@ -349,8 +389,23 @@ fun TramMapCanvas(
                             pathEffect = if (seg.isTram) null else dashEffect
                         )
                     )
-                    drawCircle(color = Color.White, radius = 9f * invScale, center = seg.startPt)
-                    drawCircle(color = seg.color, radius = 6f * invScale, center = seg.startPt)
+                    if (seg.isMetroStart) {
+                        val outer = 8.5f * invScale
+                        val inner = 5.5f * invScale
+                        drawRect(
+                            color = Color.White,
+                            topLeft = Offset(seg.startPt.x - outer, seg.startPt.y - outer),
+                            size = Size(outer * 2f, outer * 2f)
+                        )
+                        drawRect(
+                            color = seg.color,
+                            topLeft = Offset(seg.startPt.x - inner, seg.startPt.y - inner),
+                            size = Size(inner * 2f, inner * 2f)
+                        )
+                    } else {
+                        drawCircle(color = Color.White, radius = 9f * invScale, center = seg.startPt)
+                        drawCircle(color = seg.color, radius = 6f * invScale, center = seg.startPt)
+                    }
                 }
 
                 geo.startPt?.let { startPt ->
@@ -373,8 +428,8 @@ fun TramMapCanvas(
                     .padding(12.dp)
             ) {
                 Text(
-                    text = if (mapPickMode == "start") "Нажмите на остановку старта на схеме"
-                    else "Нажмите на остановку финиша на схеме",
+                    text = if (mapPickMode == "start") "Нажмите на точку старта на схеме"
+                    else "Нажмите на точку финиша на схеме",
                     color = MaterialTheme.colorScheme.onPrimaryContainer,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,

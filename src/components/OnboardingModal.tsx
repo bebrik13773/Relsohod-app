@@ -142,10 +142,10 @@ export function OnboardingModal({
                   <BrandLogo size="lg" />
                   <div>
                     <h2 className="font-display text-xl font-extrabold sm:text-2xl">
-                      Трамвайное путешествие в один клик
+                      Городские прогулки в один клик
                     </h2>
                     <p className="mt-1 text-xs sm:text-sm" style={{ color: 'var(--text-secondary)' }}>
-                      Собирайте случайные или точные цепочки с пересадками по реальному графику.
+                      Собирайте живые маршруты на трамваях, метро, троллейбусах и пешком — по настроению или к нужному часу.
                     </p>
                   </div>
                 </div>
@@ -157,9 +157,9 @@ export function OnboardingModal({
                   >
                     <TramFront className="mt-0.5 h-5 w-5 shrink-0" style={{ color: 'var(--accent-primary)' }} />
                     <div>
-                      <div className="text-xs font-bold sm:text-sm">Актуальная сеть и пересадки</div>
+                      <div className="text-xs font-bold sm:text-sm">Полная сеть, 3 варианта и режим к часу</div>
                       <p className="mt-0.5 text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-                        Реальные маршруты, интервалы, круговые линии, «Чижики» и пересадочные узлы без устаревших схем.
+                        Метро и трамваи СПб, трамваи и троллейбусы Омска (включая линии до лета 2027), ранний выход с пешей прогулкой и выбор из 3 вариантов.
                       </p>
                     </div>
                   </div>
@@ -428,7 +428,7 @@ export function OnboardingModal({
                           </div>
                           <p className="mt-1 text-xs opacity-85">{cfg.tagline}</p>
                           <div className="font-mono-num mt-2 text-[11px] font-semibold opacity-80">
-                            {cfg.routes.length} трамвайных линий · {cfg.stops.length} узлов и остановок
+                            {cfg.routes.length} линий транспорта · {cfg.stops.length} станций и остановок
                           </div>
                         </div>
                         {active && <CheckCircle2 className="mt-1 h-5 w-5 shrink-0" />}

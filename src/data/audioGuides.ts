@@ -94,8 +94,8 @@ export const OFFICIAL_AUDIO_GUIDES: OfficialAudioGuide[] = [
     url: 'https://visit-petersburg.ru/route/audiomarshrut-novaya-turistskaya-geografiya-10-dostoprimechatelnostey-sankt-peterburga-xxi-veka/',
     durationLabel: '~60 мин',
     description:
-      'Официальный аудиомаршрут по современным кварталам, набережным Приморского, Невского и Красногвардейского районов и сети «Чижик».',
-    matchRouteNumbers: ['48', '19', '7', '8', '63', '64', '23'],
+      'Официальный аудиомаршрут по современным кварталам, набережным Приморского, Невского и Красногвардейского районов, линиям «Чижик» и «Славянка».',
+    matchRouteNumbers: ['48', '19', '7', '8', '63', '64', '23', '2', '22', 'М3', 'М5'],
     matchDistricts: [
       'Приморский',
       'Невский',
@@ -104,6 +104,7 @@ export const OFFICIAL_AUDIO_GUIDES: OfficialAudioGuide[] = [
       'Калининский',
       'Московский',
       'Фрунзенский',
+      'Пушкинский',
     ],
   },
   {
@@ -115,7 +116,7 @@ export const OFFICIAL_AUDIO_GUIDES: OfficialAudioGuide[] = [
     durationLabel: 'Каталог гидов',
     description:
       'Официальная подборка городских аудиоэкскурсий, подкастов и маршрутов по всем районам Петербурга.',
-    matchRouteNumbers: [],
+    matchRouteNumbers: ['М1', 'М2', 'М3', 'М4', 'М5', 'М6'],
     matchDistricts: [],
     isCityOverview: true,
   },
@@ -128,7 +129,7 @@ export const OFFICIAL_AUDIO_GUIDES: OfficialAudioGuide[] = [
     durationLabel: '~50 мин',
     description:
       'Официальный обзорный аудиогид Туристского информационного центра Омской области: Омская крепость, Любинский проспект, площадь Бухгольца и набережная Иртыша.',
-    matchRouteNumbers: ['1', '2', '4', '7', '8', '9'],
+    matchRouteNumbers: ['1', '2', '4', '7', '8', '9', 'Тр-4', 'Тр-7', 'Тр-67'],
     matchDistricts: ['Центральный', 'Ленинский', 'Кировский'],
     isCityOverview: true,
   },
@@ -140,8 +141,8 @@ export const OFFICIAL_AUDIO_GUIDES: OfficialAudioGuide[] = [
     url: 'https://izi.travel/ru/c234-sleduyuschaya-ostanovka/ru',
     durationLabel: '~45 мин',
     description:
-      'Аудиоэкскурсия о районах и магистралях Омска из окна городского электротранспорта — отличное сопровождение для прогулки на омском трамвае.',
-    matchRouteNumbers: ['4', '7', '8', '2', '9'],
+      'Аудиоэкскурсия о районах и магистралях Омска из окна городского электротранспорта — отличное сопровождение для прогулки на омском трамвае и троллейбусе.',
+    matchRouteNumbers: ['4', '7', '8', '2', '9', '2К', '8К', 'Тр-2', 'Тр-3', 'Тр-15', 'Тр-16'],
     matchDistricts: ['Центральный', 'Октябрьский', 'Советский', 'Ленинский', 'Амурский посёлок'],
     isCityOverview: true,
   },
@@ -154,7 +155,7 @@ export const OFFICIAL_AUDIO_GUIDES: OfficialAudioGuide[] = [
     durationLabel: '~40 мин',
     description:
       'Аудиомаршрут по историческому центру, Воскресенскому военному собору, Омской крепости и дому коменданта — вдоль центральных трамвайных узлов.',
-    matchRouteNumbers: ['1', '4', '7', '8'],
+    matchRouteNumbers: ['1', '4', '7', '8', 'Тр-4', 'Тр-7'],
     matchDistricts: ['Центральный'],
   },
   {
@@ -166,13 +167,20 @@ export const OFFICIAL_AUDIO_GUIDES: OfficialAudioGuide[] = [
     durationLabel: '~35 мин',
     description:
       'Исторический аудиогид о годах писателя в Омске, Тарских и Тобольских воротах и памятниках центра города.',
-    matchRouteNumbers: ['4', '7', '8'],
+    matchRouteNumbers: ['4', '7', '8', 'Тр-3', 'Тр-15'],
     matchDistricts: ['Центральный', 'Октябрьский'],
   },
 ];
 
 function normalizeRouteToken(raw: string): string {
   return raw.trim().toUpperCase();
+}
+
+function formatLineTokenLabel(token: string): string {
+  const upper = token.trim().toUpperCase();
+  if (upper.startsWith('М')) return `метро ${token}`;
+  if (upper.startsWith('ТР-')) return `троллейбус № ${token.slice(3)}`;
+  return `трамвай № ${token}`;
 }
 
 export function matchAudioGuidesForTrip(
@@ -216,9 +224,9 @@ export function matchAudioGuidesForTrip(
 
     let matchReason: string;
     if (matchesPreferredLine && preferredRouteNumber) {
-      matchReason = `Сейчас по шагу: трамвай № ${preferredRouteNumber}`;
+      matchReason = `Сейчас по шагу: ${formatLineTokenLabel(preferredRouteNumber)}`;
     } else if (matchedLines.length > 0) {
-      matchReason = `По вашему маршруту: трамвай № ${matchedLines.join(', № ')}`;
+      matchReason = `По вашему маршруту: ${matchedLines.slice(0, 3).map(formatLineTokenLabel).join(', ')}`;
     } else if (matchedDistricts.length > 0) {
       matchReason = `Район маршрута: ${matchedDistricts.slice(0, 2).join(', ')}`;
     } else {

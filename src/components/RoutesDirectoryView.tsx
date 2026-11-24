@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, Clock, Compass, Search, XCircle } from 'lucide-react';
 import { CityId, TramRoute, TramStop } from '../types/tram';
 import { CITIES } from '../data/cities';
@@ -18,6 +18,9 @@ interface RoutesDirectoryViewProps {
   onStartFromRoute: (stopId: string) => void;
 }
 
+type StatusFilter = 'all' | 'active' | 'planned2027';
+type KindFilter = 'all' | 'tram' | 'metro' | 'trolleybus';
+
 export function RoutesDirectoryView({
   city,
   routes,
@@ -28,6 +31,13 @@ export function RoutesDirectoryView({
 }: RoutesDirectoryViewProps) {
   const [query, setQuery] = useState('');
   const [onlyActiveNow, setOnlyActiveNow] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [kindFilter, setKindFilter] = useState<KindFilter>('all');
+
+  useEffect(() => {
+    setKindFilter('all');
+    setStatusFilter('all');
+  }, [city]);
 
   const stopNamesById = useMemo(() => {
     const map: Record<string, string> = {};
@@ -35,9 +45,28 @@ export function RoutesDirectoryView({
     return map;
   }, [stops]);
 
+  const hasMetro = useMemo(() => routes.some((r) => r.type === 'metro'), [routes]);
+  const hasTrolleybus = useMemo(() => routes.some((r) => r.type === 'trolleybus'), [routes]);
+
+  const effectiveKindFilter: KindFilter =
+    (kindFilter === 'metro' && !hasMetro) || (kindFilter === 'trolleybus' && !hasTrolleybus)
+      ? 'all'
+      : kindFilter;
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return routes.filter((route) => {
+      if (statusFilter === 'active' && route.planned2027) return false;
+      if (statusFilter === 'planned2027' && !route.planned2027) return false;
+      if (effectiveKindFilter === 'metro' && route.type !== 'metro') return false;
+      if (effectiveKindFilter === 'trolleybus' && route.type !== 'trolleybus') return false;
+      if (
+        effectiveKindFilter === 'tram' &&
+        (route.type === 'metro' || route.type === 'trolleybus')
+      ) {
+        return false;
+      }
+
       const active = isRouteActiveAt(route, dayOfWeek, timeMinutes);
       if (onlyActiveNow && !active) return false;
       if (!q) return true;
@@ -48,17 +77,32 @@ export function RoutesDirectoryView({
         stopsText.includes(q)
       );
     });
-  }, [routes, query, onlyActiveNow, dayOfWeek, timeMinutes, stopNamesById]);
+  }, [routes, query, onlyActiveNow, statusFilter, effectiveKindFilter, dayOfWeek, timeMinutes, stopNamesById]);
+
+  const kindChips: Array<{ id: KindFilter; label: string }> = [
+    { id: 'all', label: 'Все виды' },
+    { id: 'tram', label: 'Трамваи' },
+    ...(hasMetro ? [{ id: 'metro' as const, label: 'Метро' }] : []),
+    ...(hasTrolleybus ? [{ id: 'trolleybus' as const, label: 'Троллейбусы' }] : []),
+  ];
+
+  const statusChips: Array<{ id: StatusFilter; label: string }> = [
+    { id: 'all', label: 'Все' },
+    { id: 'active', label: 'Действующие' },
+    { id: 'planned2027', label: 'До лета 2027' },
+  ];
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-6 pb-24 md:pb-10 lg:px-6">
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-display text-2xl font-bold sm:text-3xl" style={{ color: 'var(--text-primary)' }}>
-            Справочник трамвайных маршрутов ({CITIES[city].name})
+            Справочник маршрутов ({CITIES[city].name})
           </h1>
           <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
-            Статус работы показан на выбранное время: {DAY_NAMES_FULL[dayOfWeek].toLowerCase()},{' '}
+            Показаны трамваи{hasMetro ? ', линии метро' : ''}
+            {hasTrolleybus ? ', троллейбусы' : ''} и проекты до лета 2027 ·{' '}
+            {DAY_NAMES_FULL[dayOfWeek].toLowerCase()},{' '}
             <span className="font-mono-num font-semibold">{formatMinutesToClock(timeMinutes)}</span>.
           </p>
         </div>
@@ -97,6 +141,67 @@ export function RoutesDirectoryView({
         </div>
       </div>
 
+      {/* MD3 Filter Chips Bar */}
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Фильтр по виду транспорта">
+          {kindChips.map((chip) => {
+            const active = effectiveKindFilter === chip.id;
+            return (
+              <button
+                key={chip.id}
+                type="button"
+                aria-pressed={active}
+                onClick={() => {
+                  triggerHaptic('light');
+                  setKindFilter(chip.id);
+                }}
+                className="m3-tactile min-h-[36px] cursor-pointer rounded-full border px-3.5 py-1 text-xs font-semibold"
+                style={{
+                  backgroundColor: active
+                    ? 'var(--md-primary-container)'
+                    : 'var(--md-surface-container)',
+                  color: active
+                    ? 'var(--md-on-primary-container)'
+                    : 'var(--text-secondary)',
+                  borderColor: active ? 'transparent' : 'var(--md-outline-variant)',
+                }}
+              >
+                {chip.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Фильтр по статусу линии">
+          {statusChips.map((chip) => {
+            const active = statusFilter === chip.id;
+            return (
+              <button
+                key={chip.id}
+                type="button"
+                aria-pressed={active}
+                onClick={() => {
+                  triggerHaptic('light');
+                  setStatusFilter(chip.id);
+                }}
+                className="m3-tactile min-h-[36px] cursor-pointer rounded-full border px-3.5 py-1 text-xs font-semibold"
+                style={{
+                  backgroundColor: active
+                    ? 'var(--md-secondary-container)'
+                    : 'var(--md-surface-container)',
+                  color: active
+                    ? 'var(--md-on-secondary-container)'
+                    : 'var(--text-secondary)',
+                  borderColor: active ? 'transparent' : 'var(--md-outline-variant)',
+                }}
+              >
+                {chip.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
         {filtered.map((route) => {
           const active = isRouteActiveAt(route, dayOfWeek, timeMinutes);
@@ -120,10 +225,26 @@ export function RoutesDirectoryView({
                       {route.number}
                     </span>
                     <div>
-                      <div className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
-                        {route.operator}
-                        {route.type === 'circular' ? ' · Кольцевой' : ''}
-                        {route.type === 'retro' ? ' · Ретро' : ''}
+                      <div className="flex flex-wrap items-center gap-1.5 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+                        <span>
+                          {route.operator}
+                          {route.type === 'circular' ? ' · Кольцевой' : ''}
+                          {route.type === 'retro' ? ' · Ретро' : ''}
+                          {route.type === 'metro' ? ' · Метро' : ''}
+                          {route.type === 'trolleybus' ? ' · Троллейбус' : ''}
+                          {route.type === 'chizhik' ? ' · «Чижик»' : ''}
+                        </span>
+                        {route.planned2027 && (
+                          <span
+                            className="rounded-full px-2 py-0.5 text-[10px] font-bold"
+                            style={{
+                              backgroundColor: 'var(--md-secondary-container)',
+                              color: 'var(--md-on-secondary-container)',
+                            }}
+                          >
+                            {route.plannedLabel ?? 'До лета 2027'}
+                          </span>
+                        )}
                       </div>
                       <h2 className="text-sm font-bold leading-snug" style={{ color: 'var(--text-primary)' }}>
                         {route.title}

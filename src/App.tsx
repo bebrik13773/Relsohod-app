@@ -14,6 +14,7 @@ import {
   ModeBalance,
   RouteThemeFilter,
   SavedRoute,
+  TimePlanningMode,
   TripHistoryEntry,
   TripPhotoMemory,
   WeatherMode,
@@ -160,6 +161,14 @@ export default function App() {
   const [durationPreset, setDurationPreset] = useState<DurationPreset>(
     savedPlanner?.durationPreset ?? 'medium'
   );
+  const [timeMode, setTimeMode] = useState<TimePlanningMode>(
+    savedPlanner?.timeMode === 'deadline' ? 'deadline' : 'duration'
+  );
+  const [deadlineMinutes, setDeadlineMinutes] = useState<number>(
+    typeof savedPlanner?.deadlineMinutes === 'number'
+      ? savedPlanner.deadlineMinutes
+      : 18 * 60
+  );
   const [dayOfWeek, setDayOfWeek] = useState<number>(
     typeof savedPlanner?.dayOfWeek === 'number' ? savedPlanner.dayOfWeek : initialSlot.dayOfWeek
   );
@@ -170,6 +179,9 @@ export default function App() {
   );
   const [allowFallbackTransit, setAllowFallbackTransit] = useState<boolean>(
     savedPlanner?.allowFallbackTransit ?? false
+  );
+  const [includePlanned2027, setIncludePlanned2027] = useState<boolean>(
+    savedPlanner?.includePlanned2027 ?? true
   );
   const [modeBalance, setModeBalance] = useState<ModeBalance>(() =>
     savedPlanner?.modeBalance
@@ -187,6 +199,7 @@ export default function App() {
     savedPlanner?.preferSpecialFleet ?? false
   );
   const [mapPickMode, setMapPickMode] = useState<'start' | 'destination' | null>(null);
+  const [selectedAlternativeIdx, setSelectedAlternativeIdx] = useState<number>(0);
 
   const [onlyWithPhotos, setOnlyWithPhotos] = useState<boolean>(
     savedPlanner?.onlyWithPhotos ?? true
@@ -211,6 +224,27 @@ export default function App() {
 
   const cityCfg = CITIES[city];
 
+  const visibleStops = useMemo(
+    () => (includePlanned2027 ? cityCfg.stops : cityCfg.stops.filter((s) => !s.planned2027)),
+    [cityCfg.stops, includePlanned2027]
+  );
+
+  const visibleRoutes = useMemo(() => {
+    if (includePlanned2027) return cityCfg.routes;
+    const stopSet = new Set(visibleStops.map((s) => s.id));
+    return cityCfg.routes.filter((r) => !r.planned2027 && r.stopIds.every((id) => stopSet.has(id)));
+  }, [cityCfg.routes, includePlanned2027, visibleStops]);
+
+  useEffect(() => {
+    if (!visibleStops.some((s) => s.id === startStopId)) {
+      setStartStopId(cityCfg.defaultStartStopId);
+    }
+    if (destinationStopId && !visibleStops.some((s) => s.id === destinationStopId)) {
+      setDestinationStopId(null);
+      setDestinationAddressLabel('');
+    }
+  }, [visibleStops, startStopId, destinationStopId, cityCfg.defaultStartStopId]);
+
   const [outcome, setOutcome] = useState<GenerationOutcome | null>(() =>
     generateTramAdventure({
       city: initialCity,
@@ -221,6 +255,12 @@ export default function App() {
       destinationStopId: savedPlanner?.destinationStopId ?? null,
       theme: savedPlanner?.themeFilter ?? 'any',
       durationPreset: savedPlanner?.durationPreset ?? 'medium',
+      timeMode: savedPlanner?.timeMode === 'deadline' ? 'deadline' : 'duration',
+      deadlineMinutes:
+        typeof savedPlanner?.deadlineMinutes === 'number'
+          ? savedPlanner.deadlineMinutes
+          : 18 * 60,
+      includePlanned2027: savedPlanner?.includePlanned2027 ?? true,
       dayOfWeek:
         typeof savedPlanner?.dayOfWeek === 'number'
           ? savedPlanner.dayOfWeek
@@ -260,9 +300,12 @@ export default function App() {
       destinationAddressLabel,
       themeFilter,
       durationPreset,
+      timeMode,
+      deadlineMinutes,
       dayOfWeek,
       timeMinutes,
       allowFallbackTransit,
+      includePlanned2027,
       modeBalance,
       showAllNetwork,
       loopMode,
@@ -278,9 +321,12 @@ export default function App() {
     destinationAddressLabel,
     themeFilter,
     durationPreset,
+    timeMode,
+    deadlineMinutes,
     dayOfWeek,
     timeMinutes,
     allowFallbackTransit,
+    includePlanned2027,
     modeBalance,
     showAllNetwork,
     loopMode,
@@ -333,6 +379,9 @@ export default function App() {
         destinationStopId: null,
         theme: themeFilter,
         durationPreset,
+        timeMode,
+        deadlineMinutes,
+        includePlanned2027,
         dayOfWeek,
         timeMinutes,
         allowFallbackTransit,
@@ -341,11 +390,15 @@ export default function App() {
         weatherMode,
         preferSpecialFleet,
       });
+      setSelectedAlternativeIdx(0);
       setOutcome(nextOutcome);
     },
     [
       themeFilter,
       durationPreset,
+      timeMode,
+      deadlineMinutes,
+      includePlanned2027,
       dayOfWeek,
       timeMinutes,
       allowFallbackTransit,
@@ -402,6 +455,9 @@ export default function App() {
               destinationStopId: null,
               theme: themeFilter,
               durationPreset,
+              timeMode,
+              deadlineMinutes,
+              includePlanned2027,
               dayOfWeek,
               timeMinutes,
               allowFallbackTransit,
@@ -410,6 +466,7 @@ export default function App() {
               weatherMode,
               preferSpecialFleet,
             });
+            setSelectedAlternativeIdx(0);
             setOutcome(nextOutcome);
 
             setGeoStatus({
@@ -463,6 +520,9 @@ export default function App() {
       city,
       themeFilter,
       durationPreset,
+      timeMode,
+      deadlineMinutes,
+      includePlanned2027,
       dayOfWeek,
       timeMinutes,
       allowFallbackTransit,
@@ -506,9 +566,12 @@ export default function App() {
         destinationAddressLabel,
         themeFilter,
         durationPreset,
+        timeMode,
+        deadlineMinutes,
         dayOfWeek,
         timeMinutes,
         allowFallbackTransit,
+        includePlanned2027,
         modeBalance,
         showAllNetwork,
         loopMode,
@@ -542,9 +605,12 @@ export default function App() {
     destinationAddressLabel,
     themeFilter,
     durationPreset,
+    timeMode,
+    deadlineMinutes,
     dayOfWeek,
     timeMinutes,
     allowFallbackTransit,
+    includePlanned2027,
     modeBalance,
     showAllNetwork,
     loopMode,
@@ -597,9 +663,12 @@ export default function App() {
         setDestinationAddressLabel(plannerState.destinationAddressLabel);
         setThemeFilter(plannerState.themeFilter);
         setDurationPreset(plannerState.durationPreset);
+        setTimeMode(plannerState.timeMode);
+        setDeadlineMinutes(plannerState.deadlineMinutes);
         setDayOfWeek(plannerState.dayOfWeek);
         setTimeMinutes(plannerState.timeMinutes);
         setAllowFallbackTransit(plannerState.allowFallbackTransit);
+        setIncludePlanned2027(plannerState.includePlanned2027);
         setModeBalance(plannerState.modeBalance);
         setShowAllNetwork(plannerState.showAllNetwork);
         setLoopMode(plannerState.loopMode);
@@ -624,6 +693,9 @@ export default function App() {
           destinationStopId: plannerState.destinationStopId,
           theme: plannerState.themeFilter,
           durationPreset: plannerState.durationPreset,
+          timeMode: plannerState.timeMode,
+          deadlineMinutes: plannerState.deadlineMinutes,
+          includePlanned2027: plannerState.includePlanned2027,
           dayOfWeek: plannerState.dayOfWeek,
           timeMinutes: plannerState.timeMinutes,
           allowFallbackTransit: plannerState.allowFallbackTransit,
@@ -632,6 +704,7 @@ export default function App() {
           weatherMode: plannerState.weatherMode,
           preferSpecialFleet: plannerState.preferSpecialFleet,
         });
+        setSelectedAlternativeIdx(0);
         setOutcome(nextOutcome);
         setMismatchDismissed(false);
 
@@ -650,6 +723,7 @@ export default function App() {
     (overrideFallback?: boolean, overrideDay?: number, overrideTime?: number) => {
       triggerHaptic('medium');
       setSelectedLandmarkId(null);
+      setSelectedAlternativeIdx(0);
       const nextOutcome = generateTramAdventure({
         city,
         stops: cityCfg.stops,
@@ -659,6 +733,9 @@ export default function App() {
         destinationStopId,
         theme: themeFilter,
         durationPreset,
+        timeMode,
+        deadlineMinutes,
+        includePlanned2027,
         dayOfWeek: overrideDay ?? dayOfWeek,
         timeMinutes: overrideTime ?? timeMinutes,
         allowFallbackTransit: overrideFallback ?? allowFallbackTransit,
@@ -678,6 +755,9 @@ export default function App() {
       destinationStopId,
       themeFilter,
       durationPreset,
+      timeMode,
+      deadlineMinutes,
+      includePlanned2027,
       dayOfWeek,
       timeMinutes,
       allowFallbackTransit,
@@ -688,22 +768,33 @@ export default function App() {
     ]
   );
 
+  const activeTrip = useMemo(() => {
+    if (outcome?.status !== 'ok') return null;
+    const alts = outcome.trip.alternatives;
+    if (alts && alts.length > 0) {
+      return alts[Math.min(selectedAlternativeIdx, alts.length - 1)] ?? outcome.trip;
+    }
+    return outcome.trip;
+  }, [outcome, selectedAlternativeIdx]);
+
   const handleExtendLastSegment = useCallback(() => {
-    if (outcome?.status !== 'ok') return;
+    if (!activeTrip) return;
     const extended = extendTripLastSegment({
-      trip: outcome.trip,
+      trip: activeTrip,
       stops: cityCfg.stops,
       routes: cityCfg.routes,
       landmarks: cityCfg.landmarks,
       allowFallbackTransit,
+      includePlanned2027,
       weatherMode,
       preferSpecialFleet,
     });
     if (extended) {
       triggerHaptic('success');
+      setSelectedAlternativeIdx(0);
       setOutcome({ status: 'ok', trip: extended });
     }
-  }, [outcome, cityCfg, allowFallbackTransit, weatherMode, preferSpecialFleet]);
+  }, [activeTrip, cityCfg, allowFallbackTransit, includePlanned2027, weatherMode, preferSpecialFleet]);
 
   const handleToggleMapPickMode = useCallback((mode: 'start' | 'destination' | null) => {
     setMapPickMode(mode);
@@ -806,6 +897,7 @@ export default function App() {
     setStartStopId(saved.trip.startStop.id);
     setDestinationStopId(saved.trip.endStop.id);
     setDestinationAddressLabel('');
+    setSelectedAlternativeIdx(0);
     setOutcome({ status: 'ok', trip: saved.trip });
     setSelectedLandmarkId(null);
     setActiveTab('planner');
@@ -819,6 +911,7 @@ export default function App() {
     setStartStopId(entry.trip.startStop.id);
     setDestinationStopId(entry.trip.endStop.id);
     setDestinationAddressLabel('');
+    setSelectedAlternativeIdx(0);
     setOutcome({ status: 'ok', trip: entry.trip });
     setSelectedLandmarkId(null);
     setActiveTab('planner');
@@ -837,6 +930,7 @@ export default function App() {
       setStartStopId(stopId);
       setDestinationStopId(null);
       setDestinationAddressLabel('');
+      setSelectedAlternativeIdx(0);
       setActiveTab('planner');
       setPlannerSubView('route');
       setMobileRouteSubView('map');
@@ -850,6 +944,9 @@ export default function App() {
           destinationStopId: null,
           theme: themeFilter,
           durationPreset,
+          timeMode,
+          deadlineMinutes,
+          includePlanned2027,
           dayOfWeek,
           timeMinutes,
           allowFallbackTransit,
@@ -865,6 +962,9 @@ export default function App() {
       cityCfg,
       themeFilter,
       durationPreset,
+      timeMode,
+      deadlineMinutes,
+      includePlanned2027,
       dayOfWeek,
       timeMinutes,
       allowFallbackTransit,
@@ -874,8 +974,6 @@ export default function App() {
       preferSpecialFleet,
     ]
   );
-
-  const activeTrip = outcome?.status === 'ok' ? outcome.trip : null;
 
   const mapLandmarks = useMemo(() => {
     if (activeTrip) {
@@ -978,7 +1076,7 @@ export default function App() {
                 city={city}
                 subView={plannerSubView}
                 onChangeSubView={setPlannerSubView}
-                stops={cityCfg.stops}
+                stops={visibleStops}
                 landmarks={cityCfg.landmarks}
                 startStopId={startStopId}
                 onChangeStartStop={setStartStopId}
@@ -992,12 +1090,18 @@ export default function App() {
                 onChangeThemeFilter={setThemeFilter}
                 durationPreset={durationPreset}
                 onChangeDurationPreset={setDurationPreset}
+                timeMode={timeMode}
+                onChangeTimeMode={setTimeMode}
+                deadlineMinutes={deadlineMinutes}
+                onChangeDeadlineMinutes={setDeadlineMinutes}
                 dayOfWeek={dayOfWeek}
                 onChangeDayOfWeek={setDayOfWeek}
                 timeMinutes={timeMinutes}
                 onChangeTimeMinutes={setTimeMinutes}
                 allowFallbackTransit={allowFallbackTransit}
                 onChangeAllowFallbackTransit={setAllowFallbackTransit}
+                includePlanned2027={includePlanned2027}
+                onChangeIncludePlanned2027={setIncludePlanned2027}
                 modeBalance={modeBalance}
                 onChangeModeBalance={setModeBalance}
                 showAllNetwork={showAllNetwork}
@@ -1017,6 +1121,9 @@ export default function App() {
                 onStartLiveTrip={() => setLiveTripOpen(true)}
                 onOpenPostcard={() => setPostcardOpen(true)}
                 outcome={outcome}
+                activeTrip={activeTrip}
+                selectedAlternativeIdx={selectedAlternativeIdx}
+                onSelectAlternative={setSelectedAlternativeIdx}
                 onSaveTrip={handleSaveTrip}
                 isCurrentTripSaved={isCurrentTripSaved}
                 selectedLandmarkId={selectedLandmarkId}
@@ -1039,7 +1146,7 @@ export default function App() {
               >
                 <PlannerParamsView
                   city={city}
-                  stops={cityCfg.stops}
+                  stops={visibleStops}
                   landmarks={cityCfg.landmarks}
                   startStopId={startStopId}
                   onChangeStartStop={setStartStopId}
@@ -1053,12 +1160,18 @@ export default function App() {
                   onChangeThemeFilter={setThemeFilter}
                   durationPreset={durationPreset}
                   onChangeDurationPreset={setDurationPreset}
+                  timeMode={timeMode}
+                  onChangeTimeMode={setTimeMode}
+                  deadlineMinutes={deadlineMinutes}
+                  onChangeDeadlineMinutes={setDeadlineMinutes}
                   dayOfWeek={dayOfWeek}
                   onChangeDayOfWeek={setDayOfWeek}
                   timeMinutes={timeMinutes}
                   onChangeTimeMinutes={setTimeMinutes}
                   allowFallbackTransit={allowFallbackTransit}
                   onChangeAllowFallbackTransit={setAllowFallbackTransit}
+                  includePlanned2027={includePlanned2027}
+                  onChangeIncludePlanned2027={setIncludePlanned2027}
                   modeBalance={modeBalance}
                   onChangeModeBalance={setModeBalance}
                   showAllNetwork={showAllNetwork}
@@ -1165,6 +1278,9 @@ export default function App() {
                 <PlannerItineraryView
                   city={city}
                   outcome={outcome}
+                  activeTrip={activeTrip}
+                  selectedAlternativeIdx={selectedAlternativeIdx}
+                  onSelectAlternative={setSelectedAlternativeIdx}
                   onGenerate={handleGenerate}
                   onExtendLastSegment={handleExtendLastSegment}
                   onStartLiveTrip={() => setLiveTripOpen(true)}
@@ -1216,8 +1332,8 @@ export default function App() {
                 <TramMap
                   city={city}
                   cityCenter={cityCfg.center}
-                  stops={cityCfg.stops}
-                  routes={cityCfg.routes}
+                  stops={visibleStops}
+                  routes={visibleRoutes}
                   trip={activeTrip}
                   landmarks={mapLandmarks}
                   showAllNetwork={showAllNetwork}

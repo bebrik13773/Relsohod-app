@@ -15,6 +15,7 @@ import ru.relsokhod.spb.model.RouteThemeFilter
 import ru.relsokhod.spb.model.SavedRoute
 import ru.relsokhod.spb.model.SavedRoutesStats
 import ru.relsokhod.spb.model.SegmentKind
+import ru.relsokhod.spb.model.TimePlanningMode
 import ru.relsokhod.spb.model.TramRoute
 import ru.relsokhod.spb.model.TramStop
 import ru.relsokhod.spb.model.TripHistoryEntry
@@ -42,6 +43,24 @@ object TramRouter {
         val h = norm / 60
         val m = norm % 60
         return String.format(Locale.US, "%02d:%02d", h, m)
+    }
+
+    fun computeDeadlineBudgetMinutes(startMinutes: Int, deadlineMinutes: Int): Int {
+        var diff = deadlineMinutes - startMinutes
+        if (diff <= 0) diff += 1440
+        return diff.coerceIn(20, 480)
+    }
+
+    fun isCityTransitRoute(route: TramRoute?): Boolean =
+        route?.type == "metro" || route?.type == "trolleybus"
+
+    fun getRouteTypeShortLabel(route: TramRoute): String = when (route.type) {
+        "metro" -> "Метро ${route.number}"
+        "trolleybus" -> "Троллейбус № ${route.number.removePrefix("Тр-")}"
+        "retro" -> "Ретро-трамвай ${route.number}"
+        "chizhik" -> "«Чижик» № ${route.number}"
+        "circular" -> "Кольцевой трамвай № ${route.number}"
+        else -> "Трамвай № ${route.number}"
     }
 
     fun haversineKm(lat1: Double, lng1: Double, lat2: Double, lng2: Double): Double {
@@ -144,19 +163,34 @@ object TramRouter {
             }
         }
 
-        // Pedestrian transfers + scenic walking corridors (scalable by walk preference)
-        for (i in stops.indices) {
-            for (j in i + 1 until stops.size) {
-                val a = stops[i]
-                val b = stops[j]
-                if (a.isolatedFromMainTram || b.isolatedFromMainTram) continue
-                val sameHub = !a.hubId.isNullOrBlank() && a.hubId == b.hubId
+        // Pedestrian transfers (sameHub) + sparse top-8 scenic walk links within maxWalkKm
+        val mainStops = stops.filter { !it.isolatedFromMainTram }
+        val addedWalkPairs = HashSet<String>()
+        fun pushWalkPair(a: TramStop, b: TramStop, distKm: Double) {
+            val key = if (a.id < b.id) "${a.id}|${b.id}" else "${b.id}|${a.id}"
+            if (!addedWalkPairs.add(key)) return
+            val mins = maxOf(3, (distKm * 12.5).roundToInt())
+            edges[a.id]?.add(GraphEdge(b.id, SegmentKind.WALK, durationMinutes = mins, distanceKm = distKm))
+            edges[b.id]?.add(GraphEdge(a.id, SegmentKind.WALK, durationMinutes = mins, distanceKm = distKm))
+        }
+
+        for (i in mainStops.indices) {
+            val a = mainStops[i]
+            val nearby = ArrayList<Pair<TramStop, Double>>()
+            for (j in mainStops.indices) {
+                if (i == j) continue
+                val b = mainStops[j]
                 val distKm = haversineKm(a.lat, a.lng, b.lat, b.lng)
-                if (sameHub || distKm <= maxWalkKm) {
-                    val mins = maxOf(3, (distKm * 12.5).roundToInt())
-                    edges[a.id]?.add(GraphEdge(b.id, SegmentKind.WALK, durationMinutes = mins, distanceKm = distKm))
-                    edges[b.id]?.add(GraphEdge(a.id, SegmentKind.WALK, durationMinutes = mins, distanceKm = distKm))
+                val sameHub = !a.hubId.isNullOrBlank() && a.hubId == b.hubId
+                if (sameHub) {
+                    pushWalkPair(a, b, distKm)
+                } else if (distKm <= maxWalkKm) {
+                    nearby.add(b to distKm)
                 }
+            }
+            nearby.sortBy { it.second }
+            for ((b, distKm) in nearby.take(8)) {
+                pushWalkPair(a, b, distKm)
             }
         }
 
@@ -242,11 +276,13 @@ object TramRouter {
                     }
                 )
             } else {
-                val isCircular = step.route?.type == "circular"
                 val note = when (step.kind) {
-                    SegmentKind.TRAM ->
-                        if (isCircular) "По кольцевому маршруту (по часовой стрелке)"
-                        else "В направлении: ${step.route?.title.orEmpty()}"
+                    SegmentKind.TRAM -> when (step.route?.type) {
+                        "metro" -> "Метро · ${step.route.title}"
+                        "trolleybus" -> "Троллейбус · ${step.route.title}"
+                        "circular" -> "По кольцевому маршруту (по часовой стрелке)"
+                        else -> "В направлении: ${step.route?.title.orEmpty()}"
+                    }
                     SegmentKind.WALK ->
                         if (step.durationMinutes >= 12) "Пешая прогулка по городу"
                         else "Пешая пересадка между остановками"
@@ -278,7 +314,9 @@ object TramRouter {
         edgesByStop: Map<String, List<GraphEdge>>,
         theme: RouteThemeFilter,
         balance: ModeBalance,
-        allowFallbackTransit: Boolean
+        allowFallbackTransit: Boolean,
+        avoidRouteIds: Set<String> = emptySet(),
+        preferVariety: Boolean = false
     ): List<RawStep>? {
         data class Node(
             val stopId: String,
@@ -297,7 +335,7 @@ object TramRouter {
         val tramMult = 1.45 - balance.tram * 0.75
         val walkMult = 1.85 - balance.walk * 1.35
         val walkPenalty = maxOf(0.0, (1.0 - balance.walk * 1.7) * 8.0)
-        val cityTransitActive = allowFallbackTransit || balance.transit >= 0.14f
+        val cityTransitActive = allowFallbackTransit || balance.transit >= 0.20f
         val transitMult = 1.65 - balance.transit * 0.95
 
         while (pq.isNotEmpty()) {
@@ -313,8 +351,18 @@ object TramRouter {
                 val routeId = edge.route?.id
                 when (edge.kind) {
                     SegmentKind.TRAM -> {
-                        edgeCost *= tramMult
-                        if (curr.lastRouteId != null && curr.lastRouteId != routeId) edgeCost += 6.5
+                        if (isCityTransitRoute(edge.route)) {
+                            val transitFactor = maxOf(0.75, 1.45 - balance.transit * 0.85)
+                            edgeCost *= transitFactor
+                        } else {
+                            edgeCost *= tramMult
+                        }
+                        if (routeId != null && routeId in avoidRouteIds) {
+                            edgeCost = edgeCost * 3.4 + 18.0
+                        }
+                        if (curr.lastRouteId != null && curr.lastRouteId != routeId) {
+                            edgeCost += if (preferVariety) 2.5 else 6.5
+                        }
                         if (theme != RouteThemeFilter.ANY && edge.route?.themes?.contains(theme.id) == true) {
                             edgeCost *= 0.80
                         }
@@ -364,7 +412,10 @@ object TramRouter {
         var walkMins = 0f
         for (s in steps) {
             when (s.kind) {
-                SegmentKind.TRAM -> tramMins += s.durationMinutes
+                SegmentKind.TRAM -> {
+                    if (isCityTransitRoute(s.route)) transitMins += s.durationMinutes
+                    else tramMins += s.durationMinutes
+                }
                 SegmentKind.WALK -> walkMins += s.durationMinutes
                 SegmentKind.FALLBACK_TRANSIT -> transitMins += s.durationMinutes
             }
@@ -378,6 +429,27 @@ object TramRouter {
         )
     }
 
+    private data class CandidateWalk(
+        val steps: List<RawStep>,
+        val score: Double,
+        val duration: Int,
+        val walkRatio: Float,
+        val distinctLines: Int,
+        val signature: String
+    )
+
+    private fun getStepsSignature(steps: List<RawStep>): String {
+        val segKeys = mutableListOf<String>()
+        for (s in steps) {
+            val key = if (s.kind == SegmentKind.TRAM) (s.route?.id ?: "tram") else s.kind.name
+            if (segKeys.lastOrNull() != key) {
+                segKeys.add(key)
+            }
+        }
+        val endId = steps.lastOrNull()?.toStopId ?: ""
+        return "${segKeys.joinToString(">")}|$endId"
+    }
+
     private fun durationRange(preset: DurationPreset): Pair<Int, Int> = when (preset) {
         DurationPreset.SHORT -> 16 to 44
         DurationPreset.MEDIUM -> 42 to 86
@@ -385,101 +457,35 @@ object TramRouter {
         DurationPreset.ANY -> 22 to 165
     }
 
-    fun generateTramAdventure(
-        city: CityId,
-        stops: List<TramStop>,
-        routes: List<TramRoute>,
-        landmarks: List<Landmark>,
-        startStopId: String,
-        destinationStopId: String? = null,
-        theme: RouteThemeFilter = RouteThemeFilter.ANY,
-        durationPreset: DurationPreset = DurationPreset.MEDIUM,
-        dayOfWeek: Int = 3,
-        timeMinutes: Int = 14 * 60,
-        allowFallbackTransit: Boolean = false,
-        modeBalance: ModeBalance = ModeBalance(),
-        loopMode: Boolean = false,
-        weatherMode: WeatherMode = WeatherMode.CLEAR,
-        preferSpecialFleet: Boolean = false,
-        seed: Long? = null
-    ): GenerationOutcome {
-        val balance = modeBalance.normalized()
-        val stopMap = stops.associateBy { it.id }
-        val startStop = stopMap[startStopId]
-            ?: return GenerationOutcome.NoService("Выбранная стартовая остановка не найдена.")
-
-        val maxWalkKm = when {
-            balance.walk >= 0.35f -> 2.6
-            balance.walk >= 0.16f -> 1.55
-            else -> 0.72
-        }
-        val allowCityTransit = balance.transit >= 0.14f || allowFallbackTransit
-        val effectiveIsolatedFallback = allowFallbackTransit || balance.transit >= 0.28f
-
-        val (edgesByStop, activeRoutes) = buildAdjacencyGraph(
-            city = city,
-            stops = stops,
-            routes = routes,
-            dayOfWeek = dayOfWeek,
-            timeMinutes = timeMinutes,
-            allowFallbackTransit = effectiveIsolatedFallback,
-            maxWalkKm = maxWalkKm,
-            allowCityTransit = allowCityTransit
-        )
-
-        if (activeRoutes.isEmpty() && balance.walk < 0.65f) {
-            return GenerationOutcome.NoService(
-                "В выбранное время (${formatMinutesToClock(timeMinutes)}) трамваи уже завершили движение. Выберите дневное время или сдвиньте треугольник к «Пешком»."
-            )
+    private fun runAdventureRollouts(
+        startStop: TramStop,
+        stopMap: Map<String, TramStop>,
+        edgesByStop: Map<String, List<GraphEdge>>,
+        minMins: Int,
+        maxMins: Int,
+        theme: RouteThemeFilter,
+        balance: ModeBalance,
+        allowCityTransit: Boolean,
+        allowFallbackTransit: Boolean,
+        effectiveIsolatedFallback: Boolean,
+        loopMode: Boolean,
+        weatherMode: WeatherMode,
+        preferSpecialFleet: Boolean,
+        rand: Random,
+        attempts: Int = 150
+    ): List<CandidateWalk> {
+        val candidates = mutableListOf<CandidateWalk>()
+        val maxHops = when {
+            maxMins <= 45 -> 10
+            maxMins <= 95 -> 17
+            else -> 26
         }
 
-        if (!destinationStopId.isNullOrBlank() && destinationStopId != startStopId && !loopMode) {
-            val destStop = stopMap[destinationStopId]
-                ?: return GenerationOutcome.NoService("Конечная остановка не найдена.")
-            val steps = findPathToDestination(
-                startStopId = startStopId,
-                destinationStopId = destinationStopId,
-                edgesByStop = edgesByStop,
-                theme = theme,
-                balance = balance,
-                allowFallbackTransit = allowFallbackTransit
-            )
-            if (steps == null) {
-                val nearest = findNearestStops(destStop.lat, destStop.lng, stops, 1, false).firstOrNull()?.first
-                return GenerationOutcome.NeedsFallback(
-                    "До точки «${destStop.name}» нельзя добраться только на трамвае и пешком. Включите резервный транспорт или сдвиньте треугольник в сторону «Транспорт».",
-                    nearest
-                )
-            }
-            val segments = collapseSteps(steps, stopMap)
-            return GenerationOutcome.Ok(
-                assembleTrip(city, segments, landmarks, dayOfWeek, timeMinutes, seed, false, weatherMode, balance)
-            )
-        }
-
-        val startEdges = edgesByStop[startStopId].orEmpty()
-        if (startEdges.isEmpty()) {
-            return GenerationOutcome.NoService(
-                "От остановки «${startStop.name}» в ${formatMinutesToClock(timeMinutes)} (${DAY_NAMES_SHORT[dayOfWeek]}) нет работающих рейсов."
-            )
-        }
-
-        val rand = if (seed != null) Random(seed) else Random.Default
-        val (minMins, maxMins) = durationRange(durationPreset)
-        val maxHops = when (durationPreset) {
-            DurationPreset.SHORT -> 9
-            DurationPreset.MEDIUM -> 16
-            else -> 24
-        }
-
-        data class Candidate(val steps: List<RawStep>, val score: Double)
-        val candidates = mutableListOf<Candidate>()
-
-        for (attempt in 0 until 160) {
+        for (attempt in 0 until attempts) {
             val steps = mutableListOf<RawStep>()
-            val visited = HashMap<String, Int>().apply { put(startStopId, 1) }
+            val visited = HashMap<String, Int>().apply { put(startStop.id, 1) }
             val usedRouteIds = HashSet<String>()
-            var currId = startStopId
+            var currId = startStop.id
             var currRouteId: String? = null
             var totalDuration = 0
             var transfers = 0
@@ -508,8 +514,8 @@ object TramRouter {
                     if (steps.isNotEmpty() && edge.toStopId == steps.last().fromStopId) w *= 0.004
 
                     val recentStops = steps.takeLast(3).map { it.fromStopId }
-                    val completingCircular = edge.route?.type == "circular" && edge.toStopId == startStopId && steps.size >= 4
-                    val completingWalkLoop = loopMode && edge.toStopId == startStopId && steps.size >= 4
+                    val completingCircular = edge.route?.type == "circular" && edge.toStopId == startStop.id && steps.size >= 4
+                    val completingWalkLoop = loopMode && edge.toStopId == startStop.id && steps.size >= 4
 
                     if (completingWalkLoop) {
                         w *= 18.0
@@ -529,24 +535,36 @@ object TramRouter {
 
                     val tramDeficit = maxOf(0.05, (balance.tram - currShares.tram + 0.35).toDouble())
                     val walkDeficit = maxOf(0.04, (balance.walk - currShares.walk + 0.25).toDouble())
-                    val transitDeficit = maxOf(0.02, (balance.transit - currShares.transit + 0.20).toDouble())
+                    val transitDeficit = maxOf(0.02, (balance.transit - currShares.transit + 0.22).toDouble())
 
                     when (edge.kind) {
                         SegmentKind.TRAM -> {
-                            w *= (0.4 + balance.tram * 2.8) * (1.0 + tramDeficit)
+                            val isTransitVeh = isCityTransitRoute(edge.route)
+                            if (isTransitVeh) {
+                                val transitBoost = if (exploreMode == 3) 1.8 else 1.0
+                                w *= (0.28 + balance.transit * 2.8) * (1.0 + transitDeficit) * transitBoost
+                            } else {
+                                w *= (0.4 + balance.tram * 2.8) * (1.0 + tramDeficit)
+                            }
                             if (currRouteId != null && edge.route?.id == currRouteId) {
-                                w *= if (exploreMode == 1) 2.6 else 4.2
+                                w *= if (exploreMode == 1) 2.3 else 4.1
                             } else if (currRouteId != null && edge.route?.id != currRouteId) {
                                 w *= if (edge.route != null && edge.route.id in usedRouteIds) {
                                     0.12
                                 } else {
-                                    if (transfers >= 3) 0.30 else 1.05
+                                    when {
+                                        transfers >= 4 -> 0.32
+                                        exploreMode == 1 -> 1.45
+                                        else -> 1.05
+                                    }
                                 }
                             }
                             if (theme != RouteThemeFilter.ANY && edge.route?.themes?.contains(theme.id) == true) {
                                 w *= 3.8
                             }
-                            if (preferSpecialFleet && edge.route != null && edge.route.type != "regular") {
+                            if (preferSpecialFleet && edge.route != null &&
+                                (edge.route.type == "retro" || edge.route.type == "chizhik" || edge.route.type == "circular")
+                            ) {
                                 w *= 4.6
                             }
                             if (weatherMode == WeatherMode.RAIN || weatherMode == WeatherMode.FROST) {
@@ -559,13 +577,14 @@ object TramRouter {
                         }
                         SegmentKind.WALK -> {
                             val prevWasWalk = steps.isNotEmpty() && steps.last().kind == SegmentKind.WALK
+                            val walkMultMode = if (exploreMode == 2) 1.45 else 1.0
                             val walkBase = if (balance.walk < 0.12f) {
                                 0.22
                             } else {
-                                (0.4 + balance.walk * 4.4) * (1.0 + walkDeficit * 2.2)
+                                (0.4 + balance.walk * 4.4) * (1.0 + walkDeficit * 2.2) * walkMultMode
                             }
                             w *= walkBase
-                            if (edge.distanceKm >= 0.65 && balance.walk >= 0.25f) w *= 2.4
+                            if (edge.distanceKm >= 0.65 && (balance.walk >= 0.22f || exploreMode == 2)) w *= 2.4
                             if (prevWasWalk && balance.walk < 0.55f) w *= 0.35
                             if (weatherMode == WeatherMode.RAIN || weatherMode == WeatherMode.FROST) {
                                 w *= if (balance.walk >= 0.50f) 0.65 else 0.25
@@ -573,10 +592,10 @@ object TramRouter {
                         }
                         SegmentKind.FALLBACK_TRANSIT -> {
                             val prevWasTransit = steps.isNotEmpty() && steps.last().kind == SegmentKind.FALLBACK_TRANSIT
-                            val transitBase = if (balance.transit < 0.14f) {
-                                0.05
+                            val transitBase = if (balance.transit < 0.18f) {
+                                0.04
                             } else {
-                                (0.3 + balance.transit * 4.2) * (1.0 + transitDeficit * 2.2)
+                                (0.35 + balance.transit * 4.4) * (1.0 + transitDeficit * 2.3)
                             }
                             w *= transitBase
                             if (prevWasTransit && balance.transit < 0.60f) w *= 0.20
@@ -620,15 +639,15 @@ object TramRouter {
                 currId = chosen.toStopId
                 visited[currId] = (visited[currId] ?: 0) + 1
 
-                if (loopMode && currId == startStopId && steps.size >= 4) break
+                if (loopMode && currId == startStop.id && steps.size >= 4) break
                 if (totalDuration >= maxMins) break
                 if (!loopMode && totalDuration >= minMins && rand.nextDouble() < 0.26 && steps.size >= 3) break
             }
 
-            if (loopMode && steps.size >= 2 && steps.last().toStopId != startStopId) {
+            if (loopMode && steps.size >= 2 && steps.last().toStopId != startStop.id) {
                 val back = findPathToDestination(
                     startStopId = steps.last().toStopId,
-                    destinationStopId = startStopId,
+                    destinationStopId = startStop.id,
                     edgesByStop = edgesByStop,
                     theme = theme,
                     balance = balance,
@@ -676,7 +695,7 @@ object TramRouter {
                 minOf(8.0, maxSpreadKm) * 5.0
 
             if (balance.walk >= 0.28f && walkSegs.isNotEmpty()) score += 36.0
-            if (balance.transit >= 0.25f && transitSegs.isNotEmpty()) score += 36.0
+            if (balance.transit >= 0.25f && (transitSegs.isNotEmpty() || actualShares.transit >= 0.20f)) score += 36.0
 
             val singleHopTrams = tramSegs.count { it.stopsCount <= 1 }
             score -= singleHopTrams * 8.0
@@ -685,19 +704,290 @@ object TramRouter {
             }
 
             if (loopMode) {
-                if (segs.last().toStop.id == startStopId) score += 190.0
+                if (segs.last().toStop.id == startStop.id) score += 190.0
                 if (distinctTramRoutes >= 2) score += 45.0
             }
             if (preferSpecialFleet) {
-                score += tramSegs.count { it.route != null && it.route.type != "regular" } * 35.0
+                score += tramSegs.count { it.route?.type == "retro" || it.route?.type == "chizhik" } * 35.0
             }
             score += if (totalDuration in minMins..maxMins) {
                 35.0
             } else {
                 -abs(totalDuration - (minMins + maxMins) / 2.0) * 0.65
             }
-            candidates.add(Candidate(steps, score))
+            candidates.add(
+                CandidateWalk(
+                    steps = steps,
+                    score = score,
+                    duration = totalDuration,
+                    walkRatio = actualShares.walk,
+                    distinctLines = distinctTramRoutes,
+                    signature = getStepsSignature(steps)
+                )
+            )
         }
+        return candidates.sortedByDescending { it.score }
+    }
+
+    fun generateTramAdventure(
+        city: CityId,
+        stops: List<TramStop>,
+        routes: List<TramRoute>,
+        landmarks: List<Landmark>,
+        startStopId: String,
+        destinationStopId: String? = null,
+        theme: RouteThemeFilter = RouteThemeFilter.ANY,
+        durationPreset: DurationPreset = DurationPreset.MEDIUM,
+        timeMode: TimePlanningMode = TimePlanningMode.DURATION,
+        deadlineMinutes: Int = 18 * 60,
+        includePlanned2027: Boolean = true,
+        dayOfWeek: Int = 3,
+        timeMinutes: Int = 14 * 60,
+        allowFallbackTransit: Boolean = false,
+        modeBalance: ModeBalance = ModeBalance(),
+        loopMode: Boolean = false,
+        weatherMode: WeatherMode = WeatherMode.CLEAR,
+        preferSpecialFleet: Boolean = false,
+        generateAlternatives: Boolean = true,
+        seed: Long? = null
+    ): GenerationOutcome {
+        val visibleStops = if (includePlanned2027) stops else stops.filter { !it.planned2027 }
+        val visibleStopIds = visibleStops.map { it.id }.toSet()
+        val visibleRoutes = if (includePlanned2027) {
+            routes
+        } else {
+            routes.filter { !it.planned2027 && it.stopIds.all { sid -> sid in visibleStopIds } }
+        }
+
+        val balance = modeBalance.normalized()
+        val stopMap = visibleStops.associateBy { it.id }
+        val startStop = stopMap[startStopId]
+            ?: return GenerationOutcome.NoService("Выбранная стартовая остановка не найдена (возможно, она относится к линии 2027 года).")
+
+        val targetDeadlineMinutes = if (timeMode == TimePlanningMode.DEADLINE) {
+            ((deadlineMinutes % 1440) + 1440) % 1440
+        } else null
+        val deadlineBudget = targetDeadlineMinutes?.let { computeDeadlineBudgetMinutes(timeMinutes, it) }
+
+        val maxWalkKm = when {
+            balance.walk >= 0.35f || (deadlineBudget != null && deadlineBudget >= 110) -> 2.8
+            balance.walk >= 0.16f -> 1.65
+            else -> 0.72
+        }
+        val allowCityTransit = balance.transit >= 0.20f
+        val effectiveIsolatedFallback = allowFallbackTransit || balance.transit >= 0.28f
+
+        val (edgesByStop, activeRoutes) = buildAdjacencyGraph(
+            city = city,
+            stops = visibleStops,
+            routes = visibleRoutes,
+            dayOfWeek = dayOfWeek,
+            timeMinutes = timeMinutes,
+            allowFallbackTransit = effectiveIsolatedFallback,
+            maxWalkKm = maxWalkKm,
+            allowCityTransit = allowCityTransit
+        )
+
+        if (activeRoutes.isEmpty() && balance.walk < 0.65f) {
+            return GenerationOutcome.NoService(
+                "В выбранное время (${formatMinutesToClock(timeMinutes)}) транспорт завершил движение. Выберите дневное время или сдвиньте треугольник к «Пешком»."
+            )
+        }
+
+        if (!destinationStopId.isNullOrBlank() && destinationStopId != startStopId && !loopMode) {
+            val destStop = stopMap[destinationStopId]
+                ?: return GenerationOutcome.NoService("Конечная остановка не найдена.")
+            val baseSteps = findPathToDestination(
+                startStopId = startStopId,
+                destinationStopId = destinationStopId,
+                edgesByStop = edgesByStop,
+                theme = theme,
+                balance = balance,
+                allowFallbackTransit = allowFallbackTransit
+            )
+            if (baseSteps == null) {
+                val nearest = findNearestStops(destStop.lat, destStop.lng, visibleStops, 1, false).firstOrNull()?.first
+                return GenerationOutcome.NeedsFallback(
+                    "До точки «${destStop.name}» нельзя добраться только на рельсах и пешком. Включите резервный транспорт или сдвиньте треугольник в сторону «Транспорт».",
+                    nearest
+                )
+            }
+
+            fun buildBaseTrip(steps: List<RawStep>, variantTitle: String, variantBadge: String): GeneratedTrip {
+                val segs = collapseSteps(steps, stopMap)
+                return assembleTrip(
+                    city = city,
+                    segments = segs,
+                    allLandmarks = landmarks,
+                    stopMap = stopMap,
+                    dayOfWeek = dayOfWeek,
+                    timeMinutes = timeMinutes,
+                    seed = seed,
+                    isLoop = false,
+                    weatherMode = weatherMode,
+                    modeBalance = balance,
+                    variantTitle = variantTitle,
+                    variantBadge = variantBadge,
+                    targetDeadlineMinutes = targetDeadlineMinutes
+                )
+            }
+
+            val altTrips = mutableListOf<GeneratedTrip>()
+            val seenSignatures = HashSet<String>()
+            fun pushAlt(steps: List<RawStep>?, variantTitle: String, variantBadge: String) {
+                if (steps.isNullOrEmpty()) return
+                val sig = getStepsSignature(steps)
+                if (!seenSignatures.add(sig)) return
+                altTrips.add(buildBaseTrip(steps, variantTitle, variantBadge))
+            }
+
+            val baseTrip = buildBaseTrip(baseSteps, "Оптимальный путь", "Прямой")
+
+            if (generateAlternatives) {
+                if (!destStop.isolatedFromMainTram) {
+                    val adjacentStops = visibleStops
+                        .filter { !it.isolatedFromMainTram && it.id != destStop.id && it.id != startStop.id }
+                        .map { it to haversineKm(it.lat, it.lng, destStop.lat, destStop.lng) }
+                        .filter { it.second in 0.85..3.4 }
+                        .sortedBy { abs(it.second - 1.75) }
+
+                    for ((candStop, distKm) in adjacentStops.take(6)) {
+                        val toNeighbor = findPathToDestination(
+                            startStopId = startStopId,
+                            destinationStopId = candStop.id,
+                            edgesByStop = edgesByStop,
+                            theme = theme,
+                            balance = balance.copy(walk = minOf(balance.walk, 0.25f)).normalized(),
+                            allowFallbackTransit = allowFallbackTransit,
+                            preferVariety = true
+                        )
+                        if (!toNeighbor.isNullOrEmpty()) {
+                            val walkMins = maxOf(9, (distKm * 13.0).roundToInt())
+                            val combined = toNeighbor + RawStep(
+                                fromStopId = candStop.id,
+                                toStopId = destStop.id,
+                                kind = SegmentKind.WALK,
+                                durationMinutes = walkMins,
+                                distanceKm = distKm
+                            )
+                            if (getStepsSignature(combined) != getStepsSignature(baseSteps)) {
+                                val kmLabel = (distKm * 10.0).roundToInt() / 10.0
+                                pushAlt(combined, "Выход на соседней + пешком", "+$kmLabel км пешком")
+                                break
+                            }
+                        }
+                    }
+                }
+
+                val baseRouteIds = baseSteps.mapNotNull { it.route?.id }.toSet()
+                if (baseRouteIds.isNotEmpty()) {
+                    val variedSteps = findPathToDestination(
+                        startStopId = startStopId,
+                        destinationStopId = destinationStopId,
+                        edgesByStop = edgesByStop,
+                        theme = theme,
+                        balance = ModeBalance(0.45f, maxOf(0.30f, balance.transit), 0.25f).normalized(),
+                        allowFallbackTransit = allowFallbackTransit,
+                        avoidRouteIds = baseRouteIds,
+                        preferVariety = true
+                    )
+                    pushAlt(variedSteps, "Разными линиями", "Без скуки")
+                }
+
+                if (deadlineBudget != null &&
+                    baseTrip.totalDurationMinutes < deadlineBudget * 0.65 &&
+                    !destStop.isolatedFromMainTram
+                ) {
+                    val detourMax = maxOf(25, deadlineBudget - baseTrip.totalDurationMinutes - 14)
+                    val detourMin = maxOf(18, (detourMax * 0.55).roundToInt())
+                    val detourRand = Random(seed ?: 42L)
+                    val detours = runAdventureRollouts(
+                        startStop = startStop,
+                        stopMap = stopMap,
+                        edgesByStop = edgesByStop,
+                        minMins = detourMin,
+                        maxMins = detourMax,
+                        theme = theme,
+                        balance = balance,
+                        allowCityTransit = allowCityTransit,
+                        allowFallbackTransit = allowFallbackTransit,
+                        effectiveIsolatedFallback = effectiveIsolatedFallback,
+                        loopMode = false,
+                        weatherMode = weatherMode,
+                        preferSpecialFleet = preferSpecialFleet,
+                        rand = detourRand,
+                        attempts = 45
+                    )
+                    for (d in detours.take(6)) {
+                        val tailStopId = d.steps.last().toStopId
+                        if (tailStopId == destinationStopId) continue
+                        val tailToDest = findPathToDestination(
+                            startStopId = tailStopId,
+                            destinationStopId = destinationStopId,
+                            edgesByStop = edgesByStop,
+                            theme = theme,
+                            balance = balance,
+                            allowFallbackTransit = allowFallbackTransit
+                        )
+                        if (!tailToDest.isNullOrEmpty()) {
+                            val fullSteps = d.steps + tailToDest
+                            val totalEst = fullSteps.sumOf { it.durationMinutes } + 10
+                            if (totalEst <= deadlineBudget - 4) {
+                                pushAlt(
+                                    fullSteps,
+                                    "Большая прогулка к ${formatMinutesToClock(targetDeadlineMinutes!!)}",
+                                    "По времени"
+                                )
+                                break
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (seenSignatures.add(getStepsSignature(baseSteps))) {
+                altTrips.add(0, baseTrip)
+            } else if (altTrips.isEmpty()) {
+                altTrips.add(baseTrip)
+            }
+
+            val trimmedAlts = altTrips.take(3).map { it.copy(alternatives = emptyList()) }
+            val primary = trimmedAlts.first()
+            return GenerationOutcome.Ok(primary.copy(alternatives = trimmedAlts))
+        }
+
+        val startEdges = edgesByStop[startStopId].orEmpty()
+        if (startEdges.isEmpty()) {
+            return GenerationOutcome.NoService(
+                "От остановки «${startStop.name}» в ${formatMinutesToClock(timeMinutes)} (${DAY_NAMES_SHORT[dayOfWeek]}) нет работающих рейсов. Попробуйте другую остановку или дневное время."
+            )
+        }
+
+        val rand = if (seed != null) Random(seed) else Random.Default
+        var (minMins, maxMins) = durationRange(durationPreset)
+        if (deadlineBudget != null) {
+            val buffer = minOf(20, maxOf(6, (deadlineBudget * 0.10).roundToInt()))
+            maxMins = maxOf(24, deadlineBudget - buffer)
+            minMins = maxOf(16, (deadlineBudget * 0.66).roundToInt())
+        }
+
+        val candidates = runAdventureRollouts(
+            startStop = startStop,
+            stopMap = stopMap,
+            edgesByStop = edgesByStop,
+            minMins = minMins,
+            maxMins = maxMins,
+            theme = theme,
+            balance = balance,
+            allowCityTransit = allowCityTransit,
+            allowFallbackTransit = allowFallbackTransit,
+            effectiveIsolatedFallback = effectiveIsolatedFallback,
+            loopMode = loopMode,
+            weatherMode = weatherMode,
+            preferSpecialFleet = preferSpecialFleet,
+            rand = rand,
+            attempts = 150
+        )
 
         if (candidates.isEmpty()) {
             return GenerationOutcome.NoService(
@@ -705,15 +995,59 @@ object TramRouter {
             )
         }
 
-        val sorted = candidates.sortedByDescending { it.score }
-        val pool = sorted.take(minOf(3, sorted.size))
-        val picked = pool[rand.nextInt(pool.size)]
-        val segments = collapseSteps(picked.steps, stopMap)
-        val isLoopClosed = loopMode && segments.last().toStop.id == startStopId
+        val pool = candidates.take(minOf(3, candidates.size))
+        val pickedPrimary = pool[rand.nextInt(pool.size)]
 
-        return GenerationOutcome.Ok(
-            assembleTrip(city, segments, landmarks, dayOfWeek, timeMinutes, seed, isLoopClosed, weatherMode, balance)
+        val selected = mutableListOf(
+            Triple(
+                pickedPrimary,
+                if (targetDeadlineMinutes != null) "К ${formatMinutesToClock(targetDeadlineMinutes)}" else "Баланс по параметрам",
+                "Рекомендуемый"
+            )
         )
+        val usedSignatures = HashSet<String>().apply { add(pickedPrimary.signature) }
+
+        if (generateAlternatives) {
+            val walkCand = candidates
+                .filter { it.signature !in usedSignatures }
+                .sortedWith(compareByDescending<CandidateWalk> { it.walkRatio }.thenByDescending { it.score })
+                .firstOrNull()
+            if (walkCand != null) {
+                usedSignatures.add(walkCand.signature)
+                selected.add(Triple(walkCand, "Больше пешком", "Прогулочный"))
+            }
+
+            val diverseCand = candidates
+                .filter { it.signature !in usedSignatures }
+                .sortedWith(compareByDescending<CandidateWalk> { it.distinctLines }.thenByDescending { it.score })
+                .firstOrNull()
+            if (diverseCand != null) {
+                usedSignatures.add(diverseCand.signature)
+                selected.add(Triple(diverseCand, "Разными линиями", "Разнообразие"))
+            }
+        }
+
+        val builtAlts = selected.take(3).map { (cand, title, badge) ->
+            val segs = collapseSteps(cand.steps, stopMap)
+            assembleTrip(
+                city = city,
+                segments = segs,
+                allLandmarks = landmarks,
+                stopMap = stopMap,
+                dayOfWeek = dayOfWeek,
+                timeMinutes = timeMinutes,
+                seed = seed,
+                isLoop = loopMode && segs.last().toStop.id == startStopId,
+                weatherMode = weatherMode,
+                modeBalance = balance,
+                variantTitle = title,
+                variantBadge = badge,
+                targetDeadlineMinutes = targetDeadlineMinutes
+            ).copy(alternatives = emptyList())
+        }
+
+        val primaryTrip = builtAlts.first()
+        return GenerationOutcome.Ok(primaryTrip.copy(alternatives = builtAlts))
     }
 
     fun extendTripLastSegment(
@@ -722,17 +1056,26 @@ object TramRouter {
         routes: List<TramRoute>,
         landmarks: List<Landmark>,
         allowFallbackTransit: Boolean,
+        includePlanned2027: Boolean = true,
         weatherMode: WeatherMode,
         preferSpecialFleet: Boolean,
         seed: Long? = null
     ): GeneratedTrip? {
+        val visibleStops = if (includePlanned2027) stops else stops.filter { !it.planned2027 }
+        val visibleStopIds = visibleStops.map { it.id }.toSet()
+        val visibleRoutes = if (includePlanned2027) {
+            routes
+        } else {
+            routes.filter { !it.planned2027 && it.stopIds.all { sid -> sid in visibleStopIds } }
+        }
+
         val balance = trip.modeBalance.normalized()
-        val stopMap = stops.associateBy { it.id }
-        val allowCityTransit = balance.transit >= 0.14f || allowFallbackTransit
+        val stopMap = visibleStops.associateBy { it.id }
+        val allowCityTransit = balance.transit >= 0.20f
         val (edgesByStop, _) = buildAdjacencyGraph(
             city = trip.city,
-            stops = stops,
-            routes = routes,
+            stops = visibleStops,
+            routes = visibleRoutes,
             dayOfWeek = trip.dayOfWeek,
             timeMinutes = trip.timeMinutes,
             allowFallbackTransit = allowFallbackTransit,
@@ -750,7 +1093,7 @@ object TramRouter {
 
         for (hop in 0 until targetHops) {
             val rawNeighbors = edgesByStop[currId].orEmpty().filter {
-                allowCityTransit || it.kind != SegmentKind.FALLBACK_TRANSIT
+                allowCityTransit || allowFallbackTransit || it.kind != SegmentKind.FALLBACK_TRANSIT
             }
             if (rawNeighbors.isEmpty()) break
 
@@ -799,19 +1142,37 @@ object TramRouter {
         val extra = collapseSteps(addedSteps, stopMap)
         val combined = trip.segments + extra
         val isLoopClosed = combined.last().toStop.id == combined.first().fromStop.id
-        return assembleTrip(trip.city, combined, landmarks, trip.dayOfWeek, trip.timeMinutes, seed, isLoopClosed, weatherMode, balance)
+        return assembleTrip(
+            city = trip.city,
+            segments = combined,
+            allLandmarks = landmarks,
+            stopMap = stopMap,
+            dayOfWeek = trip.dayOfWeek,
+            timeMinutes = trip.timeMinutes,
+            seed = seed,
+            isLoop = isLoopClosed,
+            weatherMode = weatherMode,
+            modeBalance = balance,
+            variantTitle = trip.variantTitle,
+            variantBadge = trip.variantBadge,
+            targetDeadlineMinutes = trip.targetDeadlineMinutes
+        )
     }
 
     private fun assembleTrip(
         city: CityId,
         segments: List<RouteSegment>,
         allLandmarks: List<Landmark>,
+        stopMap: Map<String, TramStop>,
         dayOfWeek: Int,
         timeMinutes: Int,
         seed: Long?,
         isLoop: Boolean,
         weatherMode: WeatherMode,
-        modeBalance: ModeBalance
+        modeBalance: ModeBalance,
+        variantTitle: String? = null,
+        variantBadge: String? = null,
+        targetDeadlineMinutes: Int? = null
     ): GeneratedTrip {
         val normalized = segments.mapIndexed { idx, seg ->
             seg.copy(id = "seg-${idx + 1}-${seg.route?.id ?: seg.kind.name}")
@@ -821,11 +1182,28 @@ object TramRouter {
         val tramWait = maxOf(0, tramSegs.size - 1) * 5
         val totalDuration = normalized.sumOf { it.durationMinutes } + tramWait
 
+        var walkKmRaw = 0.0
+        for (seg in normalized) {
+            if (seg.kind != SegmentKind.WALK) continue
+            if (seg.stopIds.size >= 2) {
+                for (i in 0 until seg.stopIds.size - 1) {
+                    val a = stopMap[seg.stopIds[i]]
+                    val b = stopMap[seg.stopIds[i + 1]]
+                    walkKmRaw += if (a != null && b != null) haversineKm(a.lat, a.lng, b.lat, b.lng)
+                    else haversineKm(seg.fromStop.lat, seg.fromStop.lng, seg.toStop.lat, seg.toStop.lng)
+                }
+            } else {
+                walkKmRaw += haversineKm(seg.fromStop.lat, seg.fromStop.lng, seg.toStop.lat, seg.toStop.lng)
+            }
+        }
+        val walkDistanceKm = (walkKmRaw * 10.0).roundToInt() / 10.0
+
         val stopIds = normalized.flatMap { it.stopIds }.toSet()
         val districts = normalized.flatMap { listOf(it.fromStop.district, it.toStop.district) }.distinct()
         val matchedLandmarks = allLandmarks.filter { lm -> lm.nearbyStopIds.any { it in stopIds } }
         val linesUsed = tramSegs.mapNotNull { it.route?.number }.distinct()
         val isoNow = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).format(Date())
+        val arrivalTimeMinutes = (((timeMinutes + totalDuration) % 1440) + 1440) % 1440
 
         return GeneratedTrip(
             id = "trip-${seed ?: System.currentTimeMillis()}-${Random.nextInt(100, 999)}",
@@ -844,7 +1222,12 @@ object TramRouter {
             districtsVisited = districts,
             landmarks = matchedLandmarks,
             dayOfWeek = dayOfWeek,
-            timeMinutes = timeMinutes
+            timeMinutes = timeMinutes,
+            variantTitle = variantTitle,
+            variantBadge = variantBadge,
+            arrivalTimeMinutes = arrivalTimeMinutes,
+            targetDeadlineMinutes = targetDeadlineMinutes,
+            walkDistanceKm = walkDistanceKm
         )
     }
 
@@ -890,7 +1273,11 @@ object TramRouter {
                     } else {
                         "Остановка «$toClean» — пересадка на следующий участок маршрута."
                     }
-                    "Трамвай номер $lineNum следует от остановки «$fromClean» до остановки «$toClean». $endSuffix"
+                    when (seg.route?.type) {
+                        "metro" -> "Линия метро $lineNum: от станции «$fromClean» до станции «$toClean». $endSuffix"
+                        "trolleybus" -> "Троллейбус номер ${lineNum.removePrefix("Тр-")} следует от остановки «$fromClean» до остановки «$toClean». $endSuffix"
+                        else -> "Трамвай номер $lineNum следует от остановки «$fromClean» до остановки «$toClean». $endSuffix"
+                    }
                 }
                 SegmentKind.WALK ->
                     "Переход к следующей остановке «$toClean» пешком, ориентировочно ${seg.durationMinutes} мин."

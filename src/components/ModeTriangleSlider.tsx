@@ -16,9 +16,9 @@ interface ModeTriangleSliderProps {
 
 const PRESETS: Array<{ label: string; value: ModeBalance }> = [
   { label: 'Больше трамвая', value: { tram: 0.86, transit: 0.04, walk: 0.10 } },
-  { label: 'Трамвай + прогулка', value: { tram: 0.50, transit: 0.05, walk: 0.45 } },
-  { label: 'Баланс 3 в 1', value: { tram: 0.34, transit: 0.33, walk: 0.33 } },
-  { label: 'Макс. пешком', value: { tram: 0.22, transit: 0.06, walk: 0.72 } },
+  { label: 'Трамвай + прогулка', value: { tram: 0.48, transit: 0.07, walk: 0.45 } },
+  { label: 'Метро + пешком', value: { tram: 0.22, transit: 0.42, walk: 0.36 } },
+  { label: 'Макс. пешком', value: { tram: 0.20, transit: 0.10, walk: 0.70 } },
 ];
 
 const PAD_W = 280;
@@ -86,10 +86,10 @@ export function ModeTriangleSlider({ value, onChange }: ModeTriangleSliderProps)
     <div className="flex flex-col gap-3" data-testid="mode-triangle-slider">
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs font-bold" style={{ color: 'var(--text-secondary)' }}>
-          Баланс маршрута
+          Баланс прогулки
         </span>
         <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
-          Двигайте точку внутри треугольника
+          Трамваи · метро/тролл. · пешком
         </span>
       </div>
 
@@ -112,7 +112,7 @@ export function ModeTriangleSlider({ value, onChange }: ModeTriangleSliderProps)
           className="flex flex-col items-center rounded-2xl px-2 py-1.5"
           style={{ backgroundColor: 'var(--bg-elevated)', color: 'var(--text-primary)' }}
         >
-          <span className="inline-flex items-center gap-1 text-[11px] font-semibold">
+          <span className="inline-flex items-center gap-1 text-[11px] font-semibold" title="Метро, троллейбус и резервный транспорт">
             <Bus className="h-3.5 w-3.5 text-amber-600" />
             Транспорт
           </span>

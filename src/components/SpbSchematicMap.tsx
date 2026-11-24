@@ -23,8 +23,8 @@ interface SpbSchematicMapProps {
 }
 
 const SPB_BOUNDS = {
-  minLat: 59.81,
-  maxLat: 60.06,
+  minLat: 59.72,
+  maxLat: 60.08,
   minLng: 29.88,
   maxLng: 30.53,
 };
@@ -318,7 +318,7 @@ export function SpbSchematicMap({
             </>
           )}
 
-          {/* Smooth, Lane-Separated Full Tram Network Overlay */}
+          {/* Smooth, Lane-Separated Full Network Overlay */}
           {showAllNetwork &&
             routes.map((route) => {
               const rawPts = route.stopIds
@@ -328,14 +328,17 @@ export function SpbSchematicMap({
               if (rawPts.length < 2) return null;
               const offsetPts = offsetPolylinePoints(rawPts, routeLaneOffsets[route.id] ?? 0);
               const d = buildSmoothSvgPath(offsetPts, 0.24);
+              const baseOpacity =
+                route.type === 'metro' ? (trip ? 0.16 : 0.34) : trip ? 0.2 : 0.45;
               return (
                 <path
                   key={`bg-${route.id}`}
                   d={d}
                   fill="none"
                   stroke={route.color}
-                  strokeWidth={2.2}
-                  strokeOpacity={trip ? 0.2 : 0.45}
+                  strokeWidth={route.type === 'metro' ? 2.6 : 2.2}
+                  strokeOpacity={baseOpacity}
+                  strokeDasharray={route.planned2027 ? '6 4' : undefined}
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
@@ -364,7 +367,6 @@ export function SpbSchematicMap({
                 ? '#059669'
                 : '#d97706';
 
-            const midPt = pts[Math.floor(pts.length / 2)];
             return (
               <g key={seg.id}>
                 <path
@@ -381,7 +383,15 @@ export function SpbSchematicMap({
                   fill="none"
                   stroke={strokeColor}
                   strokeWidth={isTram ? 5.2 : 3.6}
-                  strokeDasharray={isTram ? undefined : seg.kind === 'walk' ? '2 7' : '9 6'}
+                  strokeDasharray={
+                    isTram
+                      ? seg.route?.planned2027
+                        ? '8 5'
+                        : undefined
+                      : seg.kind === 'walk'
+                        ? '2 7'
+                        : '9 6'
+                  }
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 />
@@ -434,20 +444,39 @@ export function SpbSchematicMap({
                   r={r + 4}
                   fill="transparent"
                 />
-                <circle
-                  r={r}
-                  fill={
-                    isStart
-                      ? '#15803d'
-                      : isDest
-                        ? '#b91c1c'
-                        : stop.isolatedFromMainTram
-                          ? '#d97706'
+                {stop.stopKind === 'metro' ? (
+                  <rect
+                    x={-r}
+                    y={-r}
+                    width={r * 2}
+                    height={r * 2}
+                    rx={2.5}
+                    fill={
+                      isStart
+                        ? '#15803d'
+                        : isDest
+                          ? '#b91c1c'
                           : 'var(--bg-surface)'
-                  }
-                  stroke={isStart || isDest ? '#ffffff' : 'var(--text-primary)'}
-                  strokeWidth={isStart || isDest ? 2.2 : 1.5}
-                />
+                    }
+                    stroke={isStart || isDest ? '#ffffff' : 'var(--text-primary)'}
+                    strokeWidth={isStart || isDest ? 2.2 : 1.6}
+                  />
+                ) : (
+                  <circle
+                    r={r}
+                    fill={
+                      isStart
+                        ? '#15803d'
+                        : isDest
+                          ? '#b91c1c'
+                          : stop.isolatedFromMainTram
+                            ? '#d97706'
+                            : 'var(--bg-surface)'
+                    }
+                    stroke={isStart || isDest ? '#ffffff' : 'var(--text-primary)'}
+                    strokeWidth={isStart || isDest ? 2.2 : 1.5}
+                  />
+                )}
                 {(isStart || isDest || zoom >= 1.45) && (
                   <text
                     x={9}
@@ -489,12 +518,14 @@ export function SpbSchematicMap({
                 : '#d97706';
 
             if (isTram && seg.route) {
+              const pillLabel = seg.route.number;
+              const pillWidth = Math.max(28, pillLabel.length * 7.5 + 12);
               return (
                 <g key={`pill-${seg.id}`} transform={`translate(${midPt.x}, ${midPt.y})`}>
                   <rect
-                    x={-14}
+                    x={-pillWidth / 2}
                     y={-11}
-                    width={28}
+                    width={pillWidth}
                     height={22}
                     rx={6}
                     fill={strokeColor}
@@ -505,12 +536,12 @@ export function SpbSchematicMap({
                     x={0}
                     y={4}
                     textAnchor="middle"
-                    fontSize={11}
+                    fontSize={10.5}
                     fontWeight={700}
                     fill="#ffffff"
                     className="font-mono-num"
                   >
-                    {seg.route.number}
+                    {pillLabel}
                   </text>
                 </g>
               );

@@ -18,6 +18,7 @@ import ru.relsokhod.spb.model.SavedRoute
 import ru.relsokhod.spb.model.SearchParamsState
 import ru.relsokhod.spb.model.SegmentKind
 import ru.relsokhod.spb.model.ThemeMode
+import ru.relsokhod.spb.model.TimePlanningMode
 import ru.relsokhod.spb.model.TramRoute
 import ru.relsokhod.spb.model.TramStop
 import ru.relsokhod.spb.model.TripHistoryEntry
@@ -95,7 +96,13 @@ class BackupExportTest {
             accentSeed = AccentSeed.SAGE,
             photoReminderMinutes = 45,
             onboardingDone = true,
-            spbParams = SearchParamsState(startStopId = "spb_sen", loopMode = true),
+            spbParams = SearchParamsState(
+                startStopId = "spb_sen",
+                loopMode = true,
+                timeMode = TimePlanningMode.DEADLINE,
+                deadlineMinutes = 18 * 60 + 30,
+                includePlanned2027 = false
+            ),
             omskParams = SearchParamsState(
                 startStopId = "omsk_cirk",
                 themeFilter = RouteThemeFilter.PARKS,
@@ -128,6 +135,9 @@ class BackupExportTest {
         assertEquals(AccentSeed.SAGE, ok.accentSeed)
         assertEquals(45, ok.photoReminderMinutes)
         assertTrue(ok.spbParams.loopMode)
+        assertEquals(TimePlanningMode.DEADLINE, ok.spbParams.timeMode)
+        assertEquals(18 * 60 + 30, ok.spbParams.deadlineMinutes)
+        assertFalse(ok.spbParams.includePlanned2027)
         assertEquals(WeatherMode.FROST, ok.omskParams.weatherMode)
         assertEquals(1, ok.savedRoutes.size)
         assertEquals(1, ok.history.size)
@@ -158,6 +168,9 @@ class BackupExportTest {
                         JSONObject().apply {
                             put("startStopId", "spb_sen")
                             put("loopMode", true)
+                            put("timeMode", "deadline")
+                            put("deadlineMinutes", 19 * 60)
+                            put("includePlanned2027", false)
                         }
                     )
                 }
@@ -173,6 +186,9 @@ class BackupExportTest {
         assertEquals(AccentSeed.TERRACOTTA, decoded.accentSeed)
         assertEquals(15, decoded.photoReminderMinutes)
         assertTrue(decoded.spbParams.loopMode)
+        assertEquals(TimePlanningMode.DEADLINE, decoded.spbParams.timeMode)
+        assertEquals(19 * 60, decoded.spbParams.deadlineMinutes)
+        assertFalse(decoded.spbParams.includePlanned2027)
 
         val badRes = BackupCodec.decodeBackupJson("""{"format":"unknown","version":1}""")
         assertTrue(badRes is BackupDecodeResult.Error)

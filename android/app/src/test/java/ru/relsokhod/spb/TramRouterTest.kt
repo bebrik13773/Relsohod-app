@@ -14,6 +14,7 @@ import ru.relsokhod.spb.model.ModeBalance
 import ru.relsokhod.spb.model.RouteThemeFilter
 import ru.relsokhod.spb.model.SavedRoute
 import ru.relsokhod.spb.model.SegmentKind
+import ru.relsokhod.spb.model.TimePlanningMode
 import ru.relsokhod.spb.model.WeatherMode
 import ru.relsokhod.spb.router.TramRouter
 import ru.relsokhod.spb.ui.components.TriangleBalanceMath
@@ -34,10 +35,20 @@ class TramRouterTest {
         val omsk = cities[CityId.OMSK]
         assertNotNull(spb)
         assertNotNull(omsk)
-        assertTrue(spb!!.stops.size >= 60)
-        assertTrue(spb.routes.size >= 25)
-        assertTrue(omsk!!.stops.size >= 25)
-        assertTrue(omsk.routes.size >= 6)
+        assertTrue(spb!!.stops.size >= 120)
+        assertTrue(spb.routes.size >= 45)
+        assertTrue(omsk!!.stops.size >= 40)
+        assertTrue(omsk.routes.size >= 14)
+
+        val spbNumbers = spb.routes.map { it.number }.toSet()
+        assertTrue(listOf("М1", "М2", "М3", "М4", "М5", "М6", "2", "22").all { it in spbNumbers })
+        assertTrue(spb.routes.first { it.number == "22" }.planned2027)
+        assertTrue(!spb.routes.first { it.number == "2" }.planned2027)
+
+        val omskNumbers = omsk.routes.map { it.number }.toSet()
+        assertTrue(listOf("Тр-67", "2К", "8К").all { it in omskNumbers })
+        assertTrue(omsk.routes.first { it.number == "2К" }.planned2027)
+        assertTrue(omsk.routes.first { it.number == "8К" }.planned2027)
     }
 
     @Test
@@ -166,12 +177,69 @@ class TramRouterTest {
             durationPreset = DurationPreset.MEDIUM,
             dayOfWeek = 3,
             timeMinutes = 14 * 60,
-            modeBalance = ModeBalance(tram = 0.34f, transit = 0.48f, walk = 0.18f),
+            modeBalance = ModeBalance(tram = 0.14f, transit = 0.44f, walk = 0.42f),
             seed = 808L
         )
         assertTrue(transitOutcome is GenerationOutcome.Ok)
         val transitTrip = (transitOutcome as GenerationOutcome.Ok).trip
-        assertTrue(transitTrip.segments.any { it.kind == SegmentKind.FALLBACK_TRANSIT })
+        assertTrue(
+            transitTrip.segments.any {
+                it.kind == SegmentKind.FALLBACK_TRANSIT || TramRouter.isCityTransitRoute(it.route)
+            }
+        )
+    }
+
+    @Test
+    fun generatesThreeAlternativesAndRespectsDeadlineAndPlannedFilter() {
+        val cities = loadCities()
+        val spb = cities.getValue(CityId.SPB)
+
+        val destOutcome = TramRouter.generateTramAdventure(
+            city = CityId.SPB,
+            stops = spb.stops,
+            routes = spb.routes,
+            landmarks = spb.landmarks,
+            startStopId = "m_kupchino",
+            destinationStopId = "metro_pl_vosstaniya",
+            timeMode = TimePlanningMode.DEADLINE,
+            deadlineMinutes = 18 * 60,
+            includePlanned2027 = false,
+            dayOfWeek = 3,
+            timeMinutes = 15 * 60,
+            modeBalance = ModeBalance(tram = 0.20f, transit = 0.45f, walk = 0.35f),
+            seed = 515L
+        )
+        assertTrue(destOutcome is GenerationOutcome.Ok)
+        val trip = (destOutcome as GenerationOutcome.Ok).trip
+        assertEquals(3, trip.alternatives.size)
+        assertEquals(18 * 60, trip.targetDeadlineMinutes)
+        assertNotNull(trip.arrivalTimeMinutes)
+        assertTrue(trip.arrivalTimeMinutes!! <= 18 * 60)
+        assertTrue(trip.alternatives.flatMap { it.segments }.none { it.route?.planned2027 == true })
+        assertTrue(
+            trip.alternatives.any { alt ->
+                alt.variantTitle?.contains("соседней", ignoreCase = true) == true ||
+                    alt.segments.any { it.kind == SegmentKind.WALK }
+            }
+        )
+
+        val randomOutcome = TramRouter.generateTramAdventure(
+            city = CityId.SPB,
+            stops = spb.stops,
+            routes = spb.routes,
+            landmarks = spb.landmarks,
+            startStopId = spb.defaultStartStopId,
+            timeMode = TimePlanningMode.DEADLINE,
+            deadlineMinutes = 18 * 60,
+            dayOfWeek = 3,
+            timeMinutes = 15 * 60 + 30,
+            modeBalance = ModeBalance(tram = 0.34f, transit = 0.33f, walk = 0.33f),
+            seed = 777L
+        )
+        assertTrue(randomOutcome is GenerationOutcome.Ok)
+        val rTrip = (randomOutcome as GenerationOutcome.Ok).trip
+        assertEquals(3, rTrip.alternatives.size)
+        assertTrue(rTrip.arrivalTimeMinutes!! <= 18 * 60 + 10)
     }
 
     @Test
@@ -296,4 +364,5 @@ class TramRouterTest {
         assertTrue(step3Guide.matchReason.contains("№ 3"))
     }
 }
+
 

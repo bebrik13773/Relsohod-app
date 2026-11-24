@@ -16,9 +16,9 @@ android {
             ?.takeIf { it.isNotBlank() && it.contains("/") }
             ?: "bebrik13773/Reslohid"
         val ciRunNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 0
-        val baseVersionCode = 100
+        val baseVersionCode = 101
         versionCode = if (ciRunNumber > 0) baseVersionCode + ciRunNumber else baseVersionCode
-        versionName = "2.3.1-native"
+        versionName = "2.4.0-native"
 
         buildConfigField("String", "GITHUB_REPO", "\"$githubRepo\"")
         buildConfigField("int", "CI_RUN_NUMBER", "$ciRunNumber")

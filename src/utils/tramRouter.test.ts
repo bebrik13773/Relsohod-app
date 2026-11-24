@@ -6,11 +6,13 @@ import { detectCityFromCoords } from '../data/cities';
 import { buildYandexMapsRouteUrl } from './yandexMaps';
 import {
   calculateTripDistanceKm,
+  computeDeadlineBudgetMinutes,
   computeSavedRoutesStats,
   extendTripLastSegment,
   filterLandmarks,
   findNearestStops,
   generateTramAdventure,
+  isCityTransitRoute,
   isRouteActiveAt,
 } from './tramRouter';
 
@@ -280,7 +282,7 @@ test('High walking balance generates scenic walking segments alongside trams', (
   }
 });
 
-test('High transit balance unlocks city-wide multimodal bus/metro + tram combinations', () => {
+test('High transit balance unlocks city-wide multimodal metro/bus + tram combinations', () => {
   const transitTrip = generateTramAdventure({
     city: 'spb',
     stops: SPB_STOPS,
@@ -292,14 +294,16 @@ test('High transit balance unlocks city-wide multimodal bus/metro + tram combina
     dayOfWeek: 3,
     timeMinutes: 14 * 60,
     allowFallbackTransit: false,
-    modeBalance: { tram: 0.35, transit: 0.55, walk: 0.10 },
+    modeBalance: { tram: 0.14, transit: 0.44, walk: 0.42 },
     seed: 88,
   });
   assert.equal(transitTrip.status, 'ok');
   if (transitTrip.status === 'ok') {
     assert.ok(
-      transitTrip.trip.segments.some((s) => s.kind === 'fallback_transit'),
-      'Expected city-wide transit connector when transit weight is 55%'
+      transitTrip.trip.segments.some(
+        (s) => s.kind === 'fallback_transit' || isCityTransitRoute(s.route)
+      ),
+      'Expected metro/trolleybus or fallback transit connector when transit weight is 44%'
     );
   }
 });
@@ -368,5 +372,92 @@ test('computeSavedRoutesStats aggregates total distance and unique SPb districts
     for (const d of stats.spbDistrictNames) {
       assert.ok(spbOutcome.trip.districtsVisited.includes(d));
     }
+  }
+});
+
+test('Full SPb & Omsk networks include metro M1-M6, Slavanka 2/22, trolleybuses Тр-67, and Summer 2027 tags', () => {
+  const spbNumbers = new Set(SPB_TRAM_ROUTES.map((r) => r.number));
+  for (const num of ['М1', 'М2', 'М3', 'М4', 'М5', 'М6', '2', '22']) {
+    assert.ok(spbNumbers.has(num), `SPb must include route ${num}`);
+  }
+  const route2 = SPB_TRAM_ROUTES.find((r) => r.number === '2');
+  const route22 = SPB_TRAM_ROUTES.find((r) => r.number === '22');
+  assert.equal(Boolean(route2?.planned2027), false, 'Tram 2 (stage 1) should be active');
+  assert.equal(route22?.planned2027, true, 'Tram 22 (stage 2) should be marked planned2027');
+
+  const omskNumbers = new Set(OMSK_TRAM_ROUTES.map((r) => r.number));
+  for (const num of ['Тр-2', 'Тр-67', '2К', '8К']) {
+    assert.ok(omskNumbers.has(num), `Omsk must include route ${num}`);
+  }
+  const omsk2k = OMSK_TRAM_ROUTES.find((r) => r.number === '2К');
+  const omsk8k = OMSK_TRAM_ROUTES.find((r) => r.number === '8К');
+  assert.equal(omsk2k?.planned2027, true);
+  assert.equal(omsk8k?.planned2027, true);
+});
+
+test('Deadline mode, includePlanned2027 filter, and 3 route alternatives (including adjacent-stop exit + walk)', () => {
+  assert.equal(computeDeadlineBudgetMinutes(15 * 60, 18 * 60), 180);
+  assert.equal(computeDeadlineBudgetMinutes(23 * 60, 1 * 60), 120);
+
+  const destOutcome = generateTramAdventure({
+    city: 'spb',
+    stops: SPB_STOPS,
+    routes: SPB_TRAM_ROUTES,
+    landmarks: SPB_LANDMARKS,
+    startStopId: 'm_kupchino',
+    destinationStopId: 'metro_pl_vosstaniya',
+    theme: 'any',
+    durationPreset: 'medium',
+    timeMode: 'deadline',
+    deadlineMinutes: 18 * 60,
+    allowFallbackTransit: false,
+    includePlanned2027: false,
+    dayOfWeek: 3,
+    timeMinutes: 15 * 60,
+    modeBalance: { tram: 0.2, transit: 0.45, walk: 0.35 },
+    seed: 515,
+  });
+  assert.equal(destOutcome.status, 'ok');
+  if (destOutcome.status === 'ok') {
+    const alts = destOutcome.trip.alternatives ?? [];
+    assert.equal(alts.length, 3, 'Should produce 3 alternatives for A->B trip');
+    assert.equal(destOutcome.trip.targetDeadlineMinutes, 18 * 60);
+    assert.ok((destOutcome.trip.arrivalTimeMinutes ?? 9999) <= 18 * 60);
+    for (const alt of alts) {
+      assert.equal(
+        alt.segments.some((s) => s.route?.planned2027),
+        false,
+        'Planned 2027 routes must be excluded when includePlanned2027=false'
+      );
+    }
+    assert.ok(
+      alts.some(
+        (alt) =>
+          alt.variantTitle?.includes('соседней') || alt.segments.some((s) => s.kind === 'walk')
+      ),
+      'Should include adjacent stop + walk or walking alternative'
+    );
+  }
+
+  const randomOutcome = generateTramAdventure({
+    city: 'spb',
+    stops: SPB_STOPS,
+    routes: SPB_TRAM_ROUTES,
+    landmarks: SPB_LANDMARKS,
+    startStopId: 'sennaya_pl',
+    theme: 'any',
+    durationPreset: 'medium',
+    timeMode: 'deadline',
+    deadlineMinutes: 18 * 60,
+    allowFallbackTransit: false,
+    dayOfWeek: 3,
+    timeMinutes: 15 * 60 + 30,
+    modeBalance: { tram: 0.34, transit: 0.33, walk: 0.33 },
+    seed: 777,
+  });
+  assert.equal(randomOutcome.status, 'ok');
+  if (randomOutcome.status === 'ok') {
+    assert.equal(randomOutcome.trip.alternatives?.length, 3);
+    assert.ok((randomOutcome.trip.arrivalTimeMinutes ?? 9999) <= 18 * 60 + 10);
   }
 });

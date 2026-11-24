@@ -61,6 +61,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -426,6 +427,9 @@ private fun RelsokhodNativeApp(
                                 destinationStopId = restoredParams.destinationStopId,
                                 theme = restoredParams.themeFilter,
                                 durationPreset = restoredParams.durationPreset,
+                                timeMode = restoredParams.timeMode,
+                                deadlineMinutes = restoredParams.deadlineMinutes,
+                                includePlanned2027 = restoredParams.includePlanned2027,
                                 dayOfWeek = restoredParams.dayOfWeek,
                                 timeMinutes = restoredParams.timeMinutes,
                                 allowFallbackTransit = restoredParams.allowFallbackTransit,
@@ -583,6 +587,9 @@ private fun RelsokhodNativeApp(
             destinationStopId = p.destinationStopId,
             theme = p.themeFilter,
             durationPreset = p.durationPreset,
+            timeMode = p.timeMode,
+            deadlineMinutes = p.deadlineMinutes,
+            includePlanned2027 = p.includePlanned2027,
             dayOfWeek = p.dayOfWeek,
             timeMinutes = p.timeMinutes,
             allowFallbackTransit = p.allowFallbackTransit,
@@ -869,7 +876,9 @@ private fun RelsokhodNativeApp(
                         }
                     )
                 } else {
-                    val activeTrip = (outcome as? GenerationOutcome.Ok)?.trip
+                    var selectedAlternativeIdx by remember(outcome) { mutableIntStateOf(0) }
+                    val rootTrip = (outcome as? GenerationOutcome.Ok)?.trip
+                    val activeTrip = rootTrip?.let { it.alternatives.getOrNull(selectedAlternativeIdx) ?: it }
                     val isTripSaved = activeTrip != null && savedRoutes.any { it.trip.id == activeTrip.id }
 
                     Scaffold(
@@ -1020,6 +1029,8 @@ private fun RelsokhodNativeApp(
                                 cityConfig = currentCityConfig,
                                 params = currentParams,
                                 outcome = outcome,
+                                selectedAlternativeIdx = selectedAlternativeIdx,
+                                onSelectAlternative = { selectedAlternativeIdx = it },
                                 mapPickMode = mapPickMode,
                                 isSaved = isTripSaved,
                                 isGenerating = isGenerating,
@@ -1053,6 +1064,7 @@ private fun RelsokhodNativeApp(
                                                 routes = cfg.routes,
                                                 landmarks = cfg.landmarks,
                                                 allowFallbackTransit = p.allowFallbackTransit,
+                                                includePlanned2027 = p.includePlanned2027,
                                                 weatherMode = p.weatherMode,
                                                 preferSpecialFleet = p.preferSpecialFleet
                                             )

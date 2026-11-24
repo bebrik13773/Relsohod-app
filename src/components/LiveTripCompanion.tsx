@@ -21,6 +21,7 @@ import {
   speakAnnouncement,
   stopAnnouncement,
 } from '../utils/announcer';
+import { getRouteTypeShortLabel } from '../utils/tramRouter';
 import { triggerHaptic } from '../utils/haptics';
 
 interface LiveTripCompanionProps {
@@ -158,7 +159,7 @@ export function LiveTripCompanion({
         id: `photo-${Date.now()}`,
         dataUrl,
         caption: `${currentSeg.fromStop.name.split('(')[0].trim()} — ${
-          currentSeg.route ? `Трамвай № ${currentSeg.route.number}` : 'Пересадка'
+          currentSeg.route ? getRouteTypeShortLabel(currentSeg.route) : 'Прогулка'
         }`,
         takenAt: new Date().toISOString(),
       };
@@ -199,10 +200,12 @@ export function LiveTripCompanion({
               В пути · Шаг {segIndex + 1} из {trip.segments.length}
             </div>
             <h2 className="font-display text-base font-extrabold">
-              {currentSeg.kind === 'tram'
-                ? `Трамвай № ${currentSeg.route?.number}`
+              {currentSeg.kind === 'tram' && currentSeg.route
+                ? getRouteTypeShortLabel(currentSeg.route)
                 : currentSeg.kind === 'walk'
-                  ? 'Пеший переход'
+                  ? currentSeg.durationMinutes >= 12
+                    ? 'Пешая прогулка'
+                    : 'Пеший переход'
                   : currentSeg.fallbackModeName}
             </h2>
           </div>

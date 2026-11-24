@@ -12,6 +12,8 @@ import {
   RouteSegment,
   RouteThemeFilter,
   SavedRoute,
+  StopKind,
+  TimePlanningMode,
   TramRoute,
   TramRouteType,
   TramStop,
@@ -40,9 +42,12 @@ export interface BackupPlannerCityPayload {
   destinationAddressLabel: string;
   themeFilter: RouteThemeFilter;
   durationPreset: DurationPreset;
+  timeMode?: TimePlanningMode;
+  deadlineMinutes?: number;
   dayOfWeek: number;
   timeMinutes: number;
   allowFallbackTransit: boolean;
+  includePlanned2027?: boolean;
   modeBalance: ModeBalance;
   showAllNetwork: boolean;
   loopMode: boolean;
@@ -118,9 +123,12 @@ export function createBackupPayload(params: {
     destinationAddressLabel: params.plannerState.destinationAddressLabel,
     themeFilter: params.plannerState.themeFilter,
     durationPreset: params.plannerState.durationPreset,
+    timeMode: params.plannerState.timeMode,
+    deadlineMinutes: params.plannerState.deadlineMinutes,
     dayOfWeek: params.plannerState.dayOfWeek,
     timeMinutes: params.plannerState.timeMinutes,
     allowFallbackTransit: params.plannerState.allowFallbackTransit,
+    includePlanned2027: params.plannerState.includePlanned2027,
     modeBalance: normalizeModeBalance(params.plannerState.modeBalance),
     showAllNetwork: params.plannerState.showAllNetwork,
     loopMode: params.plannerState.loopMode,
@@ -191,17 +199,27 @@ function normalizeStop(raw: unknown, city: CityId): TramStop | null {
   const lat = asNumber(rec.lat, catalogStop?.lat ?? CITIES[city].center.lat);
   const lng = asNumber(rec.lng, catalogStop?.lng ?? CITIES[city].center.lng);
 
+  const rawKind = asString(rec.stopKind, catalogStop?.stopKind ?? 'tram');
+  const stopKind: StopKind =
+    rawKind === 'metro' || rawKind === 'trolleybus' || rawKind === 'hub' ? rawKind : 'tram';
+
   return {
     id,
     name,
     district: asString(rec.district, catalogStop?.district ?? ''),
     lat,
     lng,
+    stopKind,
     hubId: typeof rec.hubId === 'string' && rec.hubId.trim() ? rec.hubId : catalogStop?.hubId,
     isolatedFromMainTram: asBoolean(
       rec.isolatedFromMainTram,
       catalogStop?.isolatedFromMainTram ?? false
     ),
+    planned2027: asBoolean(rec.planned2027, catalogStop?.planned2027 ?? false),
+    plannedLabel:
+      typeof rec.plannedLabel === 'string' && rec.plannedLabel.trim()
+        ? rec.plannedLabel
+        : catalogStop?.plannedLabel,
   };
 }
 
@@ -217,7 +235,13 @@ function normalizeRoute(raw: unknown, city: CityId): TramRoute | undefined {
   const schedRec = asRecord(rec.schedule);
   const rawType = asString(rec.type, catalogRoute?.type ?? 'regular');
   const routeType: TramRouteType =
-    rawType === 'circular' || rawType === 'retro' || rawType === 'chizhik' ? rawType : 'regular';
+    rawType === 'circular' ||
+    rawType === 'retro' ||
+    rawType === 'chizhik' ||
+    rawType === 'metro' ||
+    rawType === 'trolleybus'
+      ? rawType
+      : 'regular';
 
   const color =
     asString(rec.color).trim() ||
@@ -255,6 +279,11 @@ function normalizeRoute(raw: unknown, city: CityId): TramRoute | undefined {
     },
     stopIds: stopIds.length > 0 ? stopIds : (catalogRoute?.stopIds ?? []),
     minutesPerHop: asNumber(rec.minutesPerHop, catalogRoute?.minutesPerHop ?? 3),
+    planned2027: asBoolean(rec.planned2027, catalogRoute?.planned2027 ?? false),
+    plannedLabel:
+      typeof rec.plannedLabel === 'string' && rec.plannedLabel.trim()
+        ? rec.plannedLabel
+        : catalogRoute?.plannedLabel,
   };
 }
 
@@ -382,6 +411,20 @@ function normalizeTrip(raw: unknown, fallbackCity: CityId): GeneratedTrip | null
     landmarks,
     dayOfWeek: asNumber(rec.dayOfWeek, 3),
     timeMinutes: asNumber(rec.timeMinutes, 14 * 60),
+    variantTitle: typeof rec.variantTitle === 'string' ? rec.variantTitle : undefined,
+    variantBadge: typeof rec.variantBadge === 'string' ? rec.variantBadge : undefined,
+    arrivalTimeMinutes:
+      typeof rec.arrivalTimeMinutes === 'number' && Number.isFinite(rec.arrivalTimeMinutes)
+        ? rec.arrivalTimeMinutes
+        : undefined,
+    targetDeadlineMinutes:
+      typeof rec.targetDeadlineMinutes === 'number' && Number.isFinite(rec.targetDeadlineMinutes)
+        ? rec.targetDeadlineMinutes
+        : undefined,
+    walkDistanceKm:
+      typeof rec.walkDistanceKm === 'number' && Number.isFinite(rec.walkDistanceKm)
+        ? rec.walkDistanceKm
+        : undefined,
   };
 }
 
@@ -485,6 +528,13 @@ export function parseAndValidateBackup(rawText: string): BackupParseResult {
       typeof c === 'string' && VALID_CATEGORIES.includes(c as LandmarkCategory)
   );
 
+  const rawTimeMode = asString(plannerRec.timeMode, 'duration');
+  const timeMode: TimePlanningMode = rawTimeMode === 'deadline' ? 'deadline' : 'duration';
+  const deadlineMinutes = Math.max(
+    0,
+    Math.min(1439, Math.round(asNumber(plannerRec.deadlineMinutes, 18 * 60)))
+  );
+
   const plannerState: PersistedPlannerState = {
     city,
     startStopId: validStartStopId,
@@ -492,9 +542,12 @@ export function parseAndValidateBackup(rawText: string): BackupParseResult {
     destinationAddressLabel: asString(plannerRec.destinationAddressLabel, ''),
     themeFilter,
     durationPreset,
+    timeMode,
+    deadlineMinutes,
     dayOfWeek: Math.max(0, Math.min(6, Math.round(asNumber(plannerRec.dayOfWeek, 3)))),
     timeMinutes: Math.max(0, Math.min(1439, Math.round(asNumber(plannerRec.timeMinutes, 14 * 60)))),
     allowFallbackTransit: asBoolean(plannerRec.allowFallbackTransit, false),
+    includePlanned2027: asBoolean(plannerRec.includePlanned2027, true),
     modeBalance,
     showAllNetwork: asBoolean(plannerRec.showAllNetwork, true),
     loopMode: asBoolean(plannerRec.loopMode, false),

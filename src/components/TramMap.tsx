@@ -59,8 +59,22 @@ function GoogleRoutePolylines({ stopsById, routes, trip, showAllNetwork }: Polyl
       const line = new mapsLib.Polyline({
         path,
         strokeColor: route.color,
-        strokeOpacity: trip ? 0.25 : 0.55,
-        strokeWeight: 2.5,
+        strokeOpacity: route.planned2027 ? 0 : trip ? 0.25 : 0.55,
+        strokeWeight: route.planned2027 ? 0 : 2.5,
+        icons: route.planned2027
+          ? [
+              {
+                icon: {
+                  path: 'M 0,-1 0,1',
+                  strokeOpacity: trip ? 0.35 : 0.65,
+                  strokeColor: route.color,
+                  scale: 2.2,
+                },
+                offset: '0',
+                repeat: '12px',
+              },
+            ]
+          : undefined,
         map,
         zIndex: 1,
       });
@@ -367,7 +381,9 @@ function GoogleMapInner(props: TramMapProps & { onFallbackNeeded: () => void }) 
                 }}
               >
                 {seg.kind === 'tram'
-                  ? `№${seg.route?.number}`
+                  ? seg.route?.type === 'metro' || seg.route?.type === 'trolleybus'
+                    ? seg.route.number
+                    : `№${seg.route?.number}`
                   : seg.kind === 'walk'
                     ? 'Пешком'
                     : 'Стыковка'}

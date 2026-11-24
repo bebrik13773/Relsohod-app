@@ -17,6 +17,7 @@ import ru.relsokhod.spb.model.SavedRoute
 import ru.relsokhod.spb.model.SearchParamsState
 import ru.relsokhod.spb.model.SegmentKind
 import ru.relsokhod.spb.model.ThemeMode
+import ru.relsokhod.spb.model.TimePlanningMode
 import ru.relsokhod.spb.model.TramRoute
 import ru.relsokhod.spb.model.TramStop
 import ru.relsokhod.spb.model.TripHistoryEntry
@@ -94,9 +95,12 @@ class AppPrefs(context: Context) {
                 destinationAddressLabel = o.optString("destinationAddressLabel", ""),
                 themeFilter = RouteThemeFilter.fromId(o.optString("themeFilter", "any")),
                 durationPreset = DurationPreset.fromId(o.optString("durationPreset", "medium")),
+                timeMode = TimePlanningMode.fromId(o.optString("timeMode", "duration")),
+                deadlineMinutes = o.optInt("deadlineMinutes", 18 * 60).coerceIn(0, 1439),
                 dayOfWeek = o.optInt("dayOfWeek", 3),
                 timeMinutes = o.optInt("timeMinutes", 14 * 60),
                 allowFallbackTransit = o.optBoolean("allowFallbackTransit", false),
+                includePlanned2027 = o.optBoolean("includePlanned2027", true),
                 modeBalance = modeBalance,
                 showAllNetwork = o.optBoolean("showAllNetwork", true),
                 loopMode = o.optBoolean("loopMode", false),
@@ -116,9 +120,12 @@ class AppPrefs(context: Context) {
             put("destinationAddressLabel", state.destinationAddressLabel)
             put("themeFilter", state.themeFilter.id)
             put("durationPreset", state.durationPreset.id)
+            put("timeMode", state.timeMode.id)
+            put("deadlineMinutes", state.deadlineMinutes)
             put("dayOfWeek", state.dayOfWeek)
             put("timeMinutes", state.timeMinutes)
             put("allowFallbackTransit", state.allowFallbackTransit)
+            put("includePlanned2027", state.includePlanned2027)
             put(
                 "modeBalance",
                 JSONObject().apply {
@@ -230,8 +237,11 @@ class AppPrefs(context: Context) {
         put("district", s.district)
         put("lat", s.lat)
         put("lng", s.lng)
+        put("stopKind", s.stopKind ?: JSONObject.NULL)
         put("hubId", s.hubId ?: JSONObject.NULL)
         put("isolatedFromMainTram", s.isolatedFromMainTram)
+        put("planned2027", s.planned2027)
+        put("plannedLabel", s.plannedLabel ?: JSONObject.NULL)
     }
 
     private fun stopFromJson(o: JSONObject): TramStop = TramStop(
@@ -240,8 +250,11 @@ class AppPrefs(context: Context) {
         district = o.getString("district"),
         lat = o.getDouble("lat"),
         lng = o.getDouble("lng"),
+        stopKind = if (o.isNull("stopKind")) null else o.optString("stopKind").ifBlank { null },
         hubId = if (o.isNull("hubId")) null else o.optString("hubId").ifBlank { null },
-        isolatedFromMainTram = o.optBoolean("isolatedFromMainTram", false)
+        isolatedFromMainTram = o.optBoolean("isolatedFromMainTram", false),
+        planned2027 = o.optBoolean("planned2027", false),
+        plannedLabel = if (o.isNull("plannedLabel")) null else o.optString("plannedLabel").ifBlank { null }
     )
 
     private fun routeToJson(r: TramRoute): JSONObject = JSONObject().apply {
@@ -254,6 +267,8 @@ class AppPrefs(context: Context) {
         put("stopIds", JSONArray(r.stopIds))
         put("minutesPerHop", r.minutesPerHop)
         put("description", r.description)
+        put("planned2027", r.planned2027)
+        put("plannedLabel", r.plannedLabel ?: JSONObject.NULL)
         put(
             "schedule",
             JSONObject().apply {
@@ -287,7 +302,9 @@ class AppPrefs(context: Context) {
             ),
             stopIds = List(sArr.length()) { sArr.getString(it) },
             minutesPerHop = o.getInt("minutesPerHop"),
-            description = o.getString("description")
+            description = o.getString("description"),
+            planned2027 = o.optBoolean("planned2027", false),
+            plannedLabel = if (o.isNull("plannedLabel")) null else o.optString("plannedLabel").ifBlank { null }
         )
     }
 
@@ -314,6 +331,11 @@ class AppPrefs(context: Context) {
         put("districtsVisited", JSONArray(t.districtsVisited))
         put("dayOfWeek", t.dayOfWeek)
         put("timeMinutes", t.timeMinutes)
+        if (t.variantTitle != null) put("variantTitle", t.variantTitle)
+        if (t.variantBadge != null) put("variantBadge", t.variantBadge)
+        if (t.arrivalTimeMinutes != null) put("arrivalTimeMinutes", t.arrivalTimeMinutes)
+        if (t.targetDeadlineMinutes != null) put("targetDeadlineMinutes", t.targetDeadlineMinutes)
+        if (t.walkDistanceKm != null) put("walkDistanceKm", t.walkDistanceKm)
 
         val segArr = JSONArray()
         for (seg in t.segments) {
@@ -418,7 +440,12 @@ class AppPrefs(context: Context) {
             districtsVisited = List(distArr.length()) { distArr.getString(it) },
             landmarks = lms,
             dayOfWeek = o.getInt("dayOfWeek"),
-            timeMinutes = o.getInt("timeMinutes")
+            timeMinutes = o.getInt("timeMinutes"),
+            variantTitle = if (o.isNull("variantTitle")) null else o.optString("variantTitle").ifBlank { null },
+            variantBadge = if (o.isNull("variantBadge")) null else o.optString("variantBadge").ifBlank { null },
+            arrivalTimeMinutes = if (o.has("arrivalTimeMinutes") && !o.isNull("arrivalTimeMinutes")) o.optInt("arrivalTimeMinutes") else null,
+            targetDeadlineMinutes = if (o.has("targetDeadlineMinutes") && !o.isNull("targetDeadlineMinutes")) o.optInt("targetDeadlineMinutes") else null,
+            walkDistanceKm = if (o.has("walkDistanceKm") && !o.isNull("walkDistanceKm")) o.optDouble("walkDistanceKm") else null
         )
     }
 }

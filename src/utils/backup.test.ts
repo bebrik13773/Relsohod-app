@@ -53,9 +53,12 @@ test('round-trip backup export and restore preserves settings, saved routes, his
       destinationAddressLabel: '',
       themeFilter: 'parks',
       durationPreset: 'long',
+      timeMode: 'deadline',
+      deadlineMinutes: 18 * 60 + 30,
       dayOfWeek: 5,
       timeMinutes: 16 * 60,
       allowFallbackTransit: true,
+      includePlanned2027: false,
       modeBalance: { tram: 0.6, transit: 0.1, walk: 0.3 },
       showAllNetwork: true,
       loopMode: true,
@@ -102,6 +105,9 @@ test('round-trip backup export and restore preserves settings, saved routes, his
   assert.equal(parsed.data.settings.photoReminderMinutes, 45);
   assert.equal(parsed.data.plannerState.loopMode, true);
   assert.equal(parsed.data.plannerState.weatherMode, 'rain');
+  assert.equal(parsed.data.plannerState.timeMode, 'deadline');
+  assert.equal(parsed.data.plannerState.deadlineMinutes, 18 * 60 + 30);
+  assert.equal(parsed.data.plannerState.includePlanned2027, false);
   assert.equal(parsed.data.savedRoutes.length, 1);
   assert.equal(parsed.data.savedRoutes[0].customTitle, 'Тестовый маршрут');
   assert.equal(parsed.data.tripHistory.length, 1);
@@ -134,9 +140,12 @@ test('imports Android-formatted .relsohod backup seamlessly and strips unsafe im
         destinationAddressLabel: end.name,
         themeFilter: 'center',
         durationPreset: 'short',
+        timeMode: 'deadline',
+        deadlineMinutes: 19 * 60,
         dayOfWeek: 2,
         timeMinutes: 600,
         allowFallbackTransit: false,
+        includePlanned2027: false,
         modeBalance: { tram: 0.7, transit: 0.1, walk: 0.2 },
         showAllNetwork: true,
         loopMode: false,
@@ -254,6 +263,9 @@ test('imports Android-formatted .relsohod backup seamlessly and strips unsafe im
   assert.equal(parsed.data.source, 'android');
   assert.equal(parsed.data.settings.theme, 'tram');
   assert.equal(parsed.data.settings.accentSeed, 'neva');
+  assert.equal(parsed.data.plannerState.timeMode, 'deadline');
+  assert.equal(parsed.data.plannerState.deadlineMinutes, 19 * 60);
+  assert.equal(parsed.data.plannerState.includePlanned2027, false);
   assert.equal(parsed.data.savedRoutes.length, 1);
   assert.equal(parsed.data.savedRoutes[0].trip.segments[0].kind, 'tram');
   assert.equal(parsed.data.tripHistory[0].trip.segments[0].kind, 'walk');

@@ -15,6 +15,7 @@ import {
   RefreshCw,
   Share2,
   SlidersHorizontal,
+  TrainFront,
   TramFront,
   Volume2,
   VolumeX,
@@ -27,13 +28,20 @@ import {
   speakAnnouncement,
   stopAnnouncement,
 } from '../utils/announcer';
-import { DAY_NAMES_SHORT, formatMinutesToClock } from '../utils/tramRouter';
+import {
+  DAY_NAMES_SHORT,
+  formatMinutesToClock,
+  getRouteTypeShortLabel,
+} from '../utils/tramRouter';
 import { buildYandexMapsRouteUrl } from '../utils/yandexMaps';
 import { triggerHaptic } from '../utils/haptics';
 
 interface PlannerItineraryViewProps {
   city: CityId;
   outcome: GenerationOutcome | null;
+  activeTrip?: GeneratedTrip | null;
+  selectedAlternativeIdx?: number;
+  onSelectAlternative?: (idx: number) => void;
   onGenerate: (overrideFallback?: boolean, overrideDay?: number, overrideTime?: number) => void;
   onExtendLastSegment: () => void;
   onStartLiveTrip: () => void;
@@ -58,6 +66,9 @@ function pluralizeRu(count: number, forms: [string, string, string]): string {
 export function PlannerItineraryView({
   city,
   outcome,
+  activeTrip,
+  selectedAlternativeIdx = 0,
+  onSelectAlternative,
   onGenerate,
   onExtendLastSegment,
   onStartLiveTrip,
@@ -79,7 +90,16 @@ export function PlannerItineraryView({
     return () => stopAnnouncement();
   }, []);
 
-  const tripForMemo = outcome?.status === 'ok' ? outcome.trip : null;
+  const tripForMemo = useMemo(() => {
+    if (outcome?.status !== 'ok') return null;
+    if (activeTrip) return activeTrip;
+    const alts = outcome.trip.alternatives;
+    if (alts && alts.length > 0) {
+      return alts[Math.min(selectedAlternativeIdx, alts.length - 1)] ?? outcome.trip;
+    }
+    return outcome.trip;
+  }, [outcome, activeTrip, selectedAlternativeIdx]);
+
   const matchedGuides = useMemo(
     () => (tripForMemo ? matchAudioGuidesForTrip(tripForMemo, 3) : []),
     [tripForMemo]
@@ -90,10 +110,10 @@ export function PlannerItineraryView({
   );
 
   const handleOpenSaveForm = () => {
-    if (outcome?.status !== 'ok') return;
+    if (!tripForMemo) return;
     triggerHaptic('light');
     setCustomTitle(
-      `${outcome.trip.startStop.name.split('(')[0].trim()} → ${outcome.trip.endStop.name.split('(')[0].trim()}`
+      `${tripForMemo.startStop.name.split('(')[0].trim()} → ${tripForMemo.endStop.name.split('(')[0].trim()}`
     );
     setCustomNote('');
     setShowSaveForm(true);
@@ -101,9 +121,9 @@ export function PlannerItineraryView({
 
   const handleConfirmSave = (e: React.FormEvent) => {
     e.preventDefault();
-    if (outcome?.status !== 'ok') return;
+    if (!tripForMemo) return;
     triggerHaptic('success');
-    onSaveTrip(outcome.trip, customTitle.trim() || 'Трамвайная прогулка', customNote.trim());
+    onSaveTrip(tripForMemo, customTitle.trim() || 'Прогулка по городу', customNote.trim());
     setShowSaveForm(false);
   };
 
@@ -211,7 +231,7 @@ export function PlannerItineraryView({
     );
   }
 
-  if (outcome?.status !== 'ok') {
+  if (outcome?.status !== 'ok' || !tripForMemo) {
     return (
       <div className="m3-card rounded-3xl p-6 text-center">
         <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
@@ -235,7 +255,8 @@ export function PlannerItineraryView({
     );
   }
 
-  const { trip } = outcome;
+  const trip = tripForMemo;
+  const alternatives = outcome.trip.alternatives ?? [];
   const yandexUrl = buildYandexMapsRouteUrl(trip);
 
   const handleCopyYandex = async () => {
@@ -263,6 +284,16 @@ export function PlannerItineraryView({
     }
   };
 
+  const deadlineMarginMins =
+    trip.targetDeadlineMinutes !== undefined && trip.arrivalTimeMinutes !== undefined
+      ? (() => {
+          let diff = trip.targetDeadlineMinutes - trip.arrivalTimeMinutes;
+          if (diff < -720) diff += 1440;
+          if (diff > 720) diff -= 1440;
+          return diff;
+        })()
+      : null;
+
   return (
     <motion.section
       key={trip.id}
@@ -272,6 +303,77 @@ export function PlannerItineraryView({
       aria-label="Сгенерированный маршрут"
       className="flex flex-col gap-4"
     >
+      {/* 3-Option Route Alternatives Switcher */}
+      {alternatives.length > 1 && onSelectAlternative && (
+        <div
+          className="m3-card rounded-3xl p-3 sm:p-3.5"
+          aria-label="Варианты маршрута на выбор"
+        >
+          <div className="mb-2 flex items-center justify-between gap-2 px-1">
+            <span className="text-xs font-bold" style={{ color: 'var(--text-secondary)' }}>
+              Варианты маршрута ({alternatives.length})
+            </span>
+            <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
+              Выберите стиль поездки
+            </span>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            {alternatives.map((alt, idx) => {
+              const isSelected = idx === Math.min(selectedAlternativeIdx, alternatives.length - 1);
+              return (
+                <button
+                  key={`${alt.id}-${idx}`}
+                  type="button"
+                  aria-pressed={isSelected}
+                  onClick={() => {
+                    triggerHaptic('light');
+                    onSelectAlternative(idx);
+                  }}
+                  className="m3-tactile flex w-full cursor-pointer flex-col items-start gap-1 rounded-2xl border px-3 py-2 text-left transition-colors"
+                  style={{
+                    backgroundColor: isSelected
+                      ? 'var(--md-primary-container)'
+                      : 'var(--md-surface-container)',
+                    color: isSelected
+                      ? 'var(--md-on-primary-container)'
+                      : 'var(--text-primary)',
+                    borderColor: isSelected ? 'var(--accent-primary)' : 'var(--md-outline-variant)',
+                  }}
+                >
+                  <div className="flex w-full items-center justify-between gap-2">
+                    <span className="text-xs font-extrabold leading-snug">
+                      {alt.variantTitle ?? `Вариант ${idx + 1}`}
+                    </span>
+                    {alt.variantBadge && (
+                      <span className="rounded-full bg-black/10 px-2 py-0.5 text-[10px] font-bold whitespace-nowrap shrink-0">
+                        {alt.variantBadge}
+                      </span>
+                    )}
+                  </div>
+                  <div className="font-mono-num flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] opacity-85">
+                    <span>~{alt.totalDurationMinutes} мин</span>
+                    <span>·</span>
+                    <span>
+                      {alt.walkDistanceKm && alt.walkDistanceKm > 0.1
+                        ? `пеш. ${alt.walkDistanceKm.toFixed(1)} км`
+                        : `${alt.transferCount} перес.`}
+                    </span>
+                    {alt.arrivalTimeMinutes !== undefined && (
+                      <>
+                        <span>·</span>
+                        <span className="font-semibold">
+                          финиш ~{formatMinutesToClock(alt.arrivalTimeMinutes)}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Material You Tonal Trip Summary Card */}
       <div className="m3-card rounded-3xl p-4 sm:p-5">
         <div className="flex flex-wrap items-center gap-2">
@@ -284,6 +386,31 @@ export function PlannerItineraryView({
               }}
             >
               Круговой маршрут
+            </span>
+          )}
+          {trip.variantTitle && (
+            <span
+              className="rounded-full px-2.5 py-0.5 text-[11px] font-bold"
+              style={{
+                backgroundColor: 'var(--md-secondary-container)',
+                color: 'var(--md-on-secondary-container)',
+              }}
+            >
+              {trip.variantTitle}
+            </span>
+          )}
+          {trip.targetDeadlineMinutes !== undefined && trip.arrivalTimeMinutes !== undefined && (
+            <span
+              className="font-mono-num rounded-full px-2.5 py-0.5 text-[11px] font-bold"
+              style={{
+                backgroundColor: 'var(--md-surface-container-high)',
+                color: 'var(--text-primary)',
+              }}
+            >
+              Прибытие ~{formatMinutesToClock(trip.arrivalTimeMinutes)}
+              {deadlineMarginMins !== null && deadlineMarginMins >= 0
+                ? ` · запас ${deadlineMarginMins} мин до ${formatMinutesToClock(trip.targetDeadlineMinutes)}`
+                : ` · цель ${formatMinutesToClock(trip.targetDeadlineMinutes)}`}
             </span>
           )}
           <h2
@@ -307,6 +434,12 @@ export function PlannerItineraryView({
               ? 'Без пересадок'
               : `${trip.transferCount} ${pluralizeRu(trip.transferCount, ['пересадка', 'пересадки', 'пересадок'])}`}
           </span>
+          {trip.walkDistanceKm !== undefined && trip.walkDistanceKm >= 0.2 && (
+            <>
+              <span aria-hidden="true">·</span>
+              <span className="font-mono-num">Пешком {trip.walkDistanceKm.toFixed(1)} км</span>
+            </>
+          )}
           <span aria-hidden="true">·</span>
           <span>
             {trip.districtsVisited.length}{' '}
@@ -650,8 +783,11 @@ export function PlannerItineraryView({
       <div className="m3-card rounded-3xl p-4 sm:p-5">
         <div className="flex flex-col">
           {trip.segments.map((seg, idx) => {
-            const isTram = seg.kind === 'tram';
-            const badgeBg = isTram
+            const isTransitLine = seg.kind === 'tram';
+            const routeType = seg.route?.type;
+            const isMetro = isTransitLine && routeType === 'metro';
+            const isTrolley = isTransitLine && routeType === 'trolleybus';
+            const badgeBg = isTransitLine
               ? seg.route?.color ?? '#0f5e8c'
               : seg.kind === 'walk'
                 ? '#059669'
@@ -676,7 +812,17 @@ export function PlannerItineraryView({
                     className="font-mono-num mt-0.5 inline-flex h-9 min-w-11 items-center justify-center gap-1 rounded-2xl px-2.5 text-xs font-bold text-white shadow-xs shrink-0"
                     style={{ backgroundColor: badgeBg }}
                   >
-                    {isTram ? (
+                    {isMetro ? (
+                      <>
+                        <TrainFront className="h-3.5 w-3.5" />
+                        {seg.route?.number}
+                      </>
+                    ) : isTrolley ? (
+                      <>
+                        <Bus className="h-3.5 w-3.5" />
+                        {seg.route?.number.replace(/^Тр-/, '')}
+                      </>
+                    ) : isTransitLine ? (
                       <>
                         <TramFront className="h-3.5 w-3.5" />
                         {seg.route?.number}
@@ -690,14 +836,27 @@ export function PlannerItineraryView({
 
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline justify-between gap-2">
-                      <div className="text-sm font-bold leading-snug" style={{ color: 'var(--text-primary)' }}>
-                        {isTram
-                          ? `Трамвай № ${seg.route?.number}`
-                          : seg.kind === 'walk'
-                            ? seg.durationMinutes >= 12
-                              ? 'Пешая прогулка'
-                              : 'Пеший переход'
-                            : seg.fallbackModeName}
+                      <div className="flex flex-wrap items-center gap-1.5 text-sm font-bold leading-snug" style={{ color: 'var(--text-primary)' }}>
+                        <span>
+                          {isTransitLine && seg.route
+                            ? getRouteTypeShortLabel(seg.route)
+                            : seg.kind === 'walk'
+                              ? seg.durationMinutes >= 12
+                                ? 'Пешая прогулка'
+                                : 'Пеший переход'
+                              : seg.fallbackModeName}
+                        </span>
+                        {seg.route?.planned2027 && (
+                          <span
+                            className="rounded-full px-2 py-0.5 text-[10px] font-bold"
+                            style={{
+                              backgroundColor: 'var(--md-secondary-container)',
+                              color: 'var(--md-on-secondary-container)',
+                            }}
+                          >
+                            {seg.route.plannedLabel ?? 'До лета 2027'}
+                          </span>
+                        )}
                       </div>
                       <span
                         className="font-mono-num text-xs font-bold whitespace-nowrap shrink-0"
@@ -726,9 +885,9 @@ export function PlannerItineraryView({
                       </div>
                     </div>
 
-                    {isTram && seg.route && (
+                    {isTransitLine && seg.route && (
                       <div className="mt-1.5 text-[11px] leading-relaxed" style={{ color: 'var(--text-muted)' }}>
-                        Остановок: {seg.stopsCount} · Интервал ~{seg.route.schedule.intervalMinutes} мин ·{' '}
+                        {isMetro ? 'Станций' : 'Остановок'}: {seg.stopsCount} · Интервал ~{seg.route.schedule.intervalMinutes} мин ·{' '}
                         {seg.route.schedule.note}
                       </div>
                     )}

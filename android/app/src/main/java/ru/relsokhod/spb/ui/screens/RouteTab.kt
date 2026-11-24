@@ -13,6 +13,8 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,15 +22,18 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.DirectionsWalk
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.BookmarkAdd
@@ -37,6 +42,8 @@ import androidx.compose.material.icons.rounded.CameraAlt
 import androidx.compose.material.icons.rounded.Casino
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material.icons.rounded.DirectionsBus
+import androidx.compose.material.icons.rounded.DirectionsSubway
 import androidx.compose.material.icons.rounded.Headphones
 import androidx.compose.material.icons.rounded.Navigation
 import androidx.compose.material.icons.rounded.NotificationsActive
@@ -44,6 +51,7 @@ import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material.icons.rounded.Tram
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
@@ -94,6 +102,7 @@ import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.roundToInt
 
 private enum class RouteSubView(val label: String) {
     MAP("Схема"),
@@ -107,6 +116,8 @@ fun RouteTab(
     cityConfig: CityConfig,
     params: SearchParamsState,
     outcome: GenerationOutcome?,
+    selectedAlternativeIdx: Int = 0,
+    onSelectAlternative: (Int) -> Unit = {},
     mapPickMode: String?,
     isSaved: Boolean,
     isGenerating: Boolean = false,
@@ -130,7 +141,17 @@ fun RouteTab(
         if (mapPickMode != null) subView = RouteSubView.MAP
     }
 
-    val activeTrip = (outcome as? GenerationOutcome.Ok)?.trip
+    val visibleStops = remember(cityConfig.stops, params.includePlanned2027) {
+        if (params.includePlanned2027) cityConfig.stops else cityConfig.stops.filter { !it.planned2027 }
+    }
+    val visibleStopIds = remember(visibleStops) { visibleStops.map { it.id }.toSet() }
+    val visibleRoutes = remember(cityConfig.routes, params.includePlanned2027, visibleStopIds) {
+        if (params.includePlanned2027) cityConfig.routes
+        else cityConfig.routes.filter { !it.planned2027 && it.stopIds.all { sid -> sid in visibleStopIds } }
+    }
+
+    val rootTrip = (outcome as? GenerationOutcome.Ok)?.trip
+    val activeTrip = rootTrip?.let { it.alternatives.getOrNull(selectedAlternativeIdx) ?: it }
 
     Column(modifier = Modifier.fillMaxSize()) {
         SingleChoiceSegmentedButtonRow(
@@ -161,8 +182,8 @@ fun RouteTab(
             RouteSubView.MAP -> {
                 TramMapCanvas(
                     city = cityConfig.id,
-                    stops = cityConfig.stops,
-                    routes = cityConfig.routes,
+                    stops = visibleStops,
+                    routes = visibleRoutes,
                     trip = activeTrip,
                     showAllNetwork = params.showAllNetwork,
                     mapPickMode = mapPickMode,
@@ -181,7 +202,7 @@ fun RouteTab(
                 ) {
                     when (outcome) {
                         null -> {
-                            Text("Нажмите «Подобрать маршрут» во вкладке Поиск.")
+                            Text("Нажмите «Подобрать 3 варианта прогулки» во вкладке Поиск.")
                         }
                         is GenerationOutcome.NoService -> {
                             Surface(
@@ -206,17 +227,68 @@ fun RouteTab(
                                     Text(outcome.reason, fontSize = 13.sp)
                                     Spacer(modifier = Modifier.height(10.dp))
                                     Button(onClick = onEnableFallbackAndRetry) {
-                                        Text("Включить резервный транспорт")
+                                        Text("Включить резервный и городской транспорт")
                                     }
                                 }
                             }
                         }
                         is GenerationOutcome.Ok -> {
-                            val trip = outcome.trip
+                            val trip = activeTrip ?: outcome.trip
+                            val alternatives = outcome.trip.alternatives
                             val yandexUrl = remember(trip) { TramRouter.buildYandexMapsRouteUrl(trip) }
                             val matchedGuides = remember(trip) { TramRouter.matchAudioGuidesForTrip(trip, limit = 3) }
                             val announcements = remember(trip) {
                                 TramRouter.buildAnnouncements(trip, cityConfig.announcerIntro)
+                            }
+
+                            // Switcher among up to 3 generated variants
+                            if (alternatives.size > 1) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    alternatives.forEachIndexed { idx, alt ->
+                                        val selected = idx == selectedAlternativeIdx
+                                        Surface(
+                                            shape = RoundedCornerShape(16.dp),
+                                            color = if (selected) MaterialTheme.colorScheme.primaryContainer
+                                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+                                            border = if (selected) BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary) else null,
+                                            modifier = Modifier
+                                                .widthIn(min = 148.dp, max = 210.dp)
+                                                .clip(RoundedCornerShape(16.dp))
+                                                .clickable { onSelectAlternative(idx) }
+                                        ) {
+                                            Column(
+                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                                verticalArrangement = Arrangement.spacedBy(3.dp)
+                                            ) {
+                                                Text(
+                                                    text = alt.variantBadge ?: "Вариант ${idx + 1}",
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                                Text(
+                                                    text = alt.variantTitle ?: "Маршрут ${idx + 1}",
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    maxLines = 1
+                                                )
+                                                val walkTxt = alt.walkDistanceKm?.takeIf { it >= 0.2 }?.let { " · пеш. $it км" }.orEmpty()
+                                                val arrTxt = alt.arrivalTimeMinutes?.let { " · к ${TramRouter.formatMinutesToClock(it)}" }.orEmpty()
+                                                Text(
+                                                    text = "~${alt.totalDurationMinutes} мин$walkTxt$arrTxt",
+                                                    fontSize = 11.sp,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    maxLines = 1
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
                             }
 
                             Surface(
@@ -234,11 +306,40 @@ fun RouteTab(
                                         fontWeight = FontWeight.ExtraBold,
                                         fontSize = 16.sp
                                     )
+
+                                    val arrClock = TramRouter.formatMinutesToClock(
+                                        trip.arrivalTimeMinutes ?: (trip.timeMinutes + trip.totalDurationMinutes)
+                                    )
+                                    val walkPart = trip.walkDistanceKm?.takeIf { it >= 0.1 }?.let { " · Пешком $it км" }.orEmpty()
                                     Text(
-                                        text = "~${trip.totalDurationMinutes} мин · Пересадок: ${trip.transferCount} · Районов: ${trip.districtsVisited.size} · ${TramRouter.DAY_NAMES_SHORT[trip.dayOfWeek]}, ${TramRouter.formatMinutesToClock(trip.timeMinutes)}",
+                                        text = "~${trip.totalDurationMinutes} мин · Прибытие ~$arrClock$walkPart · Пересадок: ${trip.transferCount} · Районов: ${trip.districtsVisited.size}",
                                         fontSize = 12.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
+
+                                    if (trip.targetDeadlineMinutes != null) {
+                                        val arrival = trip.arrivalTimeMinutes ?: (trip.timeMinutes + trip.totalDurationMinutes)
+                                        var reserve = trip.targetDeadlineMinutes - arrival
+                                        if (reserve < -720) reserve += 1440
+                                        val onTime = reserve >= 0
+                                        Surface(
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = if (onTime) Color(0xFF059669).copy(alpha = 0.14f) else Color(0xFFD97706).copy(alpha = 0.16f),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Text(
+                                                text = if (onTime) {
+                                                    "Цель к ${TramRouter.formatMinutesToClock(trip.targetDeadlineMinutes)}: в запасе $reserve мин"
+                                                } else {
+                                                    "Цель к ${TramRouter.formatMinutesToClock(trip.targetDeadlineMinutes)}: маршрут длиннее на ${-reserve} мин"
+                                                },
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = if (onTime) Color(0xFF047857) else Color(0xFFB45309),
+                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                                            )
+                                        }
+                                    }
 
                                     // Yandex Maps button + Copy Link
                                     Row(
@@ -305,7 +406,10 @@ fun RouteTab(
                                         }
                                         OutlinedButton(
                                             onClick = {
-                                                val shareText = "Маршрут в Рельсоходе (${cityConfig.name}): ${trip.startStop.name} → ${trip.endStop.name}\nТрамваи: ${trip.tramLinesUsed.joinToString(" → ")}\nЯндекс Карты: $yandexUrl"
+                                                val linesSummary = trip.segments.mapNotNull { seg ->
+                                                    seg.route?.let { TramRouter.getRouteTypeShortLabel(it) }
+                                                }.distinct().joinToString(" → ")
+                                                val shareText = "Маршрут в Рельсоходе (${cityConfig.name}): ${trip.startStop.name} → ${trip.endStop.name}\nЛинии: $linesSummary\nЯндекс Карты: $yandexUrl"
                                                 val send = Intent(Intent.ACTION_SEND).apply {
                                                     type = "text/plain"
                                                     putExtra(Intent.EXTRA_TEXT, shareText)
@@ -452,37 +556,72 @@ fun RouteTab(
                                     ) {
                                         Box(
                                             modifier = Modifier
-                                                .size(44.dp)
+                                                .defaultMinSize(minWidth = 48.dp, minHeight = 44.dp)
                                                 .clip(RoundedCornerShape(12.dp))
-                                                .background(badgeColor),
+                                                .background(badgeColor)
+                                                .padding(horizontal = 6.dp),
                                             contentAlignment = Alignment.Center
                                         ) {
-                                            Text(
-                                                text = when (seg.kind) {
-                                                    SegmentKind.TRAM -> seg.route?.number ?: "Т"
-                                                    SegmentKind.WALK -> "🚶"
-                                                    SegmentKind.FALLBACK_TRANSIT -> "🚌"
-                                                },
-                                                color = Color.White,
-                                                fontWeight = FontWeight.ExtraBold,
-                                                fontSize = 14.sp
-                                            )
+                                            when {
+                                                seg.kind == SegmentKind.WALK -> Icon(
+                                                    Icons.AutoMirrored.Rounded.DirectionsWalk,
+                                                    contentDescription = null,
+                                                    tint = Color.White,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                                seg.kind == SegmentKind.FALLBACK_TRANSIT -> Icon(
+                                                    Icons.Rounded.DirectionsBus,
+                                                    contentDescription = null,
+                                                    tint = Color.White,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                                seg.route?.type == "metro" -> Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                                ) {
+                                                    Icon(
+                                                        Icons.Rounded.DirectionsSubway,
+                                                        contentDescription = null,
+                                                        tint = Color.White,
+                                                        modifier = Modifier.size(14.dp)
+                                                    )
+                                                    Text(
+                                                        text = seg.route.number,
+                                                        color = Color.White,
+                                                        fontWeight = FontWeight.ExtraBold,
+                                                        fontSize = 13.sp,
+                                                        maxLines = 1
+                                                    )
+                                                }
+                                                else -> Text(
+                                                    text = seg.route?.number ?: "Т",
+                                                    color = Color.White,
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    fontSize = 13.sp,
+                                                    maxLines = 1
+                                                )
+                                            }
                                         }
                                         Column(modifier = Modifier.weight(1f)) {
                                             Row(
                                                 modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.SpaceBetween
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
                                             ) {
+                                                val segTitle = when (seg.kind) {
+                                                    SegmentKind.TRAM -> seg.route?.let { TramRouter.getRouteTypeShortLabel(it) } ?: "Транспорт"
+                                                    SegmentKind.WALK -> {
+                                                        val km = (TramRouter.haversineKm(seg.fromStop.lat, seg.fromStop.lng, seg.toStop.lat, seg.toStop.lng) * 10.0).roundToInt() / 10.0
+                                                        if (seg.durationMinutes >= 12) "Пешая прогулка (~$km км)"
+                                                        else "Пеший переход"
+                                                    }
+                                                    SegmentKind.FALLBACK_TRANSIT -> seg.fallbackModeName ?: "Транспорт"
+                                                }
                                                 Text(
-                                                    text = when (seg.kind) {
-                                                        SegmentKind.TRAM -> "Трамвай № ${seg.route?.number}"
-                                                        SegmentKind.WALK ->
-                                                            if (seg.durationMinutes >= 12) "Пешая прогулка"
-                                                            else "Пеший переход"
-                                                        SegmentKind.FALLBACK_TRANSIT -> seg.fallbackModeName ?: "Транспорт"
-                                                    },
+                                                    text = segTitle,
                                                     fontWeight = FontWeight.Bold,
-                                                    fontSize = 14.sp
+                                                    fontSize = 14.sp,
+                                                    modifier = Modifier.weight(1f)
                                                 )
                                                 Text(
                                                     text = "${seg.durationMinutes} мин",
@@ -490,6 +629,21 @@ fun RouteTab(
                                                     fontSize = 12.sp,
                                                     color = MaterialTheme.colorScheme.primary
                                                 )
+                                            }
+                                            if (seg.route?.planned2027 == true) {
+                                                Spacer(modifier = Modifier.height(2.dp))
+                                                Surface(
+                                                    shape = RoundedCornerShape(6.dp),
+                                                    color = Color(0xFFF59E0B).copy(alpha = 0.18f)
+                                                ) {
+                                                    Text(
+                                                        text = seg.route.plannedLabel ?: "До лета 2027",
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = Color(0xFFB45309),
+                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                    )
+                                                }
                                             }
                                             Text(
                                                 text = seg.directionNote,
@@ -629,7 +783,7 @@ private fun LiveTripDialog(
                         TripPhotoMemory(
                             id = "photo-${System.currentTimeMillis()}",
                             filePath = savedPath,
-                            caption = "${currSeg.fromStop.name.substringBefore("(").trim()} — ${currSeg.route?.let { "№ ${it.number}" } ?: "Пересадка"}",
+                            caption = "${currSeg.fromStop.name.substringBefore("(").trim()} — ${currSeg.route?.let { TramRouter.getRouteTypeShortLabel(it) } ?: "Переход"}",
                             takenAtIso = isoNow
                         )
                     ) + photos

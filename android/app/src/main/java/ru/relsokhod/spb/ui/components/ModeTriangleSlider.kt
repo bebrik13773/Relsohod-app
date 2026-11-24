@@ -114,6 +114,7 @@ private data class BalancePreset(val label: String, val value: ModeBalance)
 private val BALANCE_PRESETS = listOf(
     BalancePreset("Больше трамвая", ModeBalance(tram = 0.86f, transit = 0.04f, walk = 0.10f)),
     BalancePreset("Трамвай + прогулка", ModeBalance(tram = 0.50f, transit = 0.05f, walk = 0.45f)),
+    BalancePreset("Метро + пешком", ModeBalance(tram = 0.14f, transit = 0.44f, walk = 0.42f)),
     BalancePreset("Баланс 3 в 1", ModeBalance(tram = 0.34f, transit = 0.33f, walk = 0.33f)),
     BalancePreset("Макс. пешком", ModeBalance(tram = 0.22f, transit = 0.06f, walk = 0.72f))
 )
@@ -247,7 +248,7 @@ fun ModeTriangleSlider(
                             tint = transitColor,
                             modifier = Modifier.size(14.dp)
                         )
-                        Text("Транспорт", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Метро / тр.", fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                     }
                     Text("$pctTransit%", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold)
                 }
@@ -397,7 +398,7 @@ fun ModeTriangleSlider(
                             .padding(top = 2.dp)
                     )
                     Text(
-                        text = "Транспорт",
+                        text = "Метро / гор. тр.",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier

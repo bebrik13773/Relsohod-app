@@ -61,8 +61,11 @@ object NetworkRepository {
                     district = o.getString("district"),
                     lat = o.getDouble("lat"),
                     lng = o.getDouble("lng"),
+                    stopKind = if (o.isNull("stopKind")) null else o.optString("stopKind").ifBlank { null },
                     hubId = if (o.isNull("hubId")) null else o.optString("hubId").ifBlank { null },
-                    isolatedFromMainTram = o.optBoolean("isolatedFromMainTram", false)
+                    isolatedFromMainTram = o.optBoolean("isolatedFromMainTram", false),
+                    planned2027 = o.optBoolean("planned2027", false),
+                    plannedLabel = if (o.isNull("plannedLabel")) null else o.optString("plannedLabel").ifBlank { null }
                 )
             )
         }
@@ -99,7 +102,9 @@ object NetworkRepository {
                     ),
                     stopIds = stopIds,
                     minutesPerHop = o.getInt("minutesPerHop"),
-                    description = routeDesc
+                    description = routeDesc,
+                    planned2027 = o.optBoolean("planned2027", false),
+                    plannedLabel = if (o.isNull("plannedLabel")) null else o.optString("plannedLabel").ifBlank { null }
                 )
             )
         }

@@ -31,25 +31,40 @@ export function buildTripAnnouncements(
     const toClean = seg.toStop.name.split('(')[0].trim();
 
     if (seg.kind === 'tram' && seg.route) {
+      const isMetro = seg.route.type === 'metro';
+      const isTrol = seg.route.type === 'trolleybus';
+      const numClean = isTrol ? seg.route.number.replace(/^Тр-/, '') : seg.route.number;
+      const vehLabel = isMetro
+        ? `Метро ${seg.route.number}`
+        : isTrol
+          ? `Троллейбус № ${numClean}`
+          : `Трамвай № ${seg.route.number}`;
+      const departText = isMetro
+        ? `Линия метро ${seg.route.number}, следуйте до станции «${toClean}».`
+        : isTrol
+          ? `Троллейбус маршрута номер ${numClean}, следует до остановки «${toClean}». Осторожно, двери закрываются.`
+          : `Трамвай маршрута номер ${seg.route.number}, следует до остановки «${toClean}». Осторожно, двери закрываются. Следующая остановка — по маршруту.`;
+      const arriveText =
+        idx === trip.segments.length - 1
+          ? `${isMetro ? 'Станция' : 'Остановка'} «${toClean}», конечная. Не забывайте свои вещи.`
+          : `${isMetro ? 'Станция' : 'Остановка'} «${toClean}». Пересадка на следующий участок маршрута.`;
+
       lines.push({
         id: `${seg.id}-depart`,
-        label: `Трамвай № ${seg.route.number}`,
+        label: vehLabel,
         stopName: fromClean,
-        text: `Трамвай маршрута номер ${seg.route.number}, следует до остановки «${toClean}». Осторожно, двери закрываются. Следующая остановка — по маршруту.`,
+        text: departText,
       });
       lines.push({
         id: `${seg.id}-arrive`,
         label: idx === trip.segments.length - 1 ? 'Конечная' : 'Прибытие / Пересадка',
         stopName: toClean,
-        text:
-          idx === trip.segments.length - 1
-            ? `Остановка «${toClean}», конечная. При выходе из вагона не забывайте свои вещи.`
-            : `Остановка «${toClean}». Переход на следующий трамвай маршрута.`,
+        text: arriveText,
       });
     } else if (seg.kind === 'walk') {
       lines.push({
         id: `${seg.id}-walk`,
-        label: 'Пересадка пешком',
+        label: seg.durationMinutes >= 12 ? 'Пешая прогулка' : 'Пересадка пешком',
         stopName: toClean,
         text: `Пеший переход от остановки «${fromClean}» к остановке «${toClean}». Ориентировочно ${seg.durationMinutes} минут.`,
       });

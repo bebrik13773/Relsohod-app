@@ -8,6 +8,7 @@ import {
   LandmarkCategory,
   ModeBalance,
   RouteThemeFilter,
+  TimePlanningMode,
   TramStop,
   WeatherMode,
 } from '../types/tram';
@@ -34,12 +35,18 @@ interface RoutePlannerPanelProps {
   onChangeThemeFilter: (theme: RouteThemeFilter) => void;
   durationPreset: DurationPreset;
   onChangeDurationPreset: (preset: DurationPreset) => void;
+  timeMode: TimePlanningMode;
+  onChangeTimeMode: (mode: TimePlanningMode) => void;
+  deadlineMinutes: number;
+  onChangeDeadlineMinutes: (minutes: number) => void;
   dayOfWeek: number;
   onChangeDayOfWeek: (day: number) => void;
   timeMinutes: number;
   onChangeTimeMinutes: (minutes: number) => void;
   allowFallbackTransit: boolean;
   onChangeAllowFallbackTransit: (allow: boolean) => void;
+  includePlanned2027: boolean;
+  onChangeIncludePlanned2027: (include: boolean) => void;
   modeBalance: ModeBalance;
   onChangeModeBalance: (balance: ModeBalance) => void;
   showAllNetwork: boolean;
@@ -59,6 +66,9 @@ interface RoutePlannerPanelProps {
   onStartLiveTrip: () => void;
   onOpenPostcard: () => void;
   outcome: GenerationOutcome | null;
+  activeTrip?: GeneratedTrip | null;
+  selectedAlternativeIdx?: number;
+  onSelectAlternative?: (idx: number) => void;
   onSaveTrip: (trip: GeneratedTrip, customTitle: string, note: string) => void;
   isCurrentTripSaved: boolean;
   selectedLandmarkId: string | null;
@@ -84,12 +94,18 @@ export function RoutePlannerPanel({
   onChangeThemeFilter,
   durationPreset,
   onChangeDurationPreset,
+  timeMode,
+  onChangeTimeMode,
+  deadlineMinutes,
+  onChangeDeadlineMinutes,
   dayOfWeek,
   onChangeDayOfWeek,
   timeMinutes,
   onChangeTimeMinutes,
   allowFallbackTransit,
   onChangeAllowFallbackTransit,
+  includePlanned2027,
+  onChangeIncludePlanned2027,
   modeBalance,
   onChangeModeBalance,
   showAllNetwork,
@@ -109,6 +125,9 @@ export function RoutePlannerPanel({
   onStartLiveTrip,
   onOpenPostcard,
   outcome,
+  activeTrip,
+  selectedAlternativeIdx,
+  onSelectAlternative,
   onSaveTrip,
   isCurrentTripSaved,
   selectedLandmarkId,
@@ -130,12 +149,14 @@ export function RoutePlannerPanel({
     }
   }, [subView]);
 
-  const visibleLandmarks = useMemo(() => {
-    if (!outcome || outcome.status !== 'ok') return [];
-    return filterLandmarks(outcome.trip.landmarks, landmarkCategories, onlyWithPhotos);
-  }, [outcome, landmarkCategories, onlyWithPhotos]);
+  const currentTrip = activeTrip ?? (outcome?.status === 'ok' ? outcome.trip : null);
 
-  const segmentsCount = outcome?.status === 'ok' ? outcome.trip.segments.length : 0;
+  const visibleLandmarks = useMemo(() => {
+    if (!currentTrip) return [];
+    return filterLandmarks(currentTrip.landmarks, landmarkCategories, onlyWithPhotos);
+  }, [currentTrip, landmarkCategories, onlyWithPhotos]);
+
+  const segmentsCount = currentTrip ? currentTrip.segments.length : 0;
 
   return (
     <aside
@@ -246,12 +267,18 @@ export function RoutePlannerPanel({
             onChangeThemeFilter={onChangeThemeFilter}
             durationPreset={durationPreset}
             onChangeDurationPreset={onChangeDurationPreset}
+            timeMode={timeMode}
+            onChangeTimeMode={onChangeTimeMode}
+            deadlineMinutes={deadlineMinutes}
+            onChangeDeadlineMinutes={onChangeDeadlineMinutes}
             dayOfWeek={dayOfWeek}
             onChangeDayOfWeek={onChangeDayOfWeek}
             timeMinutes={timeMinutes}
             onChangeTimeMinutes={onChangeTimeMinutes}
             allowFallbackTransit={allowFallbackTransit}
             onChangeAllowFallbackTransit={onChangeAllowFallbackTransit}
+            includePlanned2027={includePlanned2027}
+            onChangeIncludePlanned2027={onChangeIncludePlanned2027}
             modeBalance={modeBalance}
             onChangeModeBalance={onChangeModeBalance}
             showAllNetwork={showAllNetwork}
@@ -277,6 +304,9 @@ export function RoutePlannerPanel({
           <PlannerItineraryView
             city={city}
             outcome={outcome}
+            activeTrip={activeTrip}
+            selectedAlternativeIdx={selectedAlternativeIdx}
+            onSelectAlternative={onSelectAlternative}
             onGenerate={onGenerate}
             onExtendLastSegment={onExtendLastSegment}
             onStartLiveTrip={onStartLiveTrip}
