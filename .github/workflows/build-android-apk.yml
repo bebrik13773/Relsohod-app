@@ -28,14 +28,14 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Sync tram_network.json for Android assets
+      - name: Sync tram_network.json and WebView map bundle for Android assets
         run: |
           if [ -f package-lock.json ]; then
-            npm ci
-            npm run android:sync
+            npm ci --legacy-peer-deps
           else
-            npx --yes tsx scripts/export-android-data.ts
+            npm install --legacy-peer-deps --no-audit --no-fund
           fi
+          npm run android:sync
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
