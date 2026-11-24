@@ -22,7 +22,7 @@ android {
 
         val webMapBaseUrl = System.getenv("RELSOKHOD_WEB_MAP_URL")
             ?.takeIf { it.isNotBlank() }
-            ?: "https://ais-pre-qdj5pm4lwe3g2rvqrqgfz6-449024027488.europe-west3.run.app"
+            ?: "https://appassets.androidplatform.net/assets/webmap/embed-map.html"
 
         buildConfigField("String", "GITHUB_REPO", "\"$githubRepo\"")
         buildConfigField("int", "CI_RUN_NUMBER", "$ciRunNumber")

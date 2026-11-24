@@ -46,6 +46,47 @@ class WebMapBridgeHelperTest {
     }
 
     @Test
+    fun buildMapOnlyUrl_handlesLocalHtmlFileWithoutTrailingSlash() {
+        val url = WebMapBridgeHelper.buildMapOnlyUrl(
+            baseUrl = WebMapBridgeHelper.LOCAL_WEB_MAP_URL,
+            city = CityId.SPB,
+            themeMode = ThemeMode.LIGHT,
+            accentSeed = AccentSeed.NEVA,
+            showAllNetwork = true,
+            includePlanned2027 = false,
+            startStopId = null,
+            destinationStopId = null,
+            mapPickMode = null
+        )
+
+        assertTrue(
+            url.startsWith("https://appassets.androidplatform.net/assets/webmap/embed-map.html?mapOnly=1")
+        )
+        assertFalse(url.contains(".html/?"))
+    }
+
+    @Test
+    fun resolveLocalAssetPath_validatesPrefixAndPreventsTraversal() {
+        assertEquals(
+            "webmap/embed-map.html",
+            WebMapBridgeHelper.resolveLocalAssetPath("/assets/webmap/embed-map.html")
+        )
+        assertEquals(
+            "webmap/assets/index-123.js",
+            WebMapBridgeHelper.resolveLocalAssetPath("/assets/webmap/assets/index-123.js")
+        )
+        assertEquals(
+            "webmap/embed-map.html",
+            WebMapBridgeHelper.resolveLocalAssetPath("/assets/webmap/")
+        )
+        assertEquals(null, WebMapBridgeHelper.resolveLocalAssetPath("/assets/webmap/../secret.txt"))
+        assertEquals(null, WebMapBridgeHelper.resolveLocalAssetPath("/other/path.js"))
+        assertEquals("application/javascript", WebMapBridgeHelper.guessMimeType("webmap/assets/app.js"))
+        assertEquals("text/css", WebMapBridgeHelper.guessMimeType("webmap/assets/app.css"))
+        assertEquals("text/html", WebMapBridgeHelper.guessMimeType("webmap/embed-map.html"))
+    }
+
+    @Test
     fun serializeMapStateJson_includesTripSegmentsAndNullPickMode() {
         val s1 = TramStop("s1", "Старт", "Центр", 59.93, 30.31)
         val s2 = TramStop("s2", "Финиш", "Невский", 59.91, 30.39)

@@ -15,6 +15,10 @@ import java.net.URLEncoder
  */
 object WebMapBridgeHelper {
 
+    const val LOCAL_WEB_MAP_HOST = "appassets.androidplatform.net"
+    const val LOCAL_WEB_MAP_URL = "https://$LOCAL_WEB_MAP_HOST/assets/webmap/embed-map.html"
+    private const val LOCAL_ASSET_URL_PREFIX = "/assets/webmap/"
+
     fun buildMapOnlyUrl(
         baseUrl: String,
         city: CityId,
@@ -48,7 +52,44 @@ object WebMapBridgeHelper {
         val query = params.joinToString("&") { (k, v) ->
             "${URLEncoder.encode(k, "UTF-8")}=${URLEncoder.encode(v, "UTF-8")}"
         }
-        return "$cleanBase/?$query"
+        val separator = if (
+            cleanBase.endsWith(".html", ignoreCase = true) ||
+            cleanBase.endsWith(".htm", ignoreCase = true)
+        ) {
+            "?"
+        } else {
+            "/?"
+        }
+        return "$cleanBase$separator$query"
+    }
+
+    fun resolveLocalAssetPath(uriPath: String?): String? {
+        val path = uriPath?.trim().orEmpty()
+        if (path == "/assets/webmap" || path == LOCAL_ASSET_URL_PREFIX) {
+            return "webmap/embed-map.html"
+        }
+        if (!path.startsWith(LOCAL_ASSET_URL_PREFIX)) return null
+        val relative = path.removePrefix("/").trimEnd('/')
+        if (relative.isBlank() || relative.contains("..") || relative.contains('\\')) {
+            return null
+        }
+        return relative.removePrefix("assets/")
+    }
+
+    fun guessMimeType(assetPath: String): String {
+        return when (assetPath.substringAfterLast('.', "").lowercase()) {
+            "html", "htm" -> "text/html"
+            "js", "mjs" -> "application/javascript"
+            "css" -> "text/css"
+            "json" -> "application/json"
+            "svg" -> "image/svg+xml"
+            "png" -> "image/png"
+            "jpg", "jpeg" -> "image/jpeg"
+            "webp" -> "image/webp"
+            "woff" -> "font/woff"
+            "woff2" -> "font/woff2"
+            else -> "application/octet-stream"
+        }
     }
 
     fun serializeMapStateJson(

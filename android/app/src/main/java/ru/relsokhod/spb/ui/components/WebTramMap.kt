@@ -33,6 +33,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -46,6 +47,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import java.io.ByteArrayInputStream
 import ru.relsokhod.spb.BuildConfig
 import ru.relsokhod.spb.model.AccentSeed
 import ru.relsokhod.spb.model.CityId
@@ -213,102 +215,146 @@ fun WebTramMap(
         }
 
         if (showWebView) {
-            AndroidView(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .alpha(if (bridgeReady) 1f else 0f),
-                factory = { ctx ->
-                    WebView(ctx).apply {
-                        layoutParams = ViewGroup.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                            ViewGroup.LayoutParams.MATCH_PARENT
-                        )
-                        settings.javaScriptEnabled = true
-                        settings.domStorageEnabled = true
-                        settings.cacheMode = WebSettings.LOAD_DEFAULT
-                        settings.loadsImagesAutomatically = true
-                        settings.useWideViewPort = true
-                        settings.loadWithOverviewMode = true
-                        settings.setSupportZoom(false)
-                        settings.builtInZoomControls = false
-                        settings.displayZoomControls = false
+            key(reloadNonce) {
+                AndroidView(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .alpha(if (bridgeReady) 1f else 0f),
+                    factory = { ctx ->
+                        WebView(ctx).apply {
+                            setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                            layoutParams = ViewGroup.LayoutParams(
+                                ViewGroup.LayoutParams.MATCH_PARENT,
+                                ViewGroup.LayoutParams.MATCH_PARENT
+                            )
+                            settings.javaScriptEnabled = true
+                            settings.domStorageEnabled = true
+                            settings.cacheMode = WebSettings.LOAD_DEFAULT
+                            settings.loadsImagesAutomatically = true
+                            settings.allowFileAccess = false
+                            settings.useWideViewPort = true
+                            settings.loadWithOverviewMode = true
+                            settings.setSupportZoom(false)
+                            settings.builtInZoomControls = false
+                            settings.displayZoomControls = false
 
-                        setOnTouchListener { v, event ->
-                            when (event.actionMasked) {
-                                MotionEvent.ACTION_DOWN,
-                                MotionEvent.ACTION_MOVE -> v.parent?.requestDisallowInterceptTouchEvent(true)
-                                MotionEvent.ACTION_UP,
-                                MotionEvent.ACTION_CANCEL -> v.parent?.requestDisallowInterceptTouchEvent(false)
+                            setOnTouchListener { v, event ->
+                                when (event.actionMasked) {
+                                    MotionEvent.ACTION_DOWN,
+                                    MotionEvent.ACTION_MOVE -> v.parent?.requestDisallowInterceptTouchEvent(true)
+                                    MotionEvent.ACTION_UP,
+                                    MotionEvent.ACTION_CANCEL -> v.parent?.requestDisallowInterceptTouchEvent(false)
+                                }
+                                false
                             }
-                            false
-                        }
 
-                        addJavascriptInterface(bridge, "RelsokhodAndroid")
+                            addJavascriptInterface(bridge, "RelsokhodAndroid")
 
-                        webViewClient = object : WebViewClient() {
-                            override fun shouldOverrideUrlLoading(
-                                view: WebView?,
-                                request: WebResourceRequest?
-                            ): Boolean {
-                                val targetUri = request?.url ?: return false
-                                val scheme = targetUri.scheme?.lowercase().orEmpty()
-                                val host = targetUri.host.orEmpty()
-                                if (request.isForMainFrame &&
-                                    (scheme == "http" || scheme == "https") &&
-                                    webMapHost.isNotEmpty() &&
-                                    host != webMapHost
-                                ) {
-                                    runCatching {
-                                        ctx.startActivity(Intent(Intent.ACTION_VIEW, targetUri))
+                            webViewClient = object : WebViewClient() {
+                                override fun shouldInterceptRequest(
+                                    view: WebView?,
+                                    request: WebResourceRequest?
+                                ): WebResourceResponse? {
+                                    val targetUri = request?.url ?: return null
+                                    if (targetUri.scheme?.equals("https", ignoreCase = true) == true &&
+                                        targetUri.host.equals(WebMapBridgeHelper.LOCAL_WEB_MAP_HOST, ignoreCase = true)
+                                    ) {
+                                        val assetPath = WebMapBridgeHelper.resolveLocalAssetPath(targetUri.path)
+                                        if (assetPath != null) {
+                                            val stream = runCatching { ctx.assets.open(assetPath) }.getOrNull()
+                                            if (stream != null) {
+                                                val mime = WebMapBridgeHelper.guessMimeType(assetPath)
+                                                val encoding = if (
+                                                    mime.startsWith("text/") ||
+                                                    mime == "application/javascript" ||
+                                                    mime == "application/json" ||
+                                                    mime == "image/svg+xml"
+                                                ) {
+                                                    "UTF-8"
+                                                } else {
+                                                    null
+                                                }
+                                                return WebResourceResponse(mime, encoding, stream)
+                                            }
+                                        }
+                                        return WebResourceResponse(
+                                            "text/plain",
+                                            "UTF-8",
+                                            404,
+                                            "Not Found",
+                                            emptyMap(),
+                                            ByteArrayInputStream(ByteArray(0))
+                                        )
                                     }
-                                    return true
+                                    return super.shouldInterceptRequest(view, request)
                                 }
-                                return false
-                            }
 
-                            override fun onReceivedError(
-                                view: WebView?,
-                                request: WebResourceRequest?,
-                                error: WebResourceError?
-                            ) {
-                                if (request?.isForMainFrame == true) {
-                                    hasLoadError = true
-                                    bridgeReady = false
+                                override fun shouldOverrideUrlLoading(
+                                    view: WebView?,
+                                    request: WebResourceRequest?
+                                ): Boolean {
+                                    val targetUri = request?.url ?: return false
+                                    val scheme = targetUri.scheme?.lowercase().orEmpty()
+                                    val host = targetUri.host.orEmpty()
+                                    val isAllowedHost =
+                                        host.equals(WebMapBridgeHelper.LOCAL_WEB_MAP_HOST, ignoreCase = true) ||
+                                            (webMapHost.isNotEmpty() && host.equals(webMapHost, ignoreCase = true))
+                                    if (request.isForMainFrame &&
+                                        (scheme == "http" || scheme == "https") &&
+                                        !isAllowedHost
+                                    ) {
+                                        runCatching {
+                                            ctx.startActivity(Intent(Intent.ACTION_VIEW, targetUri))
+                                        }
+                                        return true
+                                    }
+                                    return false
                                 }
-                            }
 
-                            override fun onReceivedHttpError(
-                                view: WebView?,
-                                request: WebResourceRequest?,
-                                errorResponse: WebResourceResponse?
-                            ) {
-                                if (request?.isForMainFrame == true &&
-                                    (errorResponse?.statusCode ?: 200) >= 400
+                                override fun onReceivedError(
+                                    view: WebView?,
+                                    request: WebResourceRequest?,
+                                    error: WebResourceError?
                                 ) {
-                                    hasLoadError = true
-                                    bridgeReady = false
+                                    if (request?.isForMainFrame == true) {
+                                        hasLoadError = true
+                                        bridgeReady = false
+                                    }
+                                }
+
+                                override fun onReceivedHttpError(
+                                    view: WebView?,
+                                    request: WebResourceRequest?,
+                                    errorResponse: WebResourceResponse?
+                                ) {
+                                    if (request?.isForMainFrame == true &&
+                                        (errorResponse?.statusCode ?: 200) >= 400
+                                    ) {
+                                        hasLoadError = true
+                                        bridgeReady = false
+                                    }
+                                }
+
+                                override fun onPageFinished(view: WebView?, url: String?) {
+                                    super.onPageFinished(view, url)
+                                    if (!hasLoadError) {
+                                        view?.evaluateJavascript(
+                                            WebMapBridgeHelper.buildEvaluateJsCall(currentStateJson),
+                                            null
+                                        )
+                                    }
                                 }
                             }
 
-                            override fun onPageFinished(view: WebView?, url: String?) {
-                                super.onPageFinished(view, url)
-                                if (!hasLoadError) {
-                                    view?.evaluateJavascript(
-                                        WebMapBridgeHelper.buildEvaluateJsCall(currentStateJson),
-                                        null
-                                    )
-                                }
-                            }
+                            webViewRef = this
+                            loadUrl(initialUrl)
                         }
-
-                        webViewRef = this
-                        loadUrl(initialUrl)
+                    },
+                    update = { wv ->
+                        webViewRef = wv
                     }
-                },
-                update = { wv ->
-                    webViewRef = wv
-                }
-            )
+                )
+            }
         }
 
         // Compact MD3 pill indicator / fallback switcher in top-right (clear of top-left legend)

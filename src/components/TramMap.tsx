@@ -12,6 +12,7 @@ import {
 import { AppTheme, CityId, GeneratedTrip, Landmark, TramRoute, TramStop } from '../types/tram';
 import { smoothLatLngPolyline } from '../utils/mapGeometry';
 import { findNearestStops } from '../utils/tramRouter';
+import { LeafletTramMap } from './LeafletTramMap';
 import { SpbSchematicMap } from './SpbSchematicMap';
 
 interface TramMapProps {
@@ -429,44 +430,42 @@ export function TramMap(props: TramMapProps) {
     setUseFallback(true);
   }, []);
 
-  const showSchematic = useFallback || !apiKey || viewMode === 'schematic';
+  const hasValidGoogleKey = Boolean(apiKey && !useFallback);
 
   return (
     <div className="relative h-full w-full">
-      {!useFallback && apiKey && (
-        <div
-          className="absolute bottom-3 left-3 z-20 inline-flex rounded-xl border p-0.5 shadow-sm"
+      <div
+        className="absolute bottom-3 left-3 z-[600] inline-flex rounded-xl border p-0.5 shadow-sm"
+        style={{
+          backgroundColor: 'var(--bg-surface)',
+          borderColor: 'var(--border-hairline)',
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setViewMode('map')}
+          className="cursor-pointer rounded-lg px-2.5 py-1 text-[11px] font-semibold transition-colors"
           style={{
-            backgroundColor: 'var(--bg-surface)',
-            borderColor: 'var(--border-hairline)',
+            backgroundColor: viewMode === 'map' ? 'var(--md-primary-container)' : 'transparent',
+            color: viewMode === 'map' ? 'var(--md-on-primary-container)' : 'var(--text-secondary)',
           }}
         >
-          <button
-            type="button"
-            onClick={() => setViewMode('map')}
-            className="cursor-pointer rounded-lg px-2.5 py-1 text-[11px] font-semibold transition-colors"
-            style={{
-              backgroundColor: viewMode === 'map' ? 'var(--md-primary-container)' : 'transparent',
-              color: viewMode === 'map' ? 'var(--md-on-primary-container)' : 'var(--text-secondary)',
-            }}
-          >
-            Карта
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode('schematic')}
-            className="cursor-pointer rounded-lg px-2.5 py-1 text-[11px] font-semibold transition-colors"
-            style={{
-              backgroundColor: viewMode === 'schematic' ? 'var(--md-primary-container)' : 'transparent',
-              color: viewMode === 'schematic' ? 'var(--md-on-primary-container)' : 'var(--text-secondary)',
-            }}
-          >
-            Схема
-          </button>
-        </div>
-      )}
+          Карта
+        </button>
+        <button
+          type="button"
+          onClick={() => setViewMode('schematic')}
+          className="cursor-pointer rounded-lg px-2.5 py-1 text-[11px] font-semibold transition-colors"
+          style={{
+            backgroundColor: viewMode === 'schematic' ? 'var(--md-primary-container)' : 'transparent',
+            color: viewMode === 'schematic' ? 'var(--md-on-primary-container)' : 'var(--text-secondary)',
+          }}
+        >
+          Схема
+        </button>
+      </div>
 
-      {showSchematic ? (
+      {viewMode === 'schematic' ? (
         <SpbSchematicMap
           city={props.city}
           stops={props.stops}
@@ -481,10 +480,12 @@ export function TramMap(props: TramMapProps) {
           onSelectLandmark={props.onSelectLandmark}
           onPickStop={props.onPickStop}
         />
-      ) : (
+      ) : hasValidGoogleKey ? (
         <APIProvider apiKey={apiKey!} language="ru" region="RU">
           <GoogleMapInner {...props} onFallbackNeeded={handleFallbackNeeded} />
         </APIProvider>
+      ) : (
+        <LeafletTramMap {...props} />
       )}
     </div>
   );
