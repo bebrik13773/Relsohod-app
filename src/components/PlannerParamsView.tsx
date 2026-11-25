@@ -282,7 +282,9 @@ export function PlannerParamsView({
                   ? 'М · '
                   : stop.stopKind === 'trolleybus'
                     ? 'Тр · '
-                    : ''}
+                    : stop.stopKind === 'bus'
+                      ? 'А · '
+                      : ''}
                 {stop.name} — {stop.district}
                 {stop.planned2027 ? ' [до лета 2027]' : ''}
               </option>

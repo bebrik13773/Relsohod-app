@@ -786,7 +786,7 @@ export function PlannerItineraryView({
             const isTransitLine = seg.kind === 'tram';
             const routeType = seg.route?.type;
             const isMetro = isTransitLine && routeType === 'metro';
-            const isTrolley = isTransitLine && routeType === 'trolleybus';
+            const isTrolleyOrBus = isTransitLine && (routeType === 'trolleybus' || routeType === 'bus');
             const badgeBg = isTransitLine
               ? seg.route?.color ?? '#0f5e8c'
               : seg.kind === 'walk'
@@ -817,10 +817,10 @@ export function PlannerItineraryView({
                         <TrainFront className="h-3.5 w-3.5" />
                         {seg.route?.number}
                       </>
-                    ) : isTrolley ? (
+                    ) : isTrolleyOrBus ? (
                       <>
                         <Bus className="h-3.5 w-3.5" />
-                        {seg.route?.number.replace(/^Тр-/, '')}
+                        {seg.route?.number.replace(/^(?:Тр|А)-/, '')}
                       </>
                     ) : isTransitLine ? (
                       <>

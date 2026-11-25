@@ -52,11 +52,12 @@ object TramRouter {
     }
 
     fun isCityTransitRoute(route: TramRoute?): Boolean =
-        route?.type == "metro" || route?.type == "trolleybus"
+        route?.type == "metro" || route?.type == "trolleybus" || route?.type == "bus"
 
     fun getRouteTypeShortLabel(route: TramRoute): String = when (route.type) {
         "metro" -> "Метро ${route.number}"
         "trolleybus" -> "Троллейбус № ${route.number.removePrefix("Тр-")}"
+        "bus" -> "Автобус № ${route.number.removePrefix("А-")}"
         "retro" -> "Ретро-трамвай ${route.number}"
         "chizhik" -> "«Чижик» № ${route.number}"
         "circular" -> "Кольцевой трамвай № ${route.number}"
@@ -280,6 +281,7 @@ object TramRouter {
                     SegmentKind.TRAM -> when (step.route?.type) {
                         "metro" -> "Метро · ${step.route.title}"
                         "trolleybus" -> "Троллейбус · ${step.route.title}"
+                        "bus" -> "Автобус · ${step.route.title}"
                         "circular" -> "По кольцевому маршруту (по часовой стрелке)"
                         else -> "В направлении: ${step.route?.title.orEmpty()}"
                     }
@@ -1276,6 +1278,7 @@ object TramRouter {
                     when (seg.route?.type) {
                         "metro" -> "Линия метро $lineNum: от станции «$fromClean» до станции «$toClean». $endSuffix"
                         "trolleybus" -> "Троллейбус номер ${lineNum.removePrefix("Тр-")} следует от остановки «$fromClean» до остановки «$toClean». $endSuffix"
+                        "bus" -> "Автобус номер ${lineNum.removePrefix("А-")} следует от остановки «$fromClean» до остановки «$toClean». $endSuffix"
                         else -> "Трамвай номер $lineNum следует от остановки «$fromClean» до остановки «$toClean». $endSuffix"
                     }
                 }

@@ -386,13 +386,46 @@ test('Full SPb & Omsk networks include metro M1-M6, Slavanka 2/22, trolleybuses 
   assert.equal(route22?.planned2027, true, 'Tram 22 (stage 2) should be marked planned2027');
 
   const omskNumbers = new Set(OMSK_TRAM_ROUTES.map((r) => r.number));
-  for (const num of ['Тр-2', 'Тр-67', '2К', '8К']) {
+  for (const num of [
+    '1', '2', '4', '7', '8', '9',
+    '2К', '8К',
+    'Тр-2', 'Тр-3', 'Тр-4', 'Тр-4Э', 'Тр-7', 'Тр-8', 'Тр-12', 'Тр-15', 'Тр-16', 'Тр-67',
+    'А-14', 'А-24', 'А-69', 'А-95', 'А-110',
+  ]) {
     assert.ok(omskNumbers.has(num), `Omsk must include route ${num}`);
   }
   const omsk2k = OMSK_TRAM_ROUTES.find((r) => r.number === '2К');
   const omsk8k = OMSK_TRAM_ROUTES.find((r) => r.number === '8К');
   assert.equal(omsk2k?.planned2027, true);
   assert.equal(omsk8k?.planned2027, true);
+
+  assert.ok(OMSK_STOPS.length >= 300, 'Expected full Omsk stop network from OOT.xls');
+  const omskStopIds = new Set(OMSK_STOPS.map((s) => s.id));
+  const omskStopNames = new Set(OMSK_STOPS.map((s) => s.name));
+  assert.equal(omskStopIds.size, OMSK_STOPS.length, 'Omsk stop IDs must be unique');
+  assert.equal(omskStopNames.size, OMSK_STOPS.length, 'Omsk stop names must be disambiguated');
+  for (const route of OMSK_TRAM_ROUTES) {
+    assert.ok(route.stopIds.length >= 5, `Route ${route.number} must have stops`);
+    for (const sid of route.stopIds) {
+      assert.ok(omskStopIds.has(sid), `Route ${route.number} stop ${sid} must exist in OMSK_STOPS`);
+    }
+  }
+
+  const omskMultimodal = generateTramAdventure({
+    city: 'omsk',
+    stops: OMSK_STOPS,
+    routes: OMSK_TRAM_ROUTES,
+    landmarks: OMSK_LANDMARKS,
+    startStopId: 'omsk_cirk',
+    theme: 'any',
+    durationPreset: 'medium',
+    dayOfWeek: 3,
+    timeMinutes: 14 * 60,
+    allowFallbackTransit: false,
+    modeBalance: { tram: 0.25, transit: 0.5, walk: 0.25 },
+    seed: 314,
+  });
+  assert.equal(omskMultimodal.status, 'ok');
 });
 
 test('Deadline mode, includePlanned2027 filter, and 3 route alternatives (including adjacent-stop exit + walk)', () => {

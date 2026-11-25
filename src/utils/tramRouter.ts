@@ -46,7 +46,7 @@ export function computeDeadlineBudgetMinutes(
 }
 
 export function isCityTransitRoute(route?: TramRoute): boolean {
-  return route?.type === 'metro' || route?.type === 'trolleybus';
+  return route?.type === 'metro' || route?.type === 'trolleybus' || route?.type === 'bus';
 }
 
 export function getRouteTypeShortLabel(route: TramRoute): string {
@@ -55,6 +55,8 @@ export function getRouteTypeShortLabel(route: TramRoute): string {
       return `Метро ${route.number}`;
     case 'trolleybus':
       return `Троллейбус № ${route.number.replace(/^Тр-/, '')}`;
+    case 'bus':
+      return `Автобус № ${route.number.replace(/^А-/, '')}`;
     case 'retro':
       return `Ретро-трамвай ${route.number}`;
     case 'chizhik':
@@ -365,6 +367,8 @@ function collapseRawStepsToSegments(
           directionNote = `Метро · ${step.route.title}`;
         } else if (step.route.type === 'trolleybus') {
           directionNote = `Троллейбус · ${step.route.title}`;
+        } else if (step.route.type === 'bus') {
+          directionNote = `Автобус · ${step.route.title}`;
         } else if (step.route.type === 'circular') {
           directionNote = 'По кольцевому маршруту';
         } else {

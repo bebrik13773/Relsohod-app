@@ -93,7 +93,7 @@ data class TramStop(
     val district: String,
     val lat: Double,
     val lng: Double,
-    val stopKind: String? = null, // "tram" | "metro" | "trolleybus" | "hub"
+    val stopKind: String? = null, // "tram" | "metro" | "trolleybus" | "bus" | "hub"
     val hubId: String? = null,
     val isolatedFromMainTram: Boolean = false,
     val planned2027: Boolean = false,
@@ -113,7 +113,7 @@ data class TramRoute(
     val number: String,
     val title: String,
     val colorHex: String,
-    val type: String, // "regular" | "circular" | "chizhik" | "retro" | "metro" | "trolleybus"
+    val type: String, // "regular" | "circular" | "chizhik" | "retro" | "metro" | "trolleybus" | "bus"
     val themes: List<String>,
     val schedule: RouteSchedule,
     val stopIds: List<String>,

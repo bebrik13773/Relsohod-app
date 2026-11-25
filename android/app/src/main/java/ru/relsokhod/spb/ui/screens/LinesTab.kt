@@ -39,7 +39,8 @@ private enum class LineTypeFilter(val label: String) {
     ALL("Все виды"),
     TRAM("Трамваи"),
     METRO("Метро"),
-    TROLLEYBUS("Троллейбусы")
+    TROLLEYBUS("Троллейбусы"),
+    BUS("Автобусы")
 }
 
 private enum class LineStatusFilter(val label: String) {
@@ -57,6 +58,7 @@ fun LinesTab(cityConfig: CityConfig) {
 
     val hasMetro = remember(cityConfig.routes) { cityConfig.routes.any { it.type == "metro" } }
     val hasTrolleybus = remember(cityConfig.routes) { cityConfig.routes.any { it.type == "trolleybus" } }
+    val hasBus = remember(cityConfig.routes) { cityConfig.routes.any { it.type == "bus" } }
     val hasPlanned = remember(cityConfig.routes) { cityConfig.routes.any { it.planned2027 } }
 
     val filteredRoutes = remember(cityConfig.routes, typeFilter, statusFilter) {
@@ -65,7 +67,8 @@ fun LinesTab(cityConfig: CityConfig) {
                 LineTypeFilter.ALL -> true
                 LineTypeFilter.METRO -> route.type == "metro"
                 LineTypeFilter.TROLLEYBUS -> route.type == "trolleybus"
-                LineTypeFilter.TRAM -> route.type != "metro" && route.type != "trolleybus"
+                LineTypeFilter.BUS -> route.type == "bus"
+                LineTypeFilter.TRAM -> route.type != "metro" && route.type != "trolleybus" && route.type != "bus"
             }
             val statusOk = when (statusFilter) {
                 LineStatusFilter.ALL -> true
@@ -90,7 +93,7 @@ fun LinesTab(cityConfig: CityConfig) {
                 fontWeight = FontWeight.ExtraBold
             )
             Text(
-                text = "Трамваи, метро, троллейбусы и пусковые участки до лета 2027 года (${filteredRoutes.size} из ${cityConfig.routes.size}).",
+                text = "Трамваи, метро, троллейбусы, автобусы и пусковые участки до лета 2027 года (${filteredRoutes.size} из ${cityConfig.routes.size}).",
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -126,6 +129,14 @@ fun LinesTab(cityConfig: CityConfig) {
                         onClick = { typeFilter = LineTypeFilter.TROLLEYBUS },
                         shape = RoundedCornerShape(50),
                         label = { Text(LineTypeFilter.TROLLEYBUS.label, fontSize = 11.sp) }
+                    )
+                }
+                if (hasBus) {
+                    FilterChip(
+                        selected = typeFilter == LineTypeFilter.BUS,
+                        onClick = { typeFilter = LineTypeFilter.BUS },
+                        shape = RoundedCornerShape(50),
+                        label = { Text(LineTypeFilter.BUS.label, fontSize = 11.sp) }
                     )
                 }
             }

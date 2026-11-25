@@ -130,7 +130,6 @@ function MainRelsokhodApp() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('planner');
   const [plannerSubView, setPlannerSubView] = useState<PlannerSubView>('params');
   const [mobileRouteSubView, setMobileRouteSubView] = useState<MobileRouteSubView>('map');
-  const [quotaExceeded, setQuotaExceeded] = useState(false);
 
   const [showSplash, setShowSplash] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
@@ -366,13 +365,6 @@ function MainRelsokhodApp() {
     persistTheme(theme);
     persistAccent(accentSeed);
   }, [theme, accentSeed]);
-
-  // Listen to Google Maps Demo Key quota / auth events
-  useEffect(() => {
-    const handler = () => setQuotaExceeded(true);
-    window.addEventListener('gmp-quota-exceeded', handler);
-    return () => window.removeEventListener('gmp-quota-exceeded', handler);
-  }, []);
 
   const handleChangeCity = useCallback(
     (nextCity: CityId) => {
@@ -1050,22 +1042,6 @@ function MainRelsokhodApp() {
           color: 'var(--text-primary)',
         }}
       >
-        {quotaExceeded && (
-          <div className="sticky top-0 z-50 border-b border-amber-200 bg-amber-50 px-4 py-2.5 text-center text-xs text-amber-900 shadow-sm md:text-sm">
-            <span>
-              Google Maps Platform quota reached. If you are the app owner, visit{' '}
-              <a
-                href="https://developers.google.com/maps/ai/ai-studio?utm_campaign=gmp_mcp_codeassist_v1_aistudio#quota_exceeded_errors"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-semibold text-amber-950 underline hover:text-amber-800"
-              >
-                maps developer site
-              </a>{' '}
-              for instructions to update your account.
-            </span>
-          </div>
-        )}
 
         <TopBar
           city={city}

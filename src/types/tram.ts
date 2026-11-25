@@ -12,9 +12,9 @@ export type DurationPreset = 'any' | 'short' | 'medium' | 'long';
 
 export type LandmarkCategory = 'architecture' | 'park' | 'hidden' | 'cafe' | 'grocery';
 
-export type TramRouteType = 'regular' | 'circular' | 'retro' | 'chizhik' | 'metro' | 'trolleybus';
+export type TramRouteType = 'regular' | 'circular' | 'retro' | 'chizhik' | 'metro' | 'trolleybus' | 'bus';
 
-export type StopKind = 'tram' | 'metro' | 'trolleybus' | 'hub';
+export type StopKind = 'tram' | 'metro' | 'trolleybus' | 'bus' | 'hub';
 
 export type TimePlanningMode = 'duration' | 'deadline';
 
@@ -55,7 +55,8 @@ export interface TramRoute {
     | 'Чижик (ТКК)'
     | 'БалтНедвижСервис («Славянка»)'
     | 'Петербургский метрополитен'
-    | 'МП «Электрический транспорт»';
+    | 'МП «Электрический транспорт»'
+    | 'МП ПП № 8';
   type: TramRouteType;
   color: string;
   themes: Exclude<RouteThemeFilter, 'any'>[];

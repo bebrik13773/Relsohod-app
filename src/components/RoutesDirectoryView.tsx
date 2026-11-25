@@ -19,7 +19,7 @@ interface RoutesDirectoryViewProps {
 }
 
 type StatusFilter = 'all' | 'active' | 'planned2027';
-type KindFilter = 'all' | 'tram' | 'metro' | 'trolleybus';
+type KindFilter = 'all' | 'tram' | 'metro' | 'trolleybus' | 'bus';
 
 export function RoutesDirectoryView({
   city,
@@ -47,9 +47,12 @@ export function RoutesDirectoryView({
 
   const hasMetro = useMemo(() => routes.some((r) => r.type === 'metro'), [routes]);
   const hasTrolleybus = useMemo(() => routes.some((r) => r.type === 'trolleybus'), [routes]);
+  const hasBus = useMemo(() => routes.some((r) => r.type === 'bus'), [routes]);
 
   const effectiveKindFilter: KindFilter =
-    (kindFilter === 'metro' && !hasMetro) || (kindFilter === 'trolleybus' && !hasTrolleybus)
+    (kindFilter === 'metro' && !hasMetro) ||
+    (kindFilter === 'trolleybus' && !hasTrolleybus) ||
+    (kindFilter === 'bus' && !hasBus)
       ? 'all'
       : kindFilter;
 
@@ -60,9 +63,10 @@ export function RoutesDirectoryView({
       if (statusFilter === 'planned2027' && !route.planned2027) return false;
       if (effectiveKindFilter === 'metro' && route.type !== 'metro') return false;
       if (effectiveKindFilter === 'trolleybus' && route.type !== 'trolleybus') return false;
+      if (effectiveKindFilter === 'bus' && route.type !== 'bus') return false;
       if (
         effectiveKindFilter === 'tram' &&
-        (route.type === 'metro' || route.type === 'trolleybus')
+        (route.type === 'metro' || route.type === 'trolleybus' || route.type === 'bus')
       ) {
         return false;
       }
@@ -84,6 +88,7 @@ export function RoutesDirectoryView({
     { id: 'tram', label: 'Трамваи' },
     ...(hasMetro ? [{ id: 'metro' as const, label: 'Метро' }] : []),
     ...(hasTrolleybus ? [{ id: 'trolleybus' as const, label: 'Троллейбусы' }] : []),
+    ...(hasBus ? [{ id: 'bus' as const, label: 'Автобусы' }] : []),
   ];
 
   const statusChips: Array<{ id: StatusFilter; label: string }> = [
@@ -101,7 +106,8 @@ export function RoutesDirectoryView({
           </h1>
           <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
             Показаны трамваи{hasMetro ? ', линии метро' : ''}
-            {hasTrolleybus ? ', троллейбусы' : ''} и проекты до лета 2027 ·{' '}
+            {hasTrolleybus ? ', троллейбусы' : ''}
+            {hasBus ? ', автобусы' : ''} и проекты до лета 2027 ·{' '}
             {DAY_NAMES_FULL[dayOfWeek].toLowerCase()},{' '}
             <span className="font-mono-num font-semibold">{formatMinutesToClock(timeMinutes)}</span>.
           </p>
@@ -232,6 +238,7 @@ export function RoutesDirectoryView({
                           {route.type === 'retro' ? ' · Ретро' : ''}
                           {route.type === 'metro' ? ' · Метро' : ''}
                           {route.type === 'trolleybus' ? ' · Троллейбус' : ''}
+                          {route.type === 'bus' ? ' · Автобус' : ''}
                           {route.type === 'chizhik' ? ' · «Чижик»' : ''}
                         </span>
                         {route.planned2027 && (

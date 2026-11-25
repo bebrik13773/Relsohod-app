@@ -330,14 +330,24 @@ export function SpbSchematicMap({
               const offsetPts = offsetPolylinePoints(rawPts, routeLaneOffsets[route.id] ?? 0);
               const d = buildSmoothSvgPath(offsetPts, 0.24);
               const baseOpacity =
-                route.type === 'metro' ? (trip ? 0.16 : 0.34) : trip ? 0.2 : 0.45;
+                route.type === 'metro'
+                  ? trip
+                    ? 0.16
+                    : 0.34
+                  : route.type === 'bus'
+                    ? trip
+                      ? 0.1
+                      : 0.24
+                    : trip
+                      ? 0.2
+                      : 0.45;
               return (
                 <path
                   key={`bg-${route.id}`}
                   d={d}
                   fill="none"
                   stroke={route.color}
-                  strokeWidth={route.type === 'metro' ? 2.6 : 2.2}
+                  strokeWidth={route.type === 'metro' ? 2.6 : route.type === 'bus' ? 1.5 : 2.2}
                   strokeOpacity={baseOpacity}
                   strokeDasharray={route.planned2027 ? '6 4' : undefined}
                   strokeLinecap="round"

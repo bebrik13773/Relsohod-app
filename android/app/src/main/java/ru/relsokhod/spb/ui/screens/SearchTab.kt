@@ -91,6 +91,7 @@ private fun formatStopLabel(stop: TramStop): String {
     val prefix = when (stop.stopKind) {
         "metro" -> "М · "
         "trolleybus" -> "Тр · "
+        "bus" -> "А · "
         else -> ""
     }
     val suffix = if (stop.planned2027) " [до лета 2027]" else ""

@@ -127,7 +127,7 @@ export function LeafletTramMap({
     L.control.zoom({ position: 'bottomright' }).addTo(map);
     L.control
       .attribution({ position: 'bottomright', prefix: false })
-      .addAttribution('© OSM · CARTO')
+      .addAttribution('© OpenStreetMap')
       .addTo(map);
 
     bgLayerRef.current = L.layerGroup().addTo(map);
@@ -167,7 +167,7 @@ export function LeafletTramMap({
     };
   }, []);
 
-  // Switch street tile style with theme (CARTO Voyager / Dark Matter + OSM fallback)
+  // Use OpenStreetMap tiles (with CARTO dark/voyager fallback on tile error)
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -176,22 +176,25 @@ export function LeafletTramMap({
       map.removeLayer(tileLayerRef.current);
     }
 
-    const tileUrl =
+    const primaryUrl =
       theme === 'dark'
         ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+        : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+    const fallbackUrl =
+      theme === 'dark'
+        ? 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
         : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
 
-    let switchedToOsm = false;
-    const layer = L.tileLayer(tileUrl, {
-      subdomains: 'abcd',
+    let switchedToFallback = false;
+    const layer = L.tileLayer(primaryUrl, {
+      subdomains: theme === 'dark' ? 'abcd' : 'abc',
       maxZoom: 19,
-      crossOrigin: true,
     });
 
     layer.on('tileerror', () => {
-      if (!switchedToOsm && mapRef.current === map) {
-        switchedToOsm = true;
-        layer.setUrl('https://tile.openstreetmap.org/{z}/{x}/{y}.png');
+      if (!switchedToFallback && mapRef.current === map) {
+        switchedToFallback = true;
+        layer.setUrl(fallbackUrl);
       }
     });
 
@@ -224,8 +227,18 @@ export function LeafletTramMap({
       const latLngs = smoothed.map((p) => [p.lat, p.lng] as [number, number]);
       L.polyline(latLngs, {
         color: route.color,
-        weight: route.type === 'metro' ? 2.8 : 2.3,
-        opacity: route.planned2027 ? (trip ? 0.35 : 0.65) : trip ? 0.25 : 0.55,
+        weight: route.type === 'metro' ? 2.8 : route.type === 'bus' ? 1.6 : 2.3,
+        opacity: route.planned2027
+          ? trip
+            ? 0.35
+            : 0.65
+          : route.type === 'bus'
+            ? trip
+              ? 0.14
+              : 0.32
+            : trip
+              ? 0.25
+              : 0.55,
         dashArray: route.planned2027 ? '6 6' : undefined,
         interactive: false,
       }).addTo(group);
@@ -407,7 +420,9 @@ export function LeafletTramMap({
               >
                 {seg.kind === 'tram'
                   ? seg.route
-                    ? seg.route.type === 'metro' || seg.route.type === 'trolleybus'
+                    ? seg.route.type === 'metro' ||
+                      seg.route.type === 'trolleybus' ||
+                      seg.route.type === 'bus'
                       ? seg.route.number
                       : `№${seg.route.number}`
                     : 'Линия'
