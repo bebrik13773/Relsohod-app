@@ -85,25 +85,27 @@ export function AddressDestinationPicker({
       }
     }
 
-    // 2. Optional address-only coordinate geocoding (strictly NO transit route lookup from Google)
+    // 2. Geocoding fallback via OpenStreetMap Nominatim (address-to-coordinates only)
     try {
-      const g = (window as unknown as { google?: { maps?: { Geocoder?: new () => { geocode: (req: { address: string; region?: string }) => Promise<{ results?: Array<{ formatted_address?: string; geometry?: { location?: { lat: () => number; lng: () => number } } }> }> } } } }).google;
-      if (g?.maps?.Geocoder) {
-        const geocoder = new g.maps.Geocoder();
-        const res = await geocoder.geocode({
-          address: `${q}, ${cityCfg.name}, Россия`,
-          region: 'RU',
-        });
-        const first = res.results?.[0];
-        const loc = first?.geometry?.location;
-        if (loc) {
-          const lat = loc.lat();
-          const lng = loc.lng();
+      const osmQuery = encodeURIComponent(`${q}, ${cityCfg.name}, Россия`);
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 5000);
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=ru&q=${osmQuery}`,
+        { signal: controller.signal }
+      );
+      window.clearTimeout(timeoutId);
+      if (res.ok) {
+        const items = (await res.json()) as Array<{ lat?: string; lon?: string }>;
+        const first = items[0];
+        const lat = first?.lat ? Number(first.lat) : NaN;
+        const lng = first?.lon ? Number(first.lon) : NaN;
+        if (Number.isFinite(lat) && Number.isFinite(lng)) {
           const nearest = findNearestStops(lat, lng, stops, 1, true)[0];
           if (nearest && nearest.distanceKm <= 35) {
             onChangeDestinationStop(nearest.stop.id, q);
             setLookupNote(
-              `Адрес найден → ближайшая остановка «${nearest.stop.name}» (${nearest.distanceKm.toFixed(1)} км)`
+              `Адрес найден (OSM) → ближайшая остановка «${nearest.stop.name}» (${nearest.distanceKm.toFixed(1)} км)`
             );
             setSearching(false);
             return;
