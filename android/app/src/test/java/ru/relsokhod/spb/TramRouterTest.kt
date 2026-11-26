@@ -6,15 +6,19 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import ru.relsokhod.spb.data.NetworkRepository
+import ru.relsokhod.spb.live.LiveGeoPoint
+import ru.relsokhod.spb.live.LiveTripProgressMath
 import ru.relsokhod.spb.model.CityId
 import ru.relsokhod.spb.model.DurationPreset
 import ru.relsokhod.spb.model.GenerationOutcome
 import ru.relsokhod.spb.model.LandmarkCategory
 import ru.relsokhod.spb.model.ModeBalance
+import ru.relsokhod.spb.model.RouteSegment
 import ru.relsokhod.spb.model.RouteThemeFilter
 import ru.relsokhod.spb.model.SavedRoute
 import ru.relsokhod.spb.model.SegmentKind
 import ru.relsokhod.spb.model.TimePlanningMode
+import ru.relsokhod.spb.model.TramStop
 import ru.relsokhod.spb.model.WeatherMode
 import ru.relsokhod.spb.router.TramRouter
 import ru.relsokhod.spb.ui.components.TriangleBalanceMath
@@ -362,6 +366,84 @@ class TramRouterTest {
         val step3Guide = TramRouter.matchAudioGuidesForTrip(multiLineTrip, limit = 1, preferredRouteNumber = "3").first()
         assertEquals("spb-get-route-3", step3Guide.guide.id)
         assertTrue(step3Guide.matchReason.contains("№ 3"))
+    }
+
+    @Test
+    fun realisticCommercialTravelTimesAndWaits() {
+        val cities = loadCities()
+        val spb = cities.getValue(CityId.SPB)
+        val omsk = cities.getValue(CityId.OMSK)
+
+        val metroRoute = spb.routes.first { it.type == "metro" }
+        val tramRoute = spb.routes.first { it.type == "regular" || it.type == "circular" }
+        val omskBus = omsk.routes.first { it.type == "bus" }
+
+        val metroClear = TramRouter.estimateRealisticHopMinutes(metroRoute, 2.0, CityId.SPB, WeatherMode.CLEAR)
+        val metroRain = TramRouter.estimateRealisticHopMinutes(metroRoute, 2.0, CityId.SPB, WeatherMode.RAIN)
+        val tramClear = TramRouter.estimateRealisticHopMinutes(tramRoute, 2.0, CityId.SPB, WeatherMode.CLEAR)
+        val tramRain = TramRouter.estimateRealisticHopMinutes(tramRoute, 2.0, CityId.SPB, WeatherMode.RAIN)
+        val busOmsk = TramRouter.estimateRealisticHopMinutes(omskBus, 2.0, CityId.OMSK, WeatherMode.CLEAR)
+
+        assertTrue("Metro should be faster than surface tram over 2km", metroClear < tramClear)
+        assertEquals(metroClear, metroRain, 0.01)
+        assertTrue("Rain should slow surface tram", tramRain > tramClear)
+        assertTrue("2km surface hop in SPb should take realistic ~9-12 min, got $tramClear", tramClear in 8.0..13.5)
+        assertTrue("2km Omsk bus hop should take ~7.5-10.5 min, got $busOmsk", busOmsk in 7.0..11.5)
+
+        val waitInitial = TramRouter.estimateTransitWaitMinutes(tramRoute, isInitialBoarding = true, WeatherMode.CLEAR)
+        val waitTransfer = TramRouter.estimateTransitWaitMinutes(tramRoute, isInitialBoarding = false, WeatherMode.RAIN)
+        assertTrue(waitInitial in 2..8)
+        assertTrue(waitTransfer in 3..10)
+    }
+
+    @Test
+    fun liveTripGpsProjectionAndCorridorFallback() {
+        assertEquals("остановка", LiveTripProgressMath.pluralizeStopsRu(1))
+        assertEquals("остановки", LiveTripProgressMath.pluralizeStopsRu(3))
+        assertEquals("остановок", LiveTripProgressMath.pluralizeStopsRu(7))
+
+        val s1 = TramStop("s1", "Старт", "Центральный", 59.9300, 30.3000)
+        val s2 = TramStop("s2", "Середина", "Центральный", 59.9300, 30.3100)
+        val s3 = TramStop("s3", "Финиш", "Центральный", 59.9300, 30.3200)
+        val stops = listOf(s1, s2, s3)
+        val stopsById = stops.associateBy { it.id }
+
+        val mid = LiveTripProgressMath.projectPointOntoStopsPolyline(LiveGeoPoint(59.9302, 30.3100), stops)
+        assertNotNull(mid)
+        assertEquals(1, mid!!.currentStopIndex)
+        assertTrue(mid.progressFraction in 0.45f..0.55f)
+        assertTrue(mid.distanceToRouteMeters < 100)
+
+        val seg = RouteSegment(
+            id = "seg-test",
+            kind = SegmentKind.TRAM,
+            route = null,
+            fallbackModeName = null,
+            fromStop = s1,
+            toStop = s3,
+            stopIds = listOf("s1", "s2", "s3"),
+            stopsCount = 3,
+            durationMinutes = 10,
+            directionNote = "Тест"
+        )
+
+        val gpsLocked = LiveTripProgressMath.computeSegmentLiveProgress(
+            segment = seg,
+            stopsById = stopsById,
+            elapsedSeconds = 60,
+            userCoords = LiveGeoPoint(59.9301, 30.3150)
+        )
+        assertTrue(gpsLocked.isGpsLocked)
+        assertTrue(gpsLocked.progressFraction > 0.70f)
+
+        val timerFallback = LiveTripProgressMath.computeSegmentLiveProgress(
+            segment = seg,
+            stopsById = stopsById,
+            elapsedSeconds = 300,
+            userCoords = LiveGeoPoint(55.7558, 37.6173) // Moscow — far outside corridor
+        )
+        assertTrue(!timerFallback.isGpsLocked)
+        assertEquals(0.5f, timerFallback.progressFraction, 0.02f)
     }
 }
 

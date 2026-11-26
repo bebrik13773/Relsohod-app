@@ -1314,7 +1314,7 @@ function MainRelsokhodApp() {
             >
               <section
                 aria-label="Карта маршрута"
-                className={`relative w-full shrink-0 md:block md:h-full md:flex-1 md:min-h-0 ${
+                className={`relative isolate z-0 w-full shrink-0 md:block md:h-full md:flex-1 md:min-h-0 ${
                   isMobileMapVisible
                     ? activeTrip && !mapPickMode
                       ? 'block h-[calc(100dvh-252px)] min-h-[320px]'

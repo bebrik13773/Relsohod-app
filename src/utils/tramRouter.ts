@@ -132,11 +132,79 @@ export interface AdjacencyOptions {
   city?: CityId;
   maxWalkKm?: number;
   allowCityTransit?: boolean;
+  weatherMode?: WeatherMode;
+}
+
+const ROAD_WINDING_SURFACE = 1.18;
+const ROAD_WINDING_METRO = 1.12;
+
+export function getCommercialSpeedKmh(route: TramRoute, city: CityId = 'spb'): number {
+  switch (route.type) {
+    case 'metro':
+      return 34.0;
+    case 'chizhik':
+      return 21.5;
+    case 'bus':
+      return city === 'omsk' ? 17.2 : 14.8;
+    case 'trolleybus':
+      return city === 'omsk' ? 16.2 : 13.4;
+    default:
+      return city === 'omsk' ? 15.5 : 14.2;
+  }
+}
+
+export function estimateRealisticHopMinutes(
+  route: TramRoute,
+  distKm: number,
+  city: CityId = 'spb',
+  weatherMode: WeatherMode = 'clear'
+): number {
+  const winding = route.type === 'metro' ? ROAD_WINDING_METRO : ROAD_WINDING_SURFACE;
+  const speedKmh = getCommercialSpeedKmh(route, city);
+  const weatherMult =
+    route.type === 'metro' || weatherMode === 'clear'
+      ? 1.0
+      : weatherMode === 'rain'
+        ? 1.12
+        : 1.15;
+  const dwellMins = route.type === 'metro' ? 0.55 : 0.48;
+  const effectiveKm = Math.max(0.22, distKm * winding);
+  const travelMins = (effectiveKm / speedKmh) * 60 * weatherMult + dwellMins;
+  return Math.max(1.2, travelMins);
+}
+
+export function estimateRealisticWalkMinutes(
+  distKm: number,
+  weatherMode: WeatherMode = 'clear'
+): number {
+  const walkSpeedKmh = weatherMode === 'clear' ? 4.2 : 3.7;
+  const effectiveKm = distKm * ROAD_WINDING_SURFACE;
+  return Math.max(2.0, (effectiveKm / walkSpeedKmh) * 60);
+}
+
+export function estimateTransitWaitMinutes(
+  route: TramRoute | undefined,
+  isInitialBoarding: boolean,
+  weatherMode: WeatherMode = 'clear'
+): number {
+  const weatherExtra = weatherMode === 'clear' ? 0 : 1;
+  if (!route) {
+    return (isInitialBoarding ? 4 : 5) + weatherExtra;
+  }
+  if (route.type === 'metro') {
+    return isInitialBoarding ? 2 : 3;
+  }
+  const factor = isInitialBoarding ? 0.35 : 0.4;
+  const intervalMins = route.schedule?.intervalMinutes ?? 10;
+  const base = Math.round(intervalMins * factor);
+  const minWait = isInitialBoarding ? 2 : 3;
+  const maxWait = isInitialBoarding ? 8 : 10;
+  return Math.min(maxWait, Math.max(minWait, base + weatherExtra));
 }
 
 /**
  * Builds directed multimodal graph:
- * - Active rail/trolleybus lines respecting schedule & after-midnight carryover
+ * - Active rail/trolleybus/bus lines respecting schedule, after-midnight carryover & realistic commercial speeds
  * - Hub transfers + sparse scenic walking corridors (top-8 closest per stop within maxWalkKm)
  * - Isolated fallback transit bridges (when allowFallbackTransit=true)
  * - Optional city-wide bus connectors between distant hubs (when allowCityTransit=true)
@@ -157,6 +225,8 @@ export function buildAdjacencyGraph(
     edgesByStop[s.id] = [];
   }
 
+  const city = options?.city ?? 'spb';
+  const weatherMode = options?.weatherMode ?? 'clear';
   const stopMap = buildStopMap(stops);
   const activeRoutes = routes.filter((r) => isRouteActiveAt(r, dayOfWeek, timeMinutes));
 
@@ -170,11 +240,12 @@ export function buildAdjacencyGraph(
         const toId = seq[i + 1];
         if (!edgesByStop[fromId] || !edgesByStop[toId]) continue;
         const dist = haversineKm(stopMap[fromId], stopMap[toId]);
+        const hopMins = estimateRealisticHopMinutes(route, dist, city, weatherMode);
         edgesByStop[fromId].push({
           toStopId: toId,
           kind: 'tram',
           route,
-          durationMinutes: route.minutesPerHop,
+          durationMinutes: hopMins,
           distanceKm: dist,
         });
         directLinePairs.add(`${fromId}|${toId}`);
@@ -186,18 +257,19 @@ export function buildAdjacencyGraph(
         const b = seq[i + 1];
         if (!edgesByStop[a] || !edgesByStop[b]) continue;
         const dist = haversineKm(stopMap[a], stopMap[b]);
+        const hopMins = estimateRealisticHopMinutes(route, dist, city, weatherMode);
         edgesByStop[a].push({
           toStopId: b,
           kind: 'tram',
           route,
-          durationMinutes: route.minutesPerHop,
+          durationMinutes: hopMins,
           distanceKm: dist,
         });
         edgesByStop[b].push({
           toStopId: a,
           kind: 'tram',
           route,
-          durationMinutes: route.minutesPerHop,
+          durationMinutes: hopMins,
           distanceKm: dist,
         });
         directLinePairs.add(`${a}|${b}`);
@@ -215,7 +287,7 @@ export function buildAdjacencyGraph(
     const key = a.id < b.id ? `${a.id}|${b.id}` : `${b.id}|${a.id}`;
     if (addedWalkPairs.has(key)) return;
     addedWalkPairs.add(key);
-    const walkMins = Math.max(3, Math.round(distKm * 12.5));
+    const walkMins = estimateRealisticWalkMinutes(distKm, weatherMode);
     edgesByStop[a.id].push({
       toStopId: b.id,
       kind: 'walk',
@@ -269,7 +341,12 @@ export function buildAdjacencyGraph(
       }
       candidates.sort((u, v) => Math.abs(u.distKm - 4.5) - Math.abs(v.distKm - 4.5));
       for (const { stop: b, distKm } of candidates.slice(0, 2)) {
-        const transitMins = Math.max(7, Math.round(distKm * 2.4 + 4));
+        const speedKmh = city === 'omsk' ? 16.8 : 15.0;
+        const weatherMult = weatherMode === 'clear' ? 1.0 : 1.12;
+        const transitMins = Math.max(
+          9,
+          Math.round(((distKm * ROAD_WINDING_SURFACE) / speedKmh) * 60 * weatherMult + 4)
+        );
         edgesByStop[a.id].push({
           toStopId: b.id,
           kind: 'fallback_transit',
@@ -286,7 +363,12 @@ export function buildAdjacencyGraph(
     for (const isolated of stops.filter((s) => s.isolatedFromMainTram)) {
       const closest = findNearestStops(isolated.lat, isolated.lng, mainStops, 2, false);
       for (const { stop: bridge, distanceKm } of closest) {
-        const transitMins = Math.max(8, Math.round(distanceKm * 2.8 + 5));
+        const speedKmh = distanceKm > 5 ? 24.0 : 16.5;
+        const weatherMult = weatherMode === 'clear' ? 1.0 : 1.12;
+        const transitMins = Math.max(
+          9,
+          Math.round(((distanceKm * ROAD_WINDING_SURFACE) / speedKmh) * 60 * weatherMult + 5)
+        );
         const modeLabel =
           distanceKm > 5 ? 'Автобус / пригородный экспресс' : 'Автобус / стыковка';
         edgesByStop[bridge.id].push({
@@ -327,7 +409,7 @@ function collapseRawStepsToSegments(
   steps: RawStep[],
   stopMap: Record<string, TramStop>
 ): RouteSegment[] {
-  const segments: RouteSegment[] = [];
+  const segments: Array<RouteSegment & { exactMinutes: number }> = [];
 
   for (const step of steps) {
     const prev = segments[segments.length - 1];
@@ -345,7 +427,8 @@ function collapseRawStepsToSegments(
       prev.toStop = toStop;
       prev.stopIds.push(step.toStopId);
       prev.stopsCount += 1;
-      prev.durationMinutes += step.durationMinutes;
+      prev.exactMinutes += step.durationMinutes;
+      prev.durationMinutes = Math.max(2, Math.round(prev.exactMinutes));
     } else if (
       prev &&
       prev.kind === 'walk' &&
@@ -355,7 +438,8 @@ function collapseRawStepsToSegments(
       prev.toStop = toStop;
       prev.stopIds.push(step.toStopId);
       prev.stopsCount += 1;
-      prev.durationMinutes += step.durationMinutes;
+      prev.exactMinutes += step.durationMinutes;
+      prev.durationMinutes = Math.max(3, Math.round(prev.exactMinutes + 1));
       prev.directionNote =
         prev.durationMinutes >= 12
           ? 'Пешая прогулка между остановками и районами'
@@ -383,6 +467,13 @@ function collapseRawStepsToSegments(
         directionNote = step.fallbackModeName ?? 'Городской транспорт';
       }
 
+      const initialMin =
+        step.kind === 'walk'
+          ? Math.max(3, Math.round(step.durationMinutes + 1))
+          : step.kind === 'fallback_transit'
+            ? Math.max(8, Math.round(step.durationMinutes))
+            : Math.max(2, Math.round(step.durationMinutes));
+
       segments.push({
         id: `seg-${segments.length + 1}-${step.route?.id ?? step.kind}`,
         kind: step.kind,
@@ -392,13 +483,14 @@ function collapseRawStepsToSegments(
         toStop,
         stopIds: [step.fromStopId, step.toStopId],
         stopsCount: 1,
-        durationMinutes: step.durationMinutes,
+        durationMinutes: initialMin,
+        exactMinutes: step.durationMinutes,
         directionNote,
       });
     }
   }
 
-  return segments;
+  return segments.map(({ exactMinutes: _exact, ...seg }) => seg);
 }
 
 function createPrng(seed?: number): () => number {
@@ -808,6 +900,22 @@ function runAdventureRollouts(params: {
         }
       }
 
+      let legWait = 0;
+      if (chosen.kind !== 'walk') {
+        const isFirstTransit = !steps.some((s) => s.kind !== 'walk');
+        const isNewRoute =
+          isFirstTransit ||
+          chosen.kind === 'fallback_transit' ||
+          (chosen.kind === 'tram' && currRouteId && chosen.route?.id !== currRouteId);
+        if (isNewRoute) {
+          legWait = estimateTransitWaitMinutes(chosen.route, isFirstTransit, weatherMode);
+        }
+      }
+
+      if (steps.length >= 2 && totalDuration + chosen.durationMinutes + legWait > maxMins + 6) {
+        break;
+      }
+
       if (chosen.kind === 'tram' && currRouteId && chosen.route?.id !== currRouteId) {
         transfers += 1;
       }
@@ -822,7 +930,7 @@ function runAdventureRollouts(params: {
         distanceKm: chosen.distanceKm,
       });
 
-      totalDuration += chosen.durationMinutes;
+      totalDuration += chosen.durationMinutes + legWait;
       if (chosen.kind === 'tram' && chosen.route?.id) {
         currRouteId = chosen.route.id;
         usedRouteIds.add(chosen.route.id);
@@ -926,16 +1034,28 @@ function runAdventureRollouts(params: {
       ).length;
       score += specialCount * 35;
     }
-    if (totalDuration >= minMins && totalDuration <= maxMins) {
-      score += 35;
+    const transitLegs = segments.filter(
+      (s) => s.kind === 'tram' || s.kind === 'fallback_transit'
+    );
+    const assembledWait = transitLegs.reduce(
+      (acc, seg, idx) => acc + estimateTransitWaitMinutes(seg.route, idx === 0, weatherMode),
+      0
+    );
+    const assembledDuration =
+      segments.reduce((acc, s) => acc + s.durationMinutes, 0) + assembledWait;
+
+    if (assembledDuration >= minMins && assembledDuration <= maxMins) {
+      score += 45;
+    } else if (assembledDuration > maxMins) {
+      score -= (assembledDuration - maxMins) * 3.5;
     } else {
-      score -= Math.abs(totalDuration - (minMins + maxMins) / 2) * 0.65;
+      score -= Math.abs(assembledDuration - (minMins + maxMins) / 2) * 0.65;
     }
 
     candidates.push({
       steps,
       score,
-      duration: totalDuration,
+      duration: assembledDuration,
       walkRatio: actualShares.walk,
       distinctLines: distinctTramRoutes,
       signature: getStepsSignature(steps),
@@ -1014,7 +1134,7 @@ export function generateTramAdventure(params: GenerateTripParams): GenerationOut
     dayOfWeek,
     timeMinutes,
     effectiveIsolatedFallback,
-    { city, maxWalkKm, allowCityTransit }
+    { city, maxWalkKm, allowCityTransit, weatherMode }
   );
 
   if (activeRoutes.length === 0 && balance.walk < 0.65) {
@@ -1112,7 +1232,10 @@ export function generateTramAdventure(params: GenerateTripParams): GenerationOut
             { preferVariety: true }
           );
           if (toNeighbor && toNeighbor.length >= 1) {
-            const walkMins = Math.max(9, Math.round(cand.distKm * 13));
+            const walkMins = Math.max(
+              10,
+              Math.round(estimateRealisticWalkMinutes(cand.distKm, weatherMode) + 1)
+            );
             const combined: RawStep[] = [
               ...toNeighbor,
               {
@@ -1233,9 +1356,9 @@ export function generateTramAdventure(params: GenerateTripParams): GenerationOut
   const rand = createPrng(seed);
   let [minMins, maxMins] = getDurationRange(durationPreset);
   if (deadlineBudget !== undefined) {
-    const buffer = Math.min(20, Math.max(6, Math.round(deadlineBudget * 0.1)));
+    const buffer = Math.min(26, Math.max(10, Math.round(deadlineBudget * 0.14)));
     maxMins = Math.max(24, deadlineBudget - buffer);
-    minMins = Math.max(16, Math.round(deadlineBudget * 0.66));
+    minMins = Math.max(16, Math.round(deadlineBudget * 0.62));
   }
 
   const startEdges = edgesByStop[startStopId] || [];
@@ -1273,7 +1396,13 @@ export function generateTramAdventure(params: GenerateTripParams): GenerationOut
     };
   }
 
-  const topPool = candidates.slice(0, Math.min(3, candidates.length));
+  const eligiblePool =
+    deadlineBudget !== undefined
+      ? candidates.filter((c) => c.duration <= deadlineBudget - 2)
+      : candidates;
+  const activePool = eligiblePool.length > 0 ? eligiblePool : candidates;
+
+  const topPool = activePool.slice(0, Math.min(3, activePool.length));
   const pickedPrimary = topPool[Math.floor(rand() * topPool.length)];
 
   const selectedCandidates: Array<{ cand: CandidateWalk; title: string; badge: string }> = [
@@ -1382,6 +1511,7 @@ export function extendTripLastSegment(params: {
       city: trip.city,
       maxWalkKm: balance.walk >= 0.35 ? 2.2 : 1.1,
       allowCityTransit: balance.transit >= 0.20,
+      weatherMode,
     }
   );
 
@@ -1488,10 +1618,18 @@ function assembleTrip(
   }));
 
   const tramSegments = normalizedSegments.filter((s) => s.kind === 'tram');
+  const transitLegs = normalizedSegments.filter(
+    (s) => s.kind === 'tram' || s.kind === 'fallback_transit'
+  );
   const transferCount = Math.max(0, normalizedSegments.length - 1);
-  const transferWaitMinutes = Math.max(0, tramSegments.length - 1) * 5;
+  const weather = meta?.weatherMode ?? 'clear';
+  const boardingAndTransferWaitMinutes = transitLegs.reduce(
+    (acc, seg, idx) => acc + estimateTransitWaitMinutes(seg.route, idx === 0, weather),
+    0
+  );
   const totalDurationMinutes =
-    normalizedSegments.reduce((acc, s) => acc + s.durationMinutes, 0) + transferWaitMinutes;
+    normalizedSegments.reduce((acc, s) => acc + s.durationMinutes, 0) +
+    boardingAndTransferWaitMinutes;
 
   let walkKmRaw = 0;
   for (const seg of normalizedSegments) {

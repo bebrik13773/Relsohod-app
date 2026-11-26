@@ -494,3 +494,29 @@ test('Deadline mode, includePlanned2027 filter, and 3 route alternatives (includ
     assert.ok((randomOutcome.trip.arrivalTimeMinutes ?? 9999) <= 18 * 60 + 10);
   }
 });
+
+import { estimateRealisticHopMinutes, estimateTransitWaitMinutes } from './tramRouter';
+
+test('Realistic commercial transit speeds reflect SPb, Omsk, weather, and wait times', () => {
+  const spbTram = SPB_TRAM_ROUTES.find((r) => r.number === '3')!;
+  const spbMetro = SPB_TRAM_ROUTES.find((r) => r.number === 'М2')!;
+  const omskBus = OMSK_TRAM_ROUTES.find((r) => r.type === 'bus')!;
+  assert.ok(spbTram && spbMetro && omskBus);
+
+  const tram4KmMins = estimateRealisticHopMinutes(spbTram, 4.0, 'spb', 'clear');
+  const metro4KmMins = estimateRealisticHopMinutes(spbMetro, 4.0, 'spb', 'clear');
+  const tram4KmRainMins = estimateRealisticHopMinutes(spbTram, 4.0, 'spb', 'rain');
+  const omskBus4KmMins = estimateRealisticHopMinutes(omskBus, 4.0, 'omsk', 'clear');
+
+  // 4 km straight (~4.7 km road) on SPb tram at ~14.2 km/h + dwell should be ~20 min (not 2 min!)
+  assert.ok(tram4KmMins >= 18 && tram4KmMins <= 24, `Expected ~20 min for 4 km SPb tram, got ${tram4KmMins}`);
+  assert.ok(metro4KmMins < tram4KmMins, 'Metro should be faster than surface tram');
+  assert.ok(tram4KmRainMins > tram4KmMins, 'Rain should slightly slow surface transit');
+  assert.ok(omskBus4KmMins >= 14 && omskBus4KmMins <= 20, `Expected ~17 min for 4 km Omsk bus, got ${omskBus4KmMins}`);
+
+  const initialWait = estimateTransitWaitMinutes(spbTram, true, 'clear');
+  const transferWait = estimateTransitWaitMinutes(omskBus, false, 'clear');
+  assert.ok(initialWait >= 2 && initialWait <= 8);
+  assert.ok(transferWait >= 3 && transferWait <= 10);
+});
+

@@ -100,12 +100,70 @@ object TramRouter {
             .take(limit)
     }
 
+    private const val ROAD_WINDING_SURFACE = 1.18
+    private const val ROAD_WINDING_METRO = 1.12
+
+    fun getCommercialSpeedKmh(route: TramRoute, city: CityId = CityId.SPB): Double = when (route.type) {
+        "metro" -> 34.0
+        "chizhik" -> 21.5
+        "bus" -> if (city == CityId.OMSK) 17.2 else 14.8
+        "trolleybus" -> if (city == CityId.OMSK) 16.2 else 13.4
+        else -> if (city == CityId.OMSK) 15.5 else 14.2
+    }
+
+    fun estimateRealisticHopMinutes(
+        route: TramRoute,
+        distKm: Double,
+        city: CityId = CityId.SPB,
+        weatherMode: WeatherMode = WeatherMode.CLEAR
+    ): Double {
+        val winding = if (route.type == "metro") ROAD_WINDING_METRO else ROAD_WINDING_SURFACE
+        val speedKmh = getCommercialSpeedKmh(route, city)
+        val weatherMult = when {
+            route.type == "metro" || weatherMode == WeatherMode.CLEAR -> 1.0
+            weatherMode == WeatherMode.RAIN -> 1.12
+            else -> 1.15
+        }
+        val dwellMins = if (route.type == "metro") 0.55 else 0.48
+        val effectiveKm = maxOf(0.22, distKm * winding)
+        val travelMins = (effectiveKm / speedKmh) * 60.0 * weatherMult + dwellMins
+        return maxOf(1.2, travelMins)
+    }
+
+    fun estimateRealisticWalkMinutes(
+        distKm: Double,
+        weatherMode: WeatherMode = WeatherMode.CLEAR
+    ): Double {
+        val walkSpeedKmh = if (weatherMode == WeatherMode.CLEAR) 4.2 else 3.7
+        val effectiveKm = distKm * ROAD_WINDING_SURFACE
+        return maxOf(2.0, (effectiveKm / walkSpeedKmh) * 60.0)
+    }
+
+    fun estimateTransitWaitMinutes(
+        route: TramRoute?,
+        isInitialBoarding: Boolean,
+        weatherMode: WeatherMode = WeatherMode.CLEAR
+    ): Int {
+        val weatherExtra = if (weatherMode == WeatherMode.CLEAR) 0 else 1
+        if (route == null) {
+            return (if (isInitialBoarding) 4 else 5) + weatherExtra
+        }
+        if (route.type == "metro") {
+            return if (isInitialBoarding) 2 else 3
+        }
+        val factor = if (isInitialBoarding) 0.35 else 0.40
+        val base = (route.schedule.intervalMinutes * factor).roundToInt()
+        val minWait = if (isInitialBoarding) 2 else 3
+        val maxWait = if (isInitialBoarding) 8 else 10
+        return (base + weatherExtra).coerceIn(minWait, maxWait)
+    }
+
     private data class GraphEdge(
         val toStopId: String,
         val kind: SegmentKind,
         val route: TramRoute? = null,
         val fallbackModeName: String? = null,
-        val durationMinutes: Int,
+        val durationMinutes: Double,
         val distanceKm: Double = 0.0
     )
 
@@ -115,7 +173,7 @@ object TramRouter {
         val kind: SegmentKind,
         val route: TramRoute? = null,
         val fallbackModeName: String? = null,
-        val durationMinutes: Int,
+        val durationMinutes: Double,
         val distanceKm: Double = 0.0
     )
 
@@ -127,7 +185,8 @@ object TramRouter {
         timeMinutes: Int,
         allowFallbackTransit: Boolean,
         maxWalkKm: Double,
-        allowCityTransit: Boolean
+        allowCityTransit: Boolean,
+        weatherMode: WeatherMode = WeatherMode.CLEAR
     ): Pair<Map<String, MutableList<GraphEdge>>, List<TramRoute>> {
         val edges = HashMap<String, MutableList<GraphEdge>>()
         val stopMap = stops.associateBy { it.id }
@@ -145,7 +204,8 @@ object TramRouter {
                     val sa = stopMap[a] ?: continue
                     val sb = stopMap[b] ?: continue
                     val dist = haversineKm(sa.lat, sa.lng, sb.lat, sb.lng)
-                    edges[a]?.add(GraphEdge(b, SegmentKind.TRAM, route, null, route.minutesPerHop, dist))
+                    val hopMins = estimateRealisticHopMinutes(route, dist, city, weatherMode)
+                    edges[a]?.add(GraphEdge(b, SegmentKind.TRAM, route, null, hopMins, dist))
                     directTramPairs.add("$a|$b")
                     directTramPairs.add("$b|$a")
                 }
@@ -156,8 +216,9 @@ object TramRouter {
                     val sa = stopMap[a] ?: continue
                     val sb = stopMap[b] ?: continue
                     val dist = haversineKm(sa.lat, sa.lng, sb.lat, sb.lng)
-                    edges[a]?.add(GraphEdge(b, SegmentKind.TRAM, route, null, route.minutesPerHop, dist))
-                    edges[b]?.add(GraphEdge(a, SegmentKind.TRAM, route, null, route.minutesPerHop, dist))
+                    val hopMins = estimateRealisticHopMinutes(route, dist, city, weatherMode)
+                    edges[a]?.add(GraphEdge(b, SegmentKind.TRAM, route, null, hopMins, dist))
+                    edges[b]?.add(GraphEdge(a, SegmentKind.TRAM, route, null, hopMins, dist))
                     directTramPairs.add("$a|$b")
                     directTramPairs.add("$b|$a")
                 }
@@ -170,7 +231,7 @@ object TramRouter {
         fun pushWalkPair(a: TramStop, b: TramStop, distKm: Double) {
             val key = if (a.id < b.id) "${a.id}|${b.id}" else "${b.id}|${a.id}"
             if (!addedWalkPairs.add(key)) return
-            val mins = maxOf(3, (distKm * 12.5).roundToInt())
+            val mins = estimateRealisticWalkMinutes(distKm, weatherMode)
             edges[a.id]?.add(GraphEdge(b.id, SegmentKind.WALK, durationMinutes = mins, distanceKm = distKm))
             edges[b.id]?.add(GraphEdge(a.id, SegmentKind.WALK, durationMinutes = mins, distanceKm = distKm))
         }
@@ -197,12 +258,13 @@ object TramRouter {
 
         // City-wide non-tram transit (metro / bus / trolleybus) connecting distant districts
         if (allowCityTransit) {
-            val mainStops = stops.filter { !it.isolatedFromMainTram }
             val transitLabel = if (city == CityId.OMSK) {
                 "Автобус / троллейбус (городская связка)"
             } else {
                 "Метро / автобус (межрайонная связка)"
             }
+            val speedKmh = if (city == CityId.OMSK) 16.8 else 15.0
+            val weatherMult = if (weatherMode == WeatherMode.CLEAR) 1.0 else 1.12
             for (a in mainStops) {
                 val candidates = ArrayList<Pair<TramStop, Double>>()
                 for (b in mainStops) {
@@ -215,7 +277,10 @@ object TramRouter {
                 }
                 candidates.sortBy { abs(it.second - 4.5) }
                 for ((b, distKm) in candidates.take(3)) {
-                    val transitMins = maxOf(7, (distKm * 2.4 + 4.0).roundToInt())
+                    val transitMins = maxOf(
+                        9.0,
+                        ((distKm * ROAD_WINDING_SURFACE) / speedKmh) * 60.0 * weatherMult + 4.0
+                    )
                     edges[a.id]?.add(
                         GraphEdge(b.id, SegmentKind.FALLBACK_TRANSIT, null, transitLabel, transitMins, distKm)
                     )
@@ -225,11 +290,15 @@ object TramRouter {
 
         // Fallback transit bridges ONLY connect isolated tram-less stops when enabled
         if (allowFallbackTransit) {
-            val mainStops = stops.filter { !it.isolatedFromMainTram }
+            val weatherMult = if (weatherMode == WeatherMode.CLEAR) 1.0 else 1.12
             for (iso in stops.filter { it.isolatedFromMainTram }) {
                 val closest = findNearestStops(iso.lat, iso.lng, mainStops, 2, false)
                 for ((bridge, distKm) in closest) {
-                    val mins = maxOf(8, (distKm * 2.8 + 5.0).roundToInt())
+                    val speedKmh = if (distKm > 5.0) 24.0 else 16.5
+                    val mins = maxOf(
+                        9.0,
+                        ((distKm * ROAD_WINDING_SURFACE) / speedKmh) * 60.0 * weatherMult + 5.0
+                    )
                     val label = if (distKm > 5.0) "Автобус / пригородный экспресс" else "Автобус / метро (стыковка)"
                     edges[bridge.id]?.add(GraphEdge(iso.id, SegmentKind.FALLBACK_TRANSIT, null, label, mins, distKm))
                     edges[iso.id]?.add(GraphEdge(bridge.id, SegmentKind.FALLBACK_TRANSIT, null, label, mins, distKm))
@@ -242,6 +311,7 @@ object TramRouter {
 
     private fun collapseSteps(steps: List<RawStep>, stopMap: Map<String, TramStop>): List<RouteSegment> {
         val out = mutableListOf<RouteSegment>()
+        val exactMinutes = mutableListOf<Double>()
         for (step in steps) {
             val prev = out.lastOrNull()
             val fromStop = stopMap[step.fromStopId] ?: continue
@@ -253,18 +323,22 @@ object TramRouter {
                 prev.route?.id == step.route?.id &&
                 prev.toStop.id == step.fromStopId
             ) {
+                val nextExact = exactMinutes.last() + step.durationMinutes
+                exactMinutes[exactMinutes.lastIndex] = nextExact
                 out[out.lastIndex] = prev.copy(
                     toStop = toStop,
                     stopIds = prev.stopIds + step.toStopId,
                     stopsCount = prev.stopsCount + 1,
-                    durationMinutes = prev.durationMinutes + step.durationMinutes
+                    durationMinutes = maxOf(2, nextExact.roundToInt())
                 )
             } else if (prev != null &&
                 prev.kind == SegmentKind.WALK &&
                 step.kind == SegmentKind.WALK &&
                 prev.toStop.id == step.fromStopId
             ) {
-                val nextDuration = prev.durationMinutes + step.durationMinutes
+                val nextExact = exactMinutes.last() + step.durationMinutes
+                exactMinutes[exactMinutes.lastIndex] = nextExact
+                val nextDuration = maxOf(3, (nextExact + 1.0).roundToInt())
                 out[out.lastIndex] = prev.copy(
                     toStop = toStop,
                     stopIds = prev.stopIds + step.toStopId,
@@ -286,11 +360,17 @@ object TramRouter {
                         else -> "В направлении: ${step.route?.title.orEmpty()}"
                     }
                     SegmentKind.WALK ->
-                        if (step.durationMinutes >= 12) "Пешая прогулка по городу"
+                        if (step.durationMinutes >= 12.0) "Пешая прогулка по городу"
                         else "Пешая пересадка между остановками"
                     SegmentKind.FALLBACK_TRANSIT ->
                         step.fallbackModeName ?: "Городской транспорт"
                 }
+                val initialMin = when (step.kind) {
+                    SegmentKind.WALK -> maxOf(3, (step.durationMinutes + 1.0).roundToInt())
+                    SegmentKind.FALLBACK_TRANSIT -> maxOf(8, step.durationMinutes.roundToInt())
+                    SegmentKind.TRAM -> maxOf(2, step.durationMinutes.roundToInt())
+                }
+                exactMinutes.add(step.durationMinutes)
                 out.add(
                     RouteSegment(
                         id = "seg-${out.size + 1}-${step.route?.id ?: step.kind.name}",
@@ -301,7 +381,7 @@ object TramRouter {
                         toStop = toStop,
                         stopIds = listOf(step.fromStopId, step.toStopId),
                         stopsCount = 1,
-                        durationMinutes = step.durationMinutes,
+                        durationMinutes = initialMin,
                         directionNote = note
                     )
                 )
@@ -412,14 +492,14 @@ object TramRouter {
         var tramMins = 0f
         var transitMins = 0f
         var walkMins = 0f
-        for (s in steps) {
+            for (s in steps) {
             when (s.kind) {
                 SegmentKind.TRAM -> {
-                    if (isCityTransitRoute(s.route)) transitMins += s.durationMinutes
-                    else tramMins += s.durationMinutes
+                    if (isCityTransitRoute(s.route)) transitMins += s.durationMinutes.toFloat()
+                    else tramMins += s.durationMinutes.toFloat()
                 }
-                SegmentKind.WALK -> walkMins += s.durationMinutes
-                SegmentKind.FALLBACK_TRANSIT -> transitMins += s.durationMinutes
+                SegmentKind.WALK -> walkMins += s.durationMinutes.toFloat()
+                SegmentKind.FALLBACK_TRANSIT -> transitMins += s.durationMinutes.toFloat()
             }
         }
         val total = tramMins + transitMins + walkMins
@@ -489,7 +569,7 @@ object TramRouter {
             val usedRouteIds = HashSet<String>()
             var currId = startStop.id
             var currRouteId: String? = null
-            var totalDuration = 0
+            var totalDuration = 0.0
             var transfers = 0
             val exploreMode = attempt % 4
 
@@ -619,6 +699,21 @@ object TramRouter {
                     }
                 }
 
+                var legWait = 0
+                if (chosen.kind != SegmentKind.WALK) {
+                    val isFirstTransit = steps.none { it.kind != SegmentKind.WALK }
+                    val isNewRoute = isFirstTransit ||
+                        chosen.kind == SegmentKind.FALLBACK_TRANSIT ||
+                        (chosen.kind == SegmentKind.TRAM && currRouteId != null && chosen.route?.id != currRouteId)
+                    if (isNewRoute) {
+                        legWait = estimateTransitWaitMinutes(chosen.route, isFirstTransit, weatherMode)
+                    }
+                }
+
+                if (steps.size >= 2 && totalDuration + chosen.durationMinutes + legWait > maxMins + 6.0) {
+                    break
+                }
+
                 if (chosen.kind == SegmentKind.TRAM && currRouteId != null && chosen.route?.id != currRouteId) {
                     transfers++
                 }
@@ -633,7 +728,7 @@ object TramRouter {
                         distanceKm = chosen.distanceKm
                     )
                 )
-                totalDuration += chosen.durationMinutes
+                totalDuration += chosen.durationMinutes + legWait
                 if (chosen.kind == SegmentKind.TRAM && chosen.route != null) {
                     currRouteId = chosen.route.id
                     usedRouteIds.add(chosen.route.id)
@@ -712,16 +807,22 @@ object TramRouter {
             if (preferSpecialFleet) {
                 score += tramSegs.count { it.route?.type == "retro" || it.route?.type == "chizhik" } * 35.0
             }
-            score += if (totalDuration in minMins..maxMins) {
-                35.0
-            } else {
-                -abs(totalDuration - (minMins + maxMins) / 2.0) * 0.65
+            val transitLegs = segs.filter { it.kind == SegmentKind.TRAM || it.kind == SegmentKind.FALLBACK_TRANSIT }
+            val assembledWait = transitLegs.mapIndexed { idx, seg ->
+                estimateTransitWaitMinutes(seg.route, idx == 0, weatherMode)
+            }.sum()
+            val assembledDuration = segs.sumOf { it.durationMinutes } + assembledWait
+
+            score += when {
+                assembledDuration in minMins..maxMins -> 45.0
+                assembledDuration > maxMins -> -(assembledDuration - maxMins) * 3.5
+                else -> -abs(assembledDuration - (minMins + maxMins) / 2.0) * 0.65
             }
             candidates.add(
                 CandidateWalk(
                     steps = steps,
                     score = score,
-                    duration = totalDuration,
+                    duration = assembledDuration,
                     walkRatio = actualShares.walk,
                     distinctLines = distinctTramRoutes,
                     signature = getStepsSignature(steps)
@@ -787,7 +888,8 @@ object TramRouter {
             timeMinutes = timeMinutes,
             allowFallbackTransit = effectiveIsolatedFallback,
             maxWalkKm = maxWalkKm,
-            allowCityTransit = allowCityTransit
+            allowCityTransit = allowCityTransit,
+            weatherMode = weatherMode
         )
 
         if (activeRoutes.isEmpty() && balance.walk < 0.65f) {
@@ -864,7 +966,7 @@ object TramRouter {
                             preferVariety = true
                         )
                         if (!toNeighbor.isNullOrEmpty()) {
-                            val walkMins = maxOf(9, (distKm * 13.0).roundToInt())
+                            val walkMins = maxOf(10.0, estimateRealisticWalkMinutes(distKm, weatherMode) + 1.0)
                             val combined = toNeighbor + RawStep(
                                 fromStopId = candStop.id,
                                 toStopId = destStop.id,
@@ -933,7 +1035,7 @@ object TramRouter {
                         )
                         if (!tailToDest.isNullOrEmpty()) {
                             val fullSteps = d.steps + tailToDest
-                            val totalEst = fullSteps.sumOf { it.durationMinutes } + 10
+                            val totalEst = fullSteps.sumOf { it.durationMinutes }.roundToInt() + 10
                             if (totalEst <= deadlineBudget - 4) {
                                 pushAlt(
                                     fullSteps,
@@ -968,9 +1070,9 @@ object TramRouter {
         val rand = if (seed != null) Random(seed) else Random.Default
         var (minMins, maxMins) = durationRange(durationPreset)
         if (deadlineBudget != null) {
-            val buffer = minOf(20, maxOf(6, (deadlineBudget * 0.10).roundToInt()))
+            val buffer = minOf(26, maxOf(10, (deadlineBudget * 0.14).roundToInt()))
             maxMins = maxOf(24, deadlineBudget - buffer)
-            minMins = maxOf(16, (deadlineBudget * 0.66).roundToInt())
+            minMins = maxOf(16, (deadlineBudget * 0.62).roundToInt())
         }
 
         val candidates = runAdventureRollouts(
@@ -997,7 +1099,13 @@ object TramRouter {
             )
         }
 
-        val pool = candidates.take(minOf(3, candidates.size))
+        val eligiblePool = if (deadlineBudget != null) {
+            candidates.filter { it.duration <= deadlineBudget - 2 }.ifEmpty { candidates }
+        } else {
+            candidates
+        }
+
+        val pool = eligiblePool.take(minOf(3, eligiblePool.size))
         val pickedPrimary = pool[rand.nextInt(pool.size)]
 
         val selected = mutableListOf(
@@ -1082,7 +1190,8 @@ object TramRouter {
             timeMinutes = trip.timeMinutes,
             allowFallbackTransit = allowFallbackTransit,
             maxWalkKm = if (balance.walk >= 0.35f) 2.2 else 1.1,
-            allowCityTransit = allowCityTransit
+            allowCityTransit = allowCityTransit,
+            weatherMode = weatherMode
         )
         val rand = if (seed != null) Random(seed) else Random.Default
         val lastRouteId = trip.segments.lastOrNull()?.route?.id
@@ -1180,9 +1289,12 @@ object TramRouter {
             seg.copy(id = "seg-${idx + 1}-${seg.route?.id ?: seg.kind.name}")
         }
         val tramSegs = normalized.filter { it.kind == SegmentKind.TRAM }
+        val transitLegs = normalized.filter { it.kind == SegmentKind.TRAM || it.kind == SegmentKind.FALLBACK_TRANSIT }
         val transfers = maxOf(0, normalized.size - 1)
-        val tramWait = maxOf(0, tramSegs.size - 1) * 5
-        val totalDuration = normalized.sumOf { it.durationMinutes } + tramWait
+        val boardingAndTransferWait = transitLegs.mapIndexed { idx, seg ->
+            estimateTransitWaitMinutes(seg.route, idx == 0, weatherMode)
+        }.sum()
+        val totalDuration = normalized.sumOf { it.durationMinutes } + boardingAndTransferWait
 
         var walkKmRaw = 0.0
         for (seg in normalized) {

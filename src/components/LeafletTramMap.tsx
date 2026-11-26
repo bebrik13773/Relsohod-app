@@ -167,7 +167,7 @@ export function LeafletTramMap({
     };
   }, []);
 
-  // Use OpenStreetMap tiles (with CARTO dark/voyager fallback on tile error)
+  // Use OpenStreetMap tiles across all themes (dark mode applies subtle tile-pane invert filter)
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -176,18 +176,20 @@ export function LeafletTramMap({
       map.removeLayer(tileLayerRef.current);
     }
 
-    const primaryUrl =
-      theme === 'dark'
-        ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-        : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-    const fallbackUrl =
-      theme === 'dark'
-        ? 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
-        : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+    const tilePane = map.getPane('tilePane');
+    if (tilePane) {
+      tilePane.style.filter =
+        theme === 'dark'
+          ? 'invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.92)'
+          : '';
+    }
+
+    const primaryUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+    const fallbackUrl = 'https://tile.openstreetmap.de/{z}/{x}/{y}.png';
 
     let switchedToFallback = false;
     const layer = L.tileLayer(primaryUrl, {
-      subdomains: theme === 'dark' ? 'abcd' : 'abc',
+      subdomains: 'abc',
       maxZoom: 19,
     });
 
